@@ -566,6 +566,7 @@ function drawWorld(){
   { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [80,2600]) for(const sg of [-1,1]){ const cx=sg*(d*th+80), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
     for(let cj=Math.floor(z0/FC);cj<=Math.floor(z1/FC);cj++) for(let ci=Math.floor(x0/FC);ci<=Math.floor(x1/FC);ci++){
+      const cp=proj((ci+0.5)*FC,(cj+0.5)*FC); if(cp[1]<-80||cp[1]>2760||Math.abs(cp[0])>Math.max(0,cp[1])*th+240) continue;
       const f=featherAt(ci,cj); if(!f) continue; const p=proj(f.x,f.z); if(p[1]<80||p[1]>2600||Math.abs(p[0])>p[1]*th+80) continue; kd.push({f, cx:p[0], dz:p[1]}); } }
   if(flock) for(let i=0;i<BIRDS.length;i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
@@ -587,13 +588,13 @@ function drawWorld(){
     ys[NX+1]=lit/(NX+1); return ys; };
   ctx.lineCap='round';
   for(let bi=BANDS.length-1;bi>=0;bi--){
-    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), nb=b.n-bladeCut;
+    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
     // world-grid cells under this depth slice of the view
     let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [b.a,b.b]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+sp*4), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d;
       if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
     const i0=Math.floor(x0/sp)-1, i1=Math.ceil(x1/sp)+1, j0=Math.floor(z0/sp)-1, j1=Math.ceil(z1/sp)+1;
-    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
+    if(nb>0) for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
       let rx=i*sp-camPx, rz=j*sp-camPz, dz=rx*fwdX+rz*fwdZ; if(dz<b.a-sp||dz>b.b+sp) continue;
       let cx=rx*rgtX+rz*rgtZ; if(Math.abs(cx)>dz*tanH+sp*4) continue;
       const r=h2(i,j+bi*7919), r2=h2(i+31,j-bi*131);
@@ -907,9 +908,6 @@ function startSound(){
       palGain=actx.createGain(); palGain.gain.value=0; palGain.connect(master);
       palSrc=actx.createBufferSource(); palSrc.buffer=buf; palSrc.loop=true; palSrc.playbackRate.value=1.1; palSrc.connect(palGain); palSrc.start(0,1.29); })
     .catch(()=>{});
-  fetch('pad.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
-    .then(buf=>{ padBuf=buf; padGain=actx.createGain(); padGain.gain.value=0.7; padGain.connect(master); })
-    .catch(()=>{});
   fetch('flamingos.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
     .then(buf=>{ flamBuf=buf; flamGain=actx.createGain(); flamGain.gain.value=0; flamGain.connect(master); })
     .catch(()=>{});
@@ -930,11 +928,15 @@ function updateFlamSound(){
   flamGain.gain.setTargetAtTime(clamp(1.15-d/3000,0.04+0.1*clamp((7000-d)/3000,0,1),1)*leaving*0.9,t,0.3);
 }
 // Music: plays once, from the moment the flock is complete.
-let padBuf=null, padGain=null, padPlayed=false;
+// It is streamed, not decoded into memory, and only fetched once the flock is one flamingo short of complete.
+let padEl=null, padPlayed=false;
 function updateMusic(){
-  if(!padGain || padPlayed || !freeFly()) return;
-  padPlayed=true;
-  const src=actx.createBufferSource(); src.buffer=padBuf; src.connect(padGain); src.start(actx.currentTime+0.02);
+  if(!actx || !master || padPlayed) return;
+  if(!padEl && mates.length>=MATES_MAX-1){
+    padEl=new Audio('pad.mp3'); padEl.preload='auto';
+    try{ const g=actx.createGain(); g.gain.value=0.7; actx.createMediaElementSource(padEl).connect(g); g.connect(master); }catch(e){ padEl.volume=0.7; }
+  }
+  if(padEl && freeFly()){ padPlayed=true; const p=padEl.play(); if(p&&p.catch) p.catch(()=>{}); }
 }
 function updateRunSound(){
   if(!runGain) return;
