@@ -1,0 +1,1014 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>html{color-scheme:light}body{margin:0;font-size:14px}[hidden]{display:none!important}</style>
+<title>Flamingo Fields</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* Layout: one full-bleed painted scene; a quiet title top-left and a hint pill at the bottom, nothing else. */
+:root{
+  --sky-deep:#1f7f8c;
+  --sky-warm:#f7d894;
+  --wheat:#d9a531;
+  --wheat-shade:#7a4c0e;
+  --ink:#3a2a12;
+  --paper:#fff6dc;
+  --font-display:"Klee One","Hiragino Maru Gothic ProN","Trebuchet MS",sans-serif;
+  color-scheme:light;
+}
+html,body{height:100%}
+body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-display);overflow:hidden}
+#stage{position:relative;width:100%;height:100%}
+#field{display:block;width:100%;height:100%;touch-action:none;outline:none;cursor:crosshair}
+#field:focus-visible{box-shadow:inset 0 0 0 3px var(--paper)}
+.name{position:absolute;left:20px;top:16px;margin:0;font-size:1.5rem;font-weight:600;letter-spacing:.04em;color:var(--paper);text-shadow:0 1px 10px rgba(20,70,80,.55);pointer-events:none}
+.hint{position:absolute;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);max-width:calc(100% - 32px);box-sizing:border-box;margin:0;padding:8px 16px;border-radius:18px;background:rgba(58,42,18,.62);color:var(--paper);font-size:.95rem;text-align:center;pointer-events:none;transition:opacity .8s}
+.hint.gone{opacity:0}
+.snd{position:absolute;right:16px;top:14px;padding:7px 14px;border:0;border-radius:999px;background:rgba(58,42,18,.55);color:var(--paper);font:inherit;font-size:.9rem;cursor:pointer}
+.snd:hover{background:rgba(58,42,18,.75)}
+.snd:focus-visible{outline:2px solid var(--paper);outline-offset:2px}
+.snd:disabled{opacity:.6;cursor:default}
+.hint b{font-weight:600;color:var(--sky-warm)}
+</style>
+
+</head>
+<body>
+<div id="stage">
+  <canvas id="field" tabindex="0" aria-label="Two kids running through a windy golden field. Use the arrow keys or WASD to steer."></canvas>
+  <h1 class="name">Flamingo Fields</h1>
+  <button class="snd" id="sound" type="button" aria-pressed="true">Sound on</button>
+  <p class="hint" id="hint"><span id="hintText"></span></p>
+</div>
+
+<script>
+(function(){
+"use strict";
+const cv = document.getElementById('field');
+const ctx = cv.getContext('2d');
+const hint = document.getElementById('hint');
+const touchy = matchMedia('(pointer: coarse)').matches;
+document.getElementById('hintText').innerHTML = touchy
+  ? 'Drag to run &middot; tap to <b>hop</b> &middot; collect <b>10 feathers</b>, then tap twice to <b>fly</b>'
+  : 'Click the field, then <b>WASD</b> or arrows to run &middot; <b>Shift</b> sprints &middot; <b>Space</b> hops &middot; collect <b>10 feathers</b>, then jump twice to <b>fly</b>';
+const calm = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.4 : 1;
+
+/* ---------- helpers ---------- */
+function h2(i,j){ let n = (Math.imul(i,374761393) + Math.imul(j,668265263))|0; n = Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967296; }
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+function mix(a,b,t){ return 'rgb('+((a[0]+(b[0]-a[0])*t)|0)+','+((a[1]+(b[1]-a[1])*t)|0)+','+((a[2]+(b[2]-a[2])*t)|0)+')'; }
+function rng(seed){ let s=seed>>>0; return ()=>{ s=(Math.imul(s,1664525)+1013904223)>>>0; return s/4294967296; }; }
+
+/* ---------- view ---------- */
+let W=0,H=0,DPR=1,horizon=0,focal=0;
+const CAM_H=90, CAM_BACK=440;
+let dprCap=2, bladeCut=0, slow=0; // quality steps down by itself on slower devices
+function resize(){
+  const r = cv.getBoundingClientRect();
+  DPR = Math.min(window.devicePixelRatio||1, dprCap);
+  W = Math.max(200, r.width); H = Math.max(200, r.height);
+  cv.width = Math.round(W*DPR); cv.height = Math.round(H*DPR);
+  horizon = H*0.5; focal = H*0.9;
+}
+new ResizeObserver(resize).observe(cv); resize();
+
+/* ---------- world state (y = height above ground, ready for flying later) ---------- */
+function makeKid(x,z,shirt,hair){ return {x,z,y:0,vx:0,vz:0,vy:0,phase:0,run:0,fx:0,fz:1,sprint:0,hopAt:-1,shirt,hair}; }
+const kids = [ makeKid(0,0,'#f3efe6','#3b2416'), makeKid(40,-10,'#c8442f','#2a1a12') ];
+const lead = kids[0], pal = kids[1];
+let headX=0, headZ=1;
+// Camera: orbits a focus point near the lead kid and slowly swings round to sit behind their heading.
+let focX=0, focZ=0, camYaw=0, inputYaw=0, lastSig='', camPx=0, camPz=-CAM_BACK, fwdX=0, fwdZ=1, rgtX=1, rgtZ=0;
+const WIND_X=1, WIND_Z=0, SUN_B=0.64;
+// Terrain: wide rolling swells. ground() returns the height and leaves the slope in gSlopeX / gSlopeZ.
+let gSlopeX=0, gSlopeZ=0, camY=CAM_H;
+const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);
+function ground(x,z){
+  const a=x*0.0019+0.5, b=z*0.0023+1.1, c=(x*0.8+z*0.6)*0.0041, sa=Math.sin(a), sb=Math.sin(b), cc=Math.cos(c);
+  gSlopeX=90*0.0019*Math.cos(a)*sb+30*0.8*0.0041*cc; gSlopeZ=90*0.0023*sa*Math.cos(b)+30*0.6*0.0041*cc;
+  return 90*sa*sb+30*Math.sin(c);
+}
+function windR(){ return WIND_X*rgtX+WIND_Z*rgtZ; }
+function proj(x,z){ const rx=x-camPx, rz=z-camPz; return [rx*rgtX+rz*rgtZ, rx*fwdX+rz*fwdZ]; }
+function bearingX(th){ let d=th-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); return Math.abs(d)>1.4?null:W/2+focal*Math.tan(d); }
+let time=0;
+// Time of day. One full turn takes DAY_LEN seconds: a long golden evening, a minute of dusk, a moonlit night, a minute of dawn.
+const DAY_LEN=480, EVENING=180, DUSK=60, NIGHT_LEN=180;
+let night=0, dayOffset=0;
+function updateNight(){
+  const p=(((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN, sm=t=>{ t=clamp(t,0,1); return t*t*(3-2*t); };
+  night = p<EVENING ? 0 : p<EVENING+DUSK ? sm((p-EVENING)/DUSK) : p<EVENING+DUSK+NIGHT_LEN ? 1 : 1-sm((p-EVENING-DUSK-NIGHT_LEN)/(DAY_LEN-EVENING-DUSK-NIGHT_LEN));
+}
+const NSTARS=[], RIDGE=new Float32Array(512), GLOWS=[];
+// Feathers: collect NEED of them, then jump again in mid-air to fly for FLY_TIME seconds.
+const NEED=10, FLY_TIME=10, FC=220, got=new Set();
+let feathers=0, flightLeft=0, lastGot=-9, lift=0, camBack=CAM_BACK;
+// Flamingos: a flock of ten crosses the sky once a minute. Fly close and the kids fall in with them;
+// while they are with the flock the flight clock stops.
+const FLOCK_EVERY=60, FLOCK_SPEED=230, FLOCK_FIRST=30;
+let flock=null, nextFlock=FLOCK_FIRST;
+const FLOCK_FAR=8500, FLOCK_NEAR=2700;   // they appear and vanish at FLOCK_FAR; within FLOCK_NEAR they slow to cruising speed and can be joined
+const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*80,-r*60]); if(r<=4) BIRDS.push([r*80,-r*60]); }
+const BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
+// Your own flock: fly a good part of a pass with the wild flamingos and one of them stays with you,
+// walking through the grass beside the kids and taking to the air when they do.
+const MATES_MAX=5, PASS_NEEDED=8, mates=[];
+const freeFly=()=>mates.length>=MATES_MAX;   // with a full flock the kids fly whenever they like, for as long as they like
+let mateMsgT=-99;
+function addMate(x,z,y,hx,hz){
+  mates.push({x,z,y,open:y>6?1:0,vx:hx*200,vz:hz*200,vy:0,hx,hz,ph:h2(mates.length*5+2,9)*6.28,id:50+mates.length,wp:0,sp:0});
+}
+function updateMates(dt){
+  const air=lead.fly||lead.y>30;
+  mates.forEach((m,i)=>{
+    // a place behind the kids, two abreast, wider and looser in the air
+    const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
+    const back=(air?80:85)+row*(air?60:52), lat=side*((air?75:58)+row*(air?55:26))+wob;
+    const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
+    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?540:400,d*2.2), e=1-Math.exp(-dt*3.5);
+    m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
+    m.x+=m.vx*dt; m.z+=m.vz*dt;
+    const sp=m.sp=Math.hypot(m.vx,m.vz);
+    if(sp>15){ const eh=1-Math.exp(-dt*5); m.hx+=(m.vx/sp-m.hx)*eh; m.hz+=(m.vz/sp-m.hz)*eh; const hm=Math.hypot(m.hx,m.hz)||1; m.hx/=hm; m.hz/=hm; }
+    m.wp+=dt*(2+sp*0.035)*(sp>10?1:0);
+    // in the air with the kids, down in the grass otherwise; a bird left far behind flies to catch up
+    const tgt=(air||d>900)?Math.max(40,(air?lead.y:120)+12+row*10):0;
+    m.open=clamp((m.open||0)+(tgt>0?dt/0.9:(m.y<28?-dt/0.8:0)),0,1);
+    m.vy+=((tgt-m.y)*3-m.vy*2.8)*dt; m.y=Math.max(0,m.y+m.vy*dt); if(tgt===0&&m.y<1.5){ m.y=0; m.vy=0; }
+  });
+}
+function spawnFlock(){
+  // a line that crosses a little ahead of the kids, from one side of the view to the other
+  const side=h2(Math.floor(time),7)<0.5?-1:1, ang=Math.atan2(headX,headZ)+side*(1.25+0.4*h2(Math.floor(time),11));
+  const dx=Math.sin(ang), dz=Math.cos(ang), px=lead.x+headX*900, pz=lead.z+headZ*900;
+  flock={x:px-dx*FLOCK_FAR, z:pz-dz*FLOCK_FAR, dx, dz, y:430, t:0, s:-FLOCK_FAR, joined:false, sp:560, withKids:0, done:false};
+}
+function updateFlock(dt){
+  if(!flock){ if(time>=nextFlock){ spawnFlock(); nextFlock=time+FLOCK_EVERY; } return; }
+  const f=flock; f.t+=dt;
+  if(f.s>FLOCK_NEAR){ f.sp=Math.min(560,f.sp+90*dt); f.y+=45*dt; }          // pass over: they climb away and can't be followed
+  else { f.y=430+Math.sin(f.t*0.5)*18;                                      // coming in fast from the horizon, easing down to cruising speed
+    const want=FLOCK_SPEED+clamp((-f.s-FLOCK_NEAR)/1500,0,1)*(560-FLOCK_SPEED); f.sp+=(want-f.sp)*(1-Math.exp(-dt*2)); }
+  f.s+=f.sp*dt;
+  f.x+=f.dx*f.sp*dt; f.z+=f.dz*f.sp*dt;
+  const d=Math.hypot(lead.x-(f.x-f.dx*95), lead.z-(f.z-f.dz*95)), was=f.joined;
+  if(lead.fly && f.s<FLOCK_NEAR){ if(d<340) f.joined=true; else if(d>560) f.joined=false; } else f.joined=false;
+  if(f.joined&&!was){ chime(7); chime(12); chime(16); }
+  if(f.joined) f.withKids+=dt;
+  if(f.s>=FLOCK_NEAR && !f.done){ f.done=true;                                     // end of the pass: if the kids flew with them long enough, one bird stays
+    if(f.withKids>=PASS_NEEDED && mates.length<MATES_MAX){ const o=BIRDS[BIRDS.length-1];
+      addMate(f.x+o[0]*f.dz+o[1]*f.dx, f.z-o[0]*f.dx+o[1]*f.dz, Math.max(60,f.y-ground(f.x,f.z)), f.dx, f.dz);
+      mateMsgT=time; [0,5,9,12].forEach((n,q)=>setTimeout(()=>chime(n),q*110)); } }
+  if(f.s>FLOCK_FAR+600) flock=null;                                         // by now they have faded into the haze
+}
+function featherAt(ci,cj){
+  if(got.has((ci+32768)*65536+(cj+32768))) return null;
+  if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
+  // a rare great feather: about one cell in eight hundred, worth a whole flight on its own
+  if(h2(ci*13+7,cj*11+3)<0.0012) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};
+  const rich=vnoise(ci/4,cj/4,555)>0.5;                       // feathers lie in loose patches and trails
+  if(h2(ci*5+3,cj*7-11)>(rich?0.42:0.1)) return null;
+  return {x:(ci+0.2+0.6*h2(ci+17,cj))*FC, z:(cj+0.2+0.6*h2(ci,cj+29))*FC, ph:h2(ci-3,cj+8), ci, cj};
+}
+let sunX=0, sunI=1; // the sun sits at a fixed bearing, so it slides across the view as the kids run sideways
+
+/* ---------- input ---------- */
+const keys = new Set();
+let stick = null, moved=false;
+addEventListener('keydown',e=>{
+  startSound();
+  const k=e.key.toLowerCase();
+  if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
+  if(k===' ' && !e.repeat){ spaceAt=performance.now(); hop(); }
+  keys.add(k);
+});
+addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); keys.delete(k);
+  if(k===' ' && freeFly() && performance.now()-spaceAt<230) land(); });   // a quick tap lands; holding still soars
+addEventListener('blur',()=>keys.clear());
+cv.addEventListener('pointerdown',e=>{ cv.focus(); startSound(); try{cv.setPointerCapture(e.pointerId);}catch(_){ } stick={id:e.pointerId,x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,t:performance.now(),far:0}; });
+cv.addEventListener('pointermove',e=>{ if(stick&&e.pointerId===stick.id){ stick.x=e.clientX; stick.y=e.clientY; stick.far=Math.max(stick.far,Math.hypot(stick.x-stick.x0,stick.y-stick.y0)); } });
+function endStick(e){ if(stick&&e.pointerId===stick.id){ if(stick.far<10 && performance.now()-stick.t<260){ if(lead.fly && freeFly()) land(); else hop(); } stick=null; } }
+cv.addEventListener('pointerup',endStick); cv.addEventListener('pointercancel',endStick);
+function hop(){
+  if(lead.fly) return;
+  if(lead.y===0){ lead.vy=240; pal.hopAt=time+0.16; }
+  else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
+}
+let flyStart=0, spaceAt=0;
+function land(){ if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
+
+/* ---------- update ---------- */
+function update(dt){
+  time+=dt;
+  let ix=0, iz=0, sprint=keys.has('shift');
+  if(keys.has('a')||keys.has('arrowleft')) ix-=1;
+  if(keys.has('d')||keys.has('arrowright')) ix+=1;
+  if(keys.has('w')||keys.has('arrowup')) iz+=1;
+  if(keys.has('s')||keys.has('arrowdown')) iz-=1;
+  let m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
+  if(stick){
+    const dx=stick.x-stick.x0, dy=stick.y-stick.y0, d=Math.hypot(dx,dy);
+    if(d>10){ const q=Math.min(1,d/70); ix=dx/d*q; iz=-dy/d*q; if(d>95) sprint=true; }
+  }
+  // Steering is always read against where the camera looks now, so holding left or right keeps the kids turning as the camera follows them round.
+  // Only a straight "back" keeps the direction it had when first pressed: the kids turn round once and run that way, instead of spinning on the spot.
+  { const back=iz<0 && Math.abs(ix)<-iz*0.5; if(back && lastSig!=='back') inputYaw=camYaw; lastSig=back?'back':'';
+    const yaw=back?inputYaw:camYaw, sn=Math.sin(yaw), cs=Math.cos(yaw), wx=ix*cs+iz*sn, wz=-ix*sn+iz*cs; ix=wx; iz=wz; }
+  if((ix||iz) && !moved){ moved=true; setTimeout(()=>hint.classList.add('gone'),6000); }
+
+  const idle=!(ix||iz);
+  if(lead.fly && idle){ ix=headX; iz=headZ; }            // keep gliding forward with no key held
+  let top = lead.fly?430:sprint?340:210;
+  // slower uphill, faster downhill
+  if(lead.fly && flock && flock.joined && idle){              // with the flock and hands off: settle into the gap behind the leader
+    const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-lead.x)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-lead.z)*1.2, m=Math.hypot(vx,vz)||1;
+    ix=vx/m; iz=vz/m; top=Math.min(540,m);
+  }
+  if(!lead.fly){ ground(lead.x,lead.z); top*=clamp(1-(gSlopeX*ix+gSlopeZ*iz)*1.5,0.7,1.3); }
+  const ease = 1-Math.exp(-dt*(lead.fly?1.7:7));
+  lead.vx += (ix*top-lead.vx)*ease; lead.vz += (iz*top-lead.vz)*ease;
+  lead.sprint += ((sprint&&(ix||iz)?1:0)-lead.sprint)*(1-Math.exp(-dt*6));
+  const ls=Math.hypot(lead.vx,lead.vz);
+  if(ls>25){ const e2=1-Math.exp(-dt*5); headX+=(lead.vx/ls-headX)*e2; headZ+=(lead.vz/ls-headZ)*e2; const hm=Math.hypot(headX,headZ)||1; headX/=hm; headZ/=hm; }
+
+  // the second kid runs alongside
+  const tx=lead.x-headX*14+headZ*36, tz=lead.z-headZ*14-headX*36;
+  const dx=tx-pal.x, dz=tz-pal.z, d=Math.hypot(dx,dz);
+  const want=Math.min(top*1.2, d*4.5);
+  const pe=1-Math.exp(-dt*6);
+  pal.vx += ((d>1?dx/d*want:0)-pal.vx)*pe; pal.vz += ((d>1?dz/d*want:0)-pal.vz)*pe;
+  pal.sprint += (lead.sprint-pal.sprint)*(1-Math.exp(-dt*4));
+  if(lead.fly){
+    if(!(flock&&flock.joined) && !freeFly()) flightLeft-=dt;
+    if(!pal.fly && time>=pal.flyAt){ pal.fly=true; pal.glide=false; }
+    if(flightLeft<=0){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } }   // time's up: glide back down
+  }
+  updateFlock(dt); updateMates(dt);
+  if(pal.hopAt>0 && time>=pal.hopAt){ pal.hopAt=-1; if(pal.y===0) pal.vy=225; }
+
+  for(const k of kids){
+    k.x+=k.vx*dt; k.z+=k.vz*dt;
+    const sp=Math.hypot(k.vx,k.vz);
+    k.run += (clamp(sp/200,0,1.3)-k.run)*(1-Math.exp(-dt*10));
+    k.phase += dt*(4+sp*0.05)*(sp>8?1:0);
+    if(sp>20){ const e3=1-Math.exp(-dt*(k.fly?3.5:9)); k.fx+=(k.vx/sp-k.fx)*e3; k.fz+=(k.vz/sp-k.fz)*e3; }
+    if(sp>30){ const ang=Math.atan2(k.vx,k.vz); let da=ang-(k.ang===undefined?ang:k.ang); da=Math.atan2(Math.sin(da),Math.cos(da)); k.ang=ang;
+      k.turn=(k.turn||0)+(clamp(da/Math.max(dt,0.004),-3,3)-(k.turn||0))*(1-Math.exp(-dt*5)); }
+    else k.turn=(k.turn||0)*Math.exp(-dt*4);
+    // remember how fast the ground has been rising; sprinting over a crest throws the kids into the air
+    const gh=ground(k.x,k.z), rate=(gh-(k.gh===undefined?gh:k.gh))/Math.max(dt,0.004); k.gh=gh;
+    k.climb=Math.max(rate,(k.climb||0)-70*dt);
+    if(k===lead && k.y===0 && k.vy===0 && lead.sprint>0.6 && k.climb>32 && rate<k.climb*0.3){ lead.vy=170+k.climb*1.5; pal.hopAt=time+0.16; k.climb=0; }
+    k.flyT=(k.flyT||0)+((k.fly?1:0)-(k.flyT||0))*(1-Math.exp(-dt*5));
+    if(k.fly){ const tgt=(k===lead?(flock&&flock.joined?clamp(flock.y-gh-25,120,720):keys.has(' ')?640:260):lead.y*0.92)+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
+    else if(k.y>0||k.vy>0){ k.vy-=(k.glide?240:720)*dt; if(k.glide&&k.vy<-150) k.vy=-150; k.y+=k.vy*dt; if(k.y<=0){k.y=0;k.vy=0;k.glide=false;} }
+    // pick up feathers within reach
+    if(k.y<55 && feathers<NEED){ const ci=Math.floor(k.x/FC), cj=Math.floor(k.z/FC);
+      for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
+        if(f && Math.hypot(f.x-k.x,f.z-k.z)<(f.big?64:46) && feathers<NEED){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
+          if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); } } } }
+  }
+  const ce=1-Math.exp(-dt*3.2);
+  focX+=(lead.x+lead.vx*0.12-focX)*ce; focZ+=(lead.z+lead.vz*0.12-focZ)*ce;
+  if(ls>40){ let dy=Math.atan2(headX,headZ)-camYaw; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); camYaw+=dy*(1-Math.exp(-dt*1.5)); }
+  fwdX=Math.sin(camYaw); fwdZ=Math.cos(camYaw); rgtX=fwdZ; rgtZ=-fwdX;
+  // in the air the camera pulls back, rises and tips down a little to show the hills from above
+  lift+=(clamp(lead.y/240,0,2.7)-lift)*(1-Math.exp(-dt*2.5)); camBack=CAM_BACK+Math.min(lift,1.4)*170; horizon=H*(0.5-0.1*Math.min(lift,1.7));
+  camPx=focX-fwdX*camBack; camPz=focZ-fwdZ*camBack;
+  { const gt=Math.max(ground(focX,focZ), ground(camPx,camPz)-15)+CAM_H+lead.y*0.85*Math.min(1,lift*1.6); camY+=(gt-camY)*(1-Math.exp(-dt*4)); }
+}
+
+/* ---------- sky ---------- */
+const cloudArt=[];
+function vnoise(x,y,sd){ const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy, ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy);
+  const a=h2(ix+sd,iy), b=h2(ix+1+sd,iy), c=h2(ix+sd,iy+1), d=h2(ix+1+sd,iy+1);
+  return a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy; }
+function fbm(x,y,sd){ return 0.5*vnoise(x,y,sd)+0.27*vnoise(x*2.1,y*2.1,sd+71)+0.15*vnoise(x*4.3,y*4.3,sd+173)+0.08*vnoise(x*8.7,y*8.7,sd+311); }
+// Torn, wind-swept clouds: a sheared noise field cut off at a threshold gives ragged banks with loose scraps.
+// Bodies are dusky mauve; edges facing the light (upper left) catch peach and cream. Edges are speckled, not smooth.
+const C_SH=[146,116,124], C_MID=[232,166,120], C_HI=[255,220,164];
+function paintCloud(seed,wisp,warm){
+  const CW=640, CH=240, c=document.createElement('canvas'); c.width=CW; c.height=CH; const g=c.getContext('2d'); const r=rng(seed);
+  const img=g.createImageData(CW,CH), px=img.data;
+  const dens=(x,y)=>{ const u=(x-320)/300, v=(y-125)/(wisp?52:105); return fbm((x+(CH-y)*0.8)/95, y/40, seed)-0.6+(0.5-u*u-v*v)*0.75; };
+  for(let y=0;y<CH;y++) for(let x=0;x<CW;x++){
+    const d=dens(x,y); if(d+(r()-0.5)*0.06<=0) continue;
+    const lit=0.45+(d-dens(x-13,y-11))*5-d*1.1+warm+(r()-0.5)*0.18;
+    const col=lit<0.42?C_SH:lit<0.74?C_MID:C_HI, i=(y*CW+x)*4;
+    px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=238;
+  }
+  g.putImageData(img,0,0); return c;
+}
+[0,0.06,0.3,-0.06].forEach((w,i)=>cloudArt.push(paintCloud(101+i*37,false,w)));
+[0.1,0.26,0].forEach((w,i)=>cloudArt.push(paintCloud(900+i*53,true,w)));
+const skyTex=(()=>{ const c=document.createElement('canvas'); c.width=320; c.height=160; const g=c.getContext('2d'), d=g.createImageData(320,160), p=d.data;
+  for(let y=0;y<160;y++) for(let x=0;x<320;x++){ const v=fbm((x+y*0.6)/70,y/9,4242)-0.5, i=(y*320+x)*4, l=v>0?255:20; p[i]=l; p[i+1]=v>0?244:70; p[i+2]=v>0?214:80; p[i+3]=Math.min(255,Math.abs(v)*2.6*255); }
+  g.putImageData(d,0,0); return c; })();
+const clouds=[]; { const r=rng(7), TAU=Math.PI*2;
+  for(let i=0;i<12;i++){ const v=0.4+r()*0.6; clouds.push({th:(i+r()*0.7)/12*TAU, v, k:0.45+r()*0.3+v*0.45, art:i%4, drift:4+r()*5}); }
+  for(let i=0;i<16;i++){ clouds.push({th:r()*TAU, v:0.1+r()*0.85, k:0.3+r()*0.45, art:4+i%3, drift:7+r()*9}); }
+  clouds.sort((a,b)=>a.k-b.k); }
+
+// Far clouds and mountains lie beyond the edge of the field: how much of them clears the horizon depends on how high the camera is.
+// night-coloured copies of the clouds, used to put them back in front of the moon after the night grade
+let cloudArtNight=null;
+function nightClouds(){ return cloudArtNight||(cloudArtNight=cloudArt.map(c=>{ const n=document.createElement('canvas'); n.width=c.width; n.height=c.height; const g=n.getContext('2d');
+  g.drawImage(c,0,0); g.globalCompositeOperation='multiply'; g.fillStyle='rgb(104,130,200)'; g.fillRect(0,0,n.width,n.height); g.globalCompositeOperation='destination-in'; g.drawImage(c,0,0); return n; })); }
+// Where each cloud was drawn this frame, plus a small coverage map of every cloud picture, so stars can be hidden behind them.
+const CLOUD_RECTS=[]; let cloudMask=null;
+function cloudMasks(){ return cloudMask||(cloudMask=cloudArt.map(c=>{ const n=document.createElement('canvas'); n.width=160; n.height=60; const g=n.getContext('2d'); g.drawImage(c,0,0,160,60);
+  const d=g.getImageData(0,0,160,60).data, m=new Uint8Array(9600); for(let i=0;i<9600;i++) m[i]=d[i*4+3]>90?1:0; return m; })); }
+function behindCloud(x,y){ const M=cloudMasks();
+  for(let i=0;i<CLOUD_RECTS.length;i+=5){ const u=(x-CLOUD_RECTS[i])/CLOUD_RECTS[i+2], v=(y-CLOUD_RECTS[i+1])/CLOUD_RECTS[i+3];
+    if(u>=0&&u<1&&v>=0&&v<1&&M[CLOUD_RECTS[i+4]][Math.floor(v*60)*160+Math.floor(u*160)]) return true; }
+  return false; }
+function drawClouds(list,drop,sc=1,vs=1,art=cloudArt){
+  if(art===cloudArt) CLOUD_RECTS.length=0;
+  for(const c of list){
+    const w=640*c.k*(H/620)*sc, h=240*c.k*(H/620)*sc;
+    const x=bearingX(c.th-time*c.drift*c.k*0.0015*calm); if(x===null||x<-w||x>W+w) continue;
+    const cy=horizon-H*0.5*(1-c.v*vs)+Math.min(lift,1.7)*H*0.01-h*0.6+drop; if(art===cloudArt) CLOUD_RECTS.push(x-w/2,cy,w,h,c.art);
+    ctx.drawImage(art[c.art], x-w/2, cy, w, h);   // clouds keep their height over the horizon and lift a little more as the kids climb
+  }
+}
+function drawSky(){
+  const g=ctx.createLinearGradient(0,0,0,horizon);
+  g.addColorStop(0,'#2a8a88'); g.addColorStop(0.4,'#4fa999'); g.addColorStop(0.76,'#93c79e'); g.addColorStop(1,'#f0d898');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,horizon+2);
+  NSTARS.length=0;
+  if(night>0.02) for(let i=0;i<340;i++){ const x=bearingX(h2(i,1)*6.283); if(x===null||x<0||x>W) continue; const v=h2(i,2), r=0.7+1.5*h2(i,3)*h2(i,3);
+    NSTARS.push(x, horizon*(0.02+0.93*v*v)-H*0.08*Math.min(lift,1.7), r, 0.7+0.3*Math.sin(time*2+i)); }
+  // warm drift toward the sun side, then long horizontal brush streaks
+  const wg=ctx.createLinearGradient(sunX-W*0.9,0,sunX,0); wg.addColorStop(0.3,'rgba(255,196,120,0)'); wg.addColorStop(1,'rgba(255,186,112,.42)');
+  ctx.globalAlpha=sunI; ctx.fillStyle=wg; ctx.fillRect(0,0,W,horizon+2); ctx.globalAlpha=1;
+  ctx.globalCompositeOperation='soft-light'; ctx.globalAlpha=0.55; ctx.drawImage(skyTex,0,0,W,horizon+2); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+  const sx=sunX, sr=Math.max(W,H)*0.8;
+  const s=ctx.createRadialGradient(sx,horizon,0,sx,horizon,sr);
+  s.addColorStop(0,'rgba(255,240,180,.95)'); s.addColorStop(0.1,'rgba(255,200,105,.62)'); s.addColorStop(0.4,'rgba(255,160,80,.2)'); s.addColorStop(1,'rgba(255,160,80,0)');
+  ctx.globalAlpha=sunI; ctx.fillStyle=s; ctx.fillRect(0,0,W,horizon+2); ctx.globalAlpha=1;
+}
+
+/* ---------- ground + grass ---------- */
+const HAZE=[244,224,150], DEEP=[104,62,10];
+const BLADE=[[136,86,14],[176,120,22],[212,158,38],[238,192,66],[255,226,122]];
+const BANDS=[
+  {a:95,  b:520, sp:13, lw:1,   n:3,fill:true},
+  {a:520, b:1100,sp:26, lw:1.7, n:3,fill:true},
+  {a:1100,b:2000,sp:52, lw:2.8, n:3,fill:false},
+  {a:2000,b:3800,sp:104,lw:4.4, n:3,fill:false},
+  {a:3800,b:7600,sp:208,lw:7,   n:2,fill:false},
+  {a:7600,b:15200,sp:416,lw:12, n:1,fill:false}];
+const FAR=3800;
+
+function drawGround(){
+  const g=ctx.createLinearGradient(0,horizon,0,H);
+  g.addColorStop(0,'#f2dd98'); g.addColorStop(0.1,'#dcb24a'); g.addColorStop(0.45,'#a8721c'); g.addColorStop(1,'#6e430c');
+  ctx.fillStyle=g; ctx.fillRect(0,horizon,W,H-horizon);
+  const hz=ctx.createLinearGradient(0,horizon-H*0.05,0,horizon+H*0.05);
+  hz.addColorStop(0,'rgba(250,228,165,0)'); hz.addColorStop(0.5,'rgba(250,228,165,.8)'); hz.addColorStop(1,'rgba(250,228,165,0)');
+  ctx.fillStyle=hz; ctx.fillRect(0,horizon-H*0.05,W,H*0.1);
+}
+
+/* ---------- distant ranges: layers of rounded blue-green hills beyond the field, paler the farther they are ---------- */
+// Each range is a ridge line around the whole compass, built from a few sine waves so it joins up with itself.
+const RANGES=[
+  {base:20,amp:56,rise:15,col:[88,150,164], ks:[6,10,15,25],ph:[2.1,0.4,3.3,5.0]},
+  {base:10,amp:42,rise:8, col:[58,126,126], ks:[7,11,17,29],ph:[4.4,2.8,0.9,1.3]},
+  {base:2, amp:30,rise:3, col:[54,114,88],  ks:[9,14,19,31],ph:[1.2,5.1,2.6,3.9]}];
+function drawMountains(){
+  const q=H/650, up=clamp((camY-CAM_H)/550,-0.2,1), y0=horizon+4, sunSide=sunX>=W/2?1:-1;   // climbing lets the farther ranges show over the nearer ones
+  RIDGE.fill(y0);
+  for(const R of RANGES){
+    const p=new Path2D(); p.moveTo(-40,y0);
+    for(let x=-40;x<=W+48;x+=8){
+      const th=camYaw+Math.atan((x-W/2)/focal);
+      const n=0.45*Math.sin(R.ks[0]*th+R.ph[0])+0.3*Math.sin(R.ks[1]*th+R.ph[1])+0.17*Math.sin(R.ks[2]*th+R.ph[2])+0.08*Math.sin(R.ks[3]*th+R.ph[3]);
+      const yy=y0-(R.base+R.amp*Math.pow(0.5+0.5*n,1.6)*1.3+R.rise*up)*q, ri=Math.min(511,(x+40)>>3); if(yy<RIDGE[ri]) RIDGE[ri]=yy;
+      p.lineTo(x, yy);
+    }
+    p.lineTo(W+48,y0); p.closePath();
+    const top=y0-(R.base+R.amp+R.rise)*q, g=ctx.createLinearGradient(0,top,0,y0);
+    g.addColorStop(0,mix(R.col,[30,60,80],0.12)); g.addColorStop(0.6,mix(R.col,HAZE,0.1)); g.addColorStop(1,mix(R.col,HAZE,0.5));   // feet dissolve into the haze
+    ctx.fillStyle=g; ctx.fill(p);
+    // sunlit faces: the same shape slid toward the sun, leaving the far flanks in shade
+    ctx.save(); ctx.clip(p); ctx.translate(sunSide*16*q,8*q); ctx.globalAlpha=0.5; ctx.fillStyle=mix(R.col,[232,226,150],0.42); ctx.fill(p); ctx.restore();
+  }
+}
+
+/* ---------- hazy groves along the horizon (never reachable, like the far edge of the field) ---------- */
+const G_SH=[78,98,58], G_MID=[112,130,66], G_HI=[168,170,88];
+function paintGrove(seed){
+  const GW=200, GH=70, c=document.createElement('canvas'); c.width=GW; c.height=GH; const g=c.getContext('2d'), img=g.createImageData(GW,GH), px=img.data, r=rng(seed);
+  const dens=(x,y)=>{ const u=(x-100)/92, v=(GH-y)/58; return fbm(x/20,y/13,seed)*0.55+(1-u*u-v*v*1.1)*0.8-0.6; };
+  for(let y=0;y<GH;y++) for(let x=0;x<GW;x++){
+    const d=dens(x,y); if(d+(r()-0.5)*0.07<=0) continue;
+    const lit=0.42+(d-dens(x+6,y-6))*4.5-d*0.5+(r()-0.5)*0.2;
+    const col=lit<0.4?G_SH:lit<0.72?G_MID:G_HI, i=(y*GW+x)*4;
+    px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=y>GH-6?255*(GH-y)/6:235;
+  }
+  g.putImageData(img,0,0); return c;
+}
+const groveArt=[11,23,37,51].map(paintGrove);
+const groves=[]; { const r=rng(31); for(let i=0;i<11;i++) groves.push({th:(i+r()*0.8)/11*Math.PI*2, k:0.55+r()*0.95, art:i%4}); }
+function drawTreeline(){
+  const q=H/650;
+  ctx.globalAlpha=0.92;
+  for(const gv of groves){
+    const w=200*gv.k*q, h=56*gv.k*q, x=bearingX(gv.th); if(x===null||x<-w||x>W+w) continue;
+    ctx.drawImage(groveArt[gv.art], x-w/2, horizon+4-h, w, h);
+  }
+  ctx.globalAlpha=1;
+}
+
+/* ---------- the kids: jointed figures posed in 3D and flattened to the camera, so one rig covers every angle ---------- */
+const SKIN='#eeb98c', EYE='#2b2220';
+const LOOKS={
+  lead:{hair:'#1f1b1e',hi:'#e8842c',shirt:'#dcd5c2',shade:'#a39e8e',trim:'#6b4a2a',bottom:'#3b4547',belt:'#7a5230',shoe:'#4a3424',skirt:true, spike:5.5,size:1.15},
+  pal: {hair:'#2f2a22',hi:'#ead6a2',shirt:'#bd4431',shade:'#8a2d23',trim:'#8a2d23',bottom:'#d9d6cb',belt:null,     shoe:'#b3312a',skirt:false,spike:3.5,size:1}};
+// Each kid is painted flat into a small buffer, then given the same treatment as the clouds:
+// edges broken into dry-brush speckle, colour split into shadow / body / highlight patches lit from the sun side,
+// and the speckle pattern swapped a few times a second so the figures "boil" like hand-painted frames.
+const KBW=264, KBH=236, KS=2.2;
+const kcv=document.createElement('canvas'); kcv.width=KBW; kcv.height=KBH; const kctx=kcv.getContext('2d',{willReadFrequently:true});
+const kout=document.createElement('canvas'); kout.width=KBW; kout.height=KBH; const koutx=kout.getContext('2d'); const kimg=koutx.createImageData(KBW,KBH);
+const KBOIL=[0,1,2].map(f=>{ const r=rng(77+f*13), off=new Int32Array(KBW*KBH), tone=new Float32Array(KBW*KBH);
+  for(let y=0;y<KBH;y++) for(let x=0;x<KBW;x++){ const i=y*KBW+x;
+    const dx=Math.round((vnoise(x/5,y/5,300+f*40)-0.5)*2.8+(r()-0.5)*1.1), dy=Math.round((vnoise(x/5,y/5,700+f*40)-0.5)*2.8+(r()-0.5)*1.1);
+    off[i]=(Math.min(KBH-1,Math.max(0,y+dy))*KBW+Math.min(KBW-1,Math.max(0,x+dx)))*4;
+    tone[i]=fbm((x+y*0.5)/34,y/20,900+f*7)+(r()-0.5)*0.2; }
+  return {off,tone}; });
+function drawKid(k,sx,sy,s){
+  const L=LOOKS[k===lead?'lead':'pal'], run=Math.min(1,k.run), sun=sunX>=sx?1:-1;
+  paintKid(kctx,k,sx);
+  const src=kctx.getImageData(0,0,KBW,KBH).data, out=kimg.data, B=KBOIL[k===lead?0:1], off=B.off, tone=B.tone;
+  for(let y=0,i=0;y<KBH;y++){ const vy=(KBH*0.45-y)/KBH*0.3; for(let x=0;x<KBW;x++,i++){
+    const j=off[i], o=i*4;
+    if(src[j+3]<128){ out[o+3]=0; continue; }
+    const v=tone[i]+(x-KBW/2)/KBW*sun*1.1+vy;
+    let r=src[j], g=src[j+1], b=src[j+2];
+    if(v<0.37){ r*=0.86; g*=0.81; b*=0.87; } else if(v>0.72){ r=r*1.05+8; g=g*1.04+6; b=b*0.99+2; }
+    out[o]=r; out[o+1]=g; out[o+2]=b; out[o+3]=255;
+  } }
+  koutx.putImageData(kimg,0,0);
+  const sc=s*L.size/KS;
+  ctx.drawImage(kout, sx-KBW/2*sc, sy-(k.y+Math.abs(Math.sin(k.phase))*3.5*run)*s-(KBH-12)*sc, KBW*sc, KBH*sc);
+}
+function paintKid(ctx,k,sx){
+  const L=LOOKS[k===lead?'lead':'pal'];
+  let cfx=k.fx*rgtX+k.fz*rgtZ, cfz=k.fx*fwdX+k.fz*fwdZ; { const m=Math.hypot(cfx,cfz)||1; cfx/=m; cfz/=m; }
+  const run=Math.min(1,k.run), ph=k.phase, air=k.y>2, away=cfz>0.3, ft=k.flyT||0, lean=(0.2*run+0.1*k.sprint)*(1-ft), acz=Math.abs(cfz);
+  // flying: the body lies forward about the hips, nose down in a dive and up in a climb
+  const pitch=ft*clamp(1.05-k.vy/260,0.6,1.3), cp=Math.cos(pitch), spn=Math.sin(pitch);
+  // body space: lat = to the kid's right, fwd = the way they face, up. Returns [screen x, screen y, depth].
+  const P=(lat,fwd,up)=>{ if(up>26) fwd+=lean*(up-26); const u=up-27, f2=fwd*cp+u*spn, u2=u*cp-fwd*spn; return [lat*cfz+f2*cfx, -(27+u2), -lat*cfx+f2*cfz]; };
+  const line=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); };
+  const part=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,KBW,KBH); ctx.save(); ctx.translate(KBW/2,KBH-12); ctx.scale(KS,KS); ctx.lineCap='round'; ctx.lineJoin='round';
+  // bank into turns: a little when running, a lot when flying
+  { const roll=clamp((k.turn||0)*(0.1+0.5*ft),-0.85,0.85)*cfz; ctx.translate(0,-34); ctx.rotate(roll); ctx.translate(0,34); }
+
+  const legs=[], arms=[], wing=Math.max(k.sprint, air?1:0);
+  for(const sd of [-1,1]){
+    const p=ph+(sd>0?Math.PI:0);
+    let th=Math.sin(p)*0.8*run+0.08*run, kn=(0.2+Math.max(0,Math.cos(p)))*run;
+    if(air){ th=sd*0.55; kn=0.9; }
+    if(ft>0){ th+=(sd*0.14*Math.sin(time*3+sd)-th)*ft; kn+=(0.1-kn)*ft; }   // flying: legs trail straight out behind
+    const kf=13*Math.sin(th), ku=27-13*Math.cos(th), ff=kf+13*Math.sin(th-kn), fu=ku-13*Math.cos(th-kn);
+    legs.push({h:P(sd*4,0,27), k:P(sd*4,kf,ku), f:P(sd*4,ff,fu), t:P(sd*4,ff+4,fu-0.5)});
+    const a=-Math.sin(p)*0.9*run, eb=0.2+1.3*run, fl=Math.sin(time*7+sd)*1.5;
+    let E=[sd*10,10*Math.sin(a),47-10*Math.cos(a)], Hd=[sd*10,E[1]+9*Math.sin(a+eb),E[2]-9*Math.cos(a+eb)];
+    const E2=[sd*18.5,-1,48], H2=[sd*27.5,-2,50+fl];
+    E=E.map((v,i)=>v+(E2[i]-v)*wing); Hd=Hd.map((v,i)=>v+(H2[i]-v)*wing);
+    arms.push({s:P(sd*8.5,0,47), e:P(E[0],E[1],E[2]), h:P(Hd[0],Hd[1],Hd[2])});
+  }
+  const drawLeg=g=>{ line([g.h,g.k,g.f],SKIN,5.6); if(!L.skirt) line([g.h,part(g.h,g.k,0.7)],L.bottom,8.5);
+    ctx.fillStyle=L.shoe; ctx.beginPath(); ctx.ellipse((g.f[0]+g.t[0])/2,(g.f[1]+g.t[1])/2+0.5,3.2+Math.abs(g.t[0]-g.f[0])*0.5,3.2,0,0,7); ctx.fill(); };
+  const drawArm=g=>{ line([g.s,g.e,g.h],SKIN,4.6); const cuff=part(g.s,g.e,0.75), wv=Math.sin(time*10+g.s[0])*calm; line([g.s,[cuff[0]+clamp(windR(),-1,1)*(1.2+0.8*wv),cuff[1]+0.8*wv]],L.shirt,7.5); ctx.fillStyle=SKIN; ctx.beginPath(); ctx.arc(g.h[0],g.h[1],2.9,0,7); ctx.fill(); };
+
+  const hip=P(0,0,27), sh=P(0,0,49), hw=6.5+3*acz, sun=sunX>=sx?1:-1;
+  const hc=P(0,0.5,61.5), hx=hc[0], hy=hc[1], R=12.5;
+  const drawLegs=()=>legs.sort((a,b)=>b.f[2]-a.f[2]).forEach(drawLeg);
+  // cloth: hems swing downwind (and back from the run) and ripple along their edge
+  const wx=clamp(windR()-cfx*run*0.8,-1.4,1.4), flap=i=>Math.sin(time*9+i*1.3+k.x*0.02)*calm;
+  const drawBottom=()=>{
+  if(L.skirt){
+    const sw=-cfx*run*2.5+Math.sin(ph*2)*0.8;
+    ctx.fillStyle=L.bottom; ctx.beginPath(); ctx.moveTo(hip[0]-hw-0.5,hip[1]-5); ctx.lineTo(hip[0]+hw+0.5,hip[1]-5); for(let j=0;j<=5;j++){ const t=j/5, dn=(wx>0?1-t:t); ctx.lineTo(hip[0]+(hw+5)*(1-2*t)+sw+wx*(3.2+1.6*flap(j))+wx*3*dn*(0.5+0.5*flap(9)), hip[1]+3+6*cp+1.3*flap(j*1.7+2)-Math.abs(wx)*1.5*dn); } ctx.closePath(); ctx.fill();
+  } else { ctx.fillStyle=L.bottom; ctx.beginPath(); ctx.roundRect(hip[0]-hw-0.5,hip[1]-6,hw*2+1,9,3); ctx.fill(); }
+  };
+  const drawBody=()=>{
+    drawBottom();
+  arms.filter(a=>a.e[2]>0.5).forEach(drawArm);
+  // shirt, with the side away from the sun in shade
+  ctx.fillStyle=ctx.strokeStyle=L.shirt; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(sh[0]-hw-1.5,sh[1]); ctx.lineTo(sh[0]+hw+1.5,sh[1]); for(let j=0;j<=4;j++){ const t=j/4, dn=(wx>0?1-t:t); ctx.lineTo(hip[0]+(hw+2.5)*(1-2*t)+wx*(2+1.1*flap(j+3))+wx*3.2*dn*dn*(0.55+0.45*flap(6)), hip[1]-4+1.1*flap(j*1.9)+0.8*Math.abs(wx)*flap(j+0.5)); } ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=L.shade; ctx.globalAlpha=0.6;
+  ctx.beginPath(); ctx.moveTo(sh[0]-sun*1,sh[1]-1); ctx.lineTo(sh[0]-sun*(hw+2.5),sh[1]-0.5); ctx.lineTo(hip[0]-sun*(hw+3.5),hip[1]-3); ctx.lineTo(hip[0]+sun*1,hip[1]-2.6); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  if(L.belt) line([[hip[0]-hw-1,hip[1]-4.6],[hip[0]+hw+1,hip[1]-4.6]],L.belt,2.6);
+  line([sh,[hx,hy+R-2]],SKIN,5);
+  ctx.strokeStyle=L.trim; ctx.lineWidth=1.9; ctx.beginPath();
+  if(away) ctx.arc(sh[0],sh[1]-2.2,4.2,0.15*Math.PI,0.85*Math.PI); else ctx.arc(sh[0]+cfx*2.5,sh[1]-2.6,4.6,0.05*Math.PI,0.95*Math.PI);
+  ctx.stroke();
+  arms.filter(a=>a.e[2]<=0.5).forEach(drawArm);
+  };
+  const drawHead=()=>{
+
+  // head: hair streams downwind and back from the run
+  let dx=windR()*1.0-cfx*run*0.7, dy=-0.28; { const m=Math.hypot(dx,dy)||1; dx/=m; dy/=m; }
+  const hb=P(0,-3.5,63), bx=away?hx:hb[0], by=(away?hy:hb[1])-0.5, a0=Math.atan2(dy,dx);
+  const hairMass=()=>{
+    ctx.fillStyle=L.hair; ctx.beginPath(); ctx.arc(bx,by,R+1.6,0,7); ctx.fill();
+    for(let i=0;i<7;i++){
+      const ai=a0+(i-3)*0.4, len=L.spike*(1+(i%3)*0.45)*(0.75+0.25*run), fl=Math.sin(time*9+i*1.9+k.x*0.01)*1.6*calm;
+      ctx.fillStyle=Math.sin(ai)<(L.skirt?-0.8:-0.5)?L.hi:L.hair;
+      ctx.beginPath(); ctx.moveTo(bx+Math.cos(ai-0.26)*(R+0.6),by+Math.sin(ai-0.26)*(R+0.6)); ctx.lineTo(bx+Math.cos(ai+0.26)*(R+0.6),by+Math.sin(ai+0.26)*(R+0.6));
+      ctx.lineTo(bx+Math.cos(ai)*(R+len)+dx*len*0.6-dy*fl, by+Math.sin(ai)*(R+len)+dy*len*0.6+dx*fl); ctx.closePath(); ctx.fill();
+    }
+  };
+  const face=()=>{ ctx.fillStyle=SKIN; ctx.beginPath(); ctx.arc(hx,hy,R,0,7); ctx.fill(); };
+  if(away){ face(); hairMass(); }
+  else {
+    hairMass(); face();
+    for(const sd of [-1,1]){
+      const e=P(sd*4.6,11,60.5), c=P(sd*7.2,9.4,56.6);
+      if(c[2]<3){ ctx.fillStyle='rgba(226,104,84,.34)'; ctx.beginPath(); ctx.ellipse(c[0],c[1],2.6*Math.max(0.45,acz),2.1,0,0,7); ctx.fill(); }
+      if(e[2]<2){ ctx.fillStyle=EYE; ctx.beginPath(); ctx.ellipse(e[0],e[1],1.7*Math.max(0.5,acz)+0.2,2.9,0,0,7); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(e[0]+0.6,e[1]-1,0.75,0,7); ctx.fill(); }
+    }
+    const mp=P(0,11.8,55); ctx.fillStyle='#8a3626'; ctx.beginPath(); ctx.ellipse(mp[0],mp[1],2.3*Math.max(0.4,acz),1.3+0.9*run,0,0,7); ctx.fill();
+    // fringe: a cap that slides toward the back of the head as the kid turns side-on
+    const rot=-cfx*0.95, cx=hx-cfx*2.2, cy=hy-1.2, s0=Math.PI*1.1+rot, s1=Math.PI*1.9+rot;
+    ctx.fillStyle=L.hair; ctx.beginPath(); ctx.arc(cx,cy,R+1.3,s0,s1); ctx.closePath(); ctx.fill();
+    const p0=[cx+Math.cos(s0)*(R+1.3),cy+Math.sin(s0)*(R+1.3)], p1=[cx+Math.cos(s1)*(R+1.3),cy+Math.sin(s1)*(R+1.3)];
+    ctx.beginPath(); for(let i=0;i<4;i++){ const a=part(p0,p1,i/4), b=part(p0,p1,(i+1)/4), m=part(p0,p1,(i+0.5)/4); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(m[0]+Math.sin(rot)*-3.4,m[1]+Math.cos(rot)*3.4); ctx.closePath(); } ctx.fill();
+  }
+  // the coloured top layer: orange streak on one kid, straw-blond crown on the other
+  ctx.fillStyle=L.hi; ctx.beginPath();
+  if(L.skirt) ctx.ellipse(bx+dx*4,by-R+1,5,1.9,Math.atan2(dy,dx)*0.4,0,7); else ctx.ellipse(bx+dx*2.5,by-R+2,8.5,3.2,0,0,7);
+  ctx.fill();
+  if(sunI>0.05){ ctx.strokeStyle='rgba(255,238,176,'+0.8*sunI+')'; ctx.lineWidth=1.3; ctx.beginPath(); const c0=sun>0?-0.2:Math.PI+0.2; ctx.arc(hx,hy,R+1.2,c0-0.75,c0+0.75); ctx.stroke(); }
+  };
+  // seen from behind while lying forward, the head is farthest away and the legs nearest
+  if(ft>0.5 && hc[2]>hip[2]+6){ drawHead(); drawBody(); drawLegs(); drawBottom(); }   // skirt and shorts go back on top so the trailing legs come out from under them
+  else { drawLegs(); drawBody(); drawHead(); }
+  ctx.restore();
+}
+
+const GSTOPS=[[0,[242,221,152]],[0.1,[220,178,74]],[0.45,[168,114,28]],[1,[110,67,12]]];
+function groundColor(v,k){
+  let i=1; while(i<GSTOPS.length-1 && v>GSTOPS[i][0]) i++;
+  const a=GSTOPS[i-1], b=GSTOPS[i], t=clamp((v-a[0])/(b[0]-a[0]),0,1);
+  return 'rgb('+((a[1][0]+(b[1][0]-a[1][0])*t)*k|0)+','+((a[1][1]+(b[1][1]-a[1][1])*t)*k|0)+','+((a[1][2]+(b[1][2]-a[1][2])*t)*k|0)+')';
+}
+function drawWorld(){
+  const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
+  { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+    for(const d of [80,2600]) for(const sg of [-1,1]){ const cx=sg*(d*th+80), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
+    for(let cj=Math.floor(z0/FC);cj<=Math.floor(z1/FC);cj++) for(let ci=Math.floor(x0/FC);ci<=Math.floor(x1/FC);ci++){
+      const f=featherAt(ci,cj); if(!f) continue; const p=proj(f.x,f.z); if(p[1]<80||p[1]>2600||Math.abs(p[0])>p[1]*th+80) continue; kd.push({f, cx:p[0], dz:p[1]}); } }
+  if(flock) for(let i=0;i<BIRDS.length;i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
+    if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
+  for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
+  kd.sort((a,b)=>b.dz-a.dz);
+  let ki=0;
+  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].dz>=depth){ const e=kd[ki++]; if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
+      if(m.y>6||m.open>0.03) drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open}, X, horizon+(camY-g-m.y-25)*s, s); else drawBirdWalk(m, X, horizon+(camY-g)*s, s); }
+    else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
+      const fade=1-clamp((e.dz-5200)/3300,0,1); if(fade<=0.01) continue;
+      ctx.globalAlpha=fade;
+      if(s<0.13) drawBirdFar(e.b,X,Y,s); else drawBird({hx:flock.dx,hz:flock.dz,ph:BIRD_PH[e.b],id:e.b,y:flock.y,tiny:true}, X, Y, s);
+      ctx.globalAlpha=1; }
+    else if(e.dz>60){ const s=focal/e.dz, o=e.k||e.f, sy=horizon+(camY-ground(o.x,o.z))*s; if(e.k) drawKid(e.k, W/2+e.cx*s, sy, s); else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
+  const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
+  // the ground line across the screen at one depth; the last slot holds how much that line faces the sun
+  const NX=22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2); let lit=0;
+    for(let i=0;i<=NX;i++){ const cx=(i*W/NX-W/2)/s, h=ground(camPx+rgtX*cx+fwdX*d, camPz+rgtZ*cx+fwdZ*d); ys[i]=horizon+(camY-h)*s; lit-=gSlopeX*SUNDX+gSlopeZ*SUNDZ; }
+    ys[NX+1]=lit/(NX+1); return ys; };
+  ctx.lineCap='round';
+  for(let bi=BANDS.length-1;bi>=0;bi--){
+    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), nb=b.n-bladeCut;
+    // world-grid cells under this depth slice of the view
+    let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+    for(const d of [b.a,b.b]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+sp*4), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d;
+      if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
+    const i0=Math.floor(x0/sp)-1, i1=Math.ceil(x1/sp)+1, j0=Math.floor(z0/sp)-1, j1=Math.ceil(z1/sp)+1;
+    for(let j=j0;j<=j1;j++) for(let i=i0;i<=i1;i++){
+      let rx=i*sp-camPx, rz=j*sp-camPz, dz=rx*fwdX+rz*fwdZ; if(dz<b.a-sp||dz>b.b+sp) continue;
+      let cx=rx*rgtX+rz*rgtZ; if(Math.abs(cx)>dz*tanH+sp*4) continue;
+      const r=h2(i,j+bi*7919), r2=h2(i+31,j-bi*131);
+      const x=(i+(r-0.5)*0.9)*sp, z=(j+(r2-0.5)*0.9)*sp;
+      rx=x-camPx; rz=z-camPz; dz=rx*fwdX+rz*fwdZ; if(dz<b.a||dz>=b.b) continue; cx=rx*rgtX+rz*rgtZ;
+      const s=focal/dz, bx=W/2+cx*s, by=horizon+(camY-ground(x,z))*s, lit=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ);
+      // rolling gusts: a slow wide swell plus a faster ripple, both travelling downwind
+      const gust=clamp(0.5+0.36*Math.sin(x*0.0028+z*0.0042-time*1.5+Math.sin(z*0.0016+time*0.25)*2.2)+0.18*Math.sin(x*0.011-z*0.007-time*2.6),0,1);
+      let bend=((0.4+0.85*gust)*calm+0.15)*wR, squash=(1-0.18*gust)*(1-(0.12+0.3*gust)*windF);
+      if(bi===0){ for(const k of kids){ const ddx=x-k.x, ddz=z-k.z, d=Math.hypot(ddx,ddz); if(d<50 && k.y<30){ const p=1-d/50; bend+=((ddx*rgtX+ddz*rgtZ)>=0?1:-1)*p*0.9; squash*=1-0.3*p; } } }
+      const bn=Math.min(nbin-1,Math.floor((dz-b.a)/sp));
+      const paths=bins[bn]||(bins[bn]=[new Path2D(),new Path2D(),new Path2D(),new Path2D(),new Path2D()]);
+      for(let n=0;n<nb;n++){
+        const rr=h2(i*7+n,j*3+n*13+bi*977);
+        const h=(24+rr*24)*s*squash, ox=(n-(nb-1)/2)*sp*(0.34+0.16*bladeCut)*s;
+        const sway=(bend+((rr*7.31)%1-0.5)*(0.45+0.75*windF)+Math.sin(time*4.5+rr*40)*(0.07+0.1*windF)*calm)*h;
+        const p=paths[clamp(Math.floor(rr*2.2+gust*2.9+lit*6),0,4)];   // sunlit slopes run lighter, shaded ones darker
+        const xb=bx+ox, tx=xb+sway, ty=by-h, qx=xb+sway*0.18, qy=by-h*0.82;
+        if(b.fill){ const w=(1.5+0.6*bladeCut)*s*b.lw; p.moveTo(xb-w,by); p.quadraticCurveTo(qx-w*0.7,qy,tx,ty); p.quadraticCurveTo(qx+w*0.7,qy,xb+w,by); }
+        else { p.moveTo(xb,by); p.quadraticCurveTo(qx,qy,tx,ty); }
+      }
+    }
+    let farP=profile(b.a+nbin*sp);
+    for(let bn=nbin-1;bn>=0;bn--){
+      const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
+      kidsBeyond(dn+sp);
+      // the strip of bare ground under this row, so a hill hides whatever lies behind it
+      ctx.fillStyle=groundColor(clamp(CAM_H*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz-2500)/11000,0,1)),0.72,1.25));
+      ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
+      for(let i=1;i<=NX;i++) ctx.lineTo(i*W/NX,farP[i]-0.5);
+      for(let i=NX;i>=0;i--) ctx.lineTo(i*W/NX,Math.max(nearP[i],farP[i])+1);
+      ctx.fill();
+      farP=nearP;
+      const paths=bins[bn]; if(!paths) continue;
+      const hz=Math.pow(clamp((dz-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
+      ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
+      for(let c=0;c<5;c++){
+        const col = near>0 ? mix(BLADE[c],DEEP,near) : mix(BLADE[c],HAZE,hz);
+        if(b.fill){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
+      }
+    }
+  }
+  kidsBeyond(-1e9);
+}
+
+/* ---------- evening light + paper grain over everything ---------- */
+const grain=(()=>{ const c=document.createElement('canvas'); c.width=c.height=220; const g=c.getContext('2d'); const d=g.createImageData(220,220); const r=rng(5);
+  for(let i=0;i<d.data.length;i+=4){ const v=128+(r()-0.5)*150; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; } g.putImageData(d,0,0); return ctx.createPattern(c,'repeat'); })();
+function drawLight(){
+  const sx=clamp(sunX,-200,W+200), R=Math.max(W,H)*1.05;
+  const l=ctx.createRadialGradient(sx,horizon,0,sx,horizon,R);
+  l.addColorStop(0,'rgba(255,206,110,.85)'); l.addColorStop(0.45,'rgba(255,176,90,.3)'); l.addColorStop(1,'rgba(30,84,108,.5)');
+  ctx.globalCompositeOperation='soft-light'; ctx.fillStyle=l; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='overlay'; ctx.globalAlpha=0.13; ctx.fillStyle=grain; ctx.fillRect(0,0,W,H);
+  ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+}
+
+/* ---------- sun position + lens flare ---------- */
+function placeSun(){
+  let d=SUN_B-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d));
+  sunX=Math.abs(d)<1.4 ? W/2+focal*Math.tan(d) : (d>0?W+2000:-2000);
+  const off=sunX<0?-sunX:sunX>W?sunX-W:0; sunI=clamp(1-off/350,0,1);
+}
+// Ghosts sit on the line from the sun through the lead kid, so the flare swings across the
+// frame as the kids move and is strongest when they run in front of the sun.
+const GHOSTS=[[0.45,26,'190,240,140',.17],[0.8,14,'110,230,170',.16],[1.0,58,'210,240,150',.1],[1.35,22,'150,235,150',.14],[1.7,90,'120,220,170',.08],[2.1,38,'220,245,170',.09]];
+function drawFlare(){
+  if(sunI*(1-night)<=0.01) return;
+  const lp=proj(lead.x,lead.z), s=focal/Math.max(60,lp[1]), kx=W/2+lp[0]*s, ky=horizon+(camY-ground(lead.x,lead.z))*s-(lead.y+45)*s;
+  const q=H/650, sy=horizon-4*q, near=clamp(1-Math.abs(sunX-kx)/(W*0.55),0,1);
+  const f=(1-night)*1.7*sunI*(0.4+0.6*near*near)*(0.93+0.07*Math.sin(time*2.3));
+  ctx.save(); ctx.globalCompositeOperation='screen';
+  ctx.save(); ctx.translate(sunX,sy); ctx.scale(1,0.06);
+  const st=ctx.createRadialGradient(0,0,0,0,0,460*q); st.addColorStop(0,'rgba(228,250,190,'+0.5*f+')'); st.addColorStop(1,'rgba(190,240,150,0)');
+  ctx.fillStyle=st; ctx.beginPath(); ctx.arc(0,0,460*q,0,7); ctx.fill(); ctx.restore();
+  const hl=ctx.createRadialGradient(sunX,sy,95*q,sunX,sy,215*q); hl.addColorStop(0,'rgba(170,235,150,0)'); hl.addColorStop(0.5,'rgba(170,235,150,'+0.09*f+')'); hl.addColorStop(1,'rgba(170,235,150,0)');
+  ctx.fillStyle=hl; ctx.beginPath(); ctx.arc(sunX,sy,215*q,0,7); ctx.fill();
+  const dx=kx-sunX, dy=ky-sy;
+  for(const gh of GHOSTS){
+    const x=sunX+dx*gh[0], y=sy+dy*gh[0], R=gh[1]*q*1.8, a=gh[3]*f;
+    const gr=ctx.createRadialGradient(x,y,0,x,y,R); gr.addColorStop(0,'rgba('+gh[2]+','+a+')'); gr.addColorStop(0.4,'rgba('+gh[2]+','+a*0.5+')'); gr.addColorStop(1,'rgba('+gh[2]+',0)');
+    ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(x,y,R,0,7); ctx.fill();
+  }
+  ctx.restore();
+}
+
+/* ---------- drifting seeds ---------- */
+const seeds=[]; { const r=rng(99); for(let i=0;i<(calm<1?10:30);i++) seeds.push({u:r(),v:r(),sp:50+r()*110,sz:0.8+r()*1.4,ph:r()*6}); }
+function drawSeeds(){
+  ctx.fillStyle='rgba(255,246,214,.7)';
+  for(const p of seeds){
+    let x=(p.u*W+time*p.sp-camYaw*focal*0.5)%(W+40); if(x<0) x+=W+40;
+    const y=p.v*H*0.9+Math.sin(time*1.3+p.ph)*18;
+    ctx.beginPath(); ctx.ellipse(x-20,y,p.sz*2.4,p.sz*0.6,-0.25,0,7); ctx.fill();
+  }
+}
+function drawStick(){
+  if(!stick||stick.far<10) return;
+  const r=cv.getBoundingClientRect(), x0=stick.x0-r.left, y0=stick.y0-r.top;
+  let dx=stick.x-stick.x0, dy=stick.y-stick.y0; const d=Math.hypot(dx,dy), m=Math.min(d,70); if(d>0){dx=dx/d*m;dy=dy/d*m;}
+  ctx.strokeStyle='rgba(255,246,220,.55)'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(x0,y0,70,0,7); ctx.stroke();
+  ctx.fillStyle='rgba(255,246,220,.7)'; ctx.beginPath(); ctx.arc(x0+dx,y0+dy,20,0,7); ctx.fill();
+}
+
+/* ---------- flamingos ---------- */
+function drawBird(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute height, sc size}
+  const cfx=o.hx*rgtX+o.hz*rgtZ, cfz=o.hx*fwdX+o.hz*fwdZ, S=(o.tiny?s:Math.max(s,0.17))*(o.sc||1.9), ph=o.ph;
+  // seen a little from above (or from below when the camera is under the flock), so the wing surfaces show instead of lying edge-on
+  const elev=clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.3, ce=Math.cos(elev), se=Math.sin(elev);
+  const P=(lat,fwd,up)=>{ const d=-lat*cfx+fwd*cfz, k=S*(1-0.0065*d); return [sx+(lat*cfz+fwd*cfx)*k, sy-(up*ce+d*se)*k]; };
+  const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
+  const poly=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.closePath(); ctx.fill(); };
+  const dot=(p,r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(0.7,r*S),0,7); ctx.fill(); };
+  const DARK='#2a1e24';
+  // Wingbeat. Each bird keeps its own tempo; the down-stroke is quicker than the up-stroke; now and then a bird rests on a short glide.
+  const glide=clamp((Math.sin(time*0.37+ph*3.1)-0.82)/0.12,0,1), beat=time*4.2*(0.92+0.16*h2(o.id,3))+ph, phi=beat+0.4*Math.sin(beat);
+  // The body rides the wingbeat (up as the wings come down) while the head holds level, as a real bird's does; the neck takes up the difference.
+  const bob=-Math.sin(phi)*2.6*(1-glide), sway=Math.sin(time*0.9+ph*2)*0.7;
+  // The wing is four jointed parts: upper arm, forearm, hand and tip. Each joint follows the one before it a moment later,
+  // so the beat travels out along the wing; on the up-stroke the outer parts fold, and the black flight feathers close up, then spread on the way down.
+  // Unfolding from closed to full spread happens in three moves: the upper arm swings out from the body, then the forearm
+  // straightens, then the hand opens and the flight feathers fan out. Folding runs the same three moves backwards.
+  const open=o.open===undefined?1:o.open, ss=(a,b)=>{ const t=clamp((open-a)/(b-a),0,1); return t*t*(3-2*t); };
+  const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.9,0.75,-0.95,-0.6], chord=0.4+0.6*(OP[0]+OP[1]+OP[2])/3;
+  const amp=(1-0.82*glide)*OP[2], down=clamp(-Math.cos(phi),0,1)*amp, upst=clamp(Math.cos(phi),0,1)*amp, SEG=[16,15,14,13];
+  const ang=[0,1,2,3].map(k=>Math.sin(phi-0.38*k)*(0.46+0.2*k)*amp+0.12*glide-upst*0.16*k);
+  const wing=sd=>{
+    const far=(-sd*cfx>0), base=far?'#e27590':'#f7a6b8', sec1=far?'#c64a6e':'#e56f8d', sec2=far?'#cf5578':'#ec7f9a';
+    const xs=[3], us=[2+bob], fs=[0];
+    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
+    // a point on the wing: t runs 0..4 along the four parts, f is how far forward of the spar it sits
+    const Wp=(t,f)=>{ const k=Math.min(3,Math.floor(t)), r=t-k; return P(sd*(xs[k]+(xs[k+1]-xs[k])*r), f*chord+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r); };
+    poly([Wp(0,9),Wp(1,8.5),Wp(2,7.5),Wp(2,-4),Wp(1,-4.5),Wp(0,-5)],base);                      // coverts on the arm
+    for(let j=0;j<7;j++){ const t0=j*2/7, t1=(j+1)*2/7; poly([Wp(t0,-4),Wp(t1,-4),Wp(t1,-15),Wp((t0+t1)/2,-17.5),Wp(t0,-14.5)], j%2?sec2:sec1); }   // crimson secondaries, scalloped
+    poly([Wp(2,7.5),Wp(3,5.5),Wp(3.3,3.5),Wp(3.1,-2.5),Wp(2,-4)],base);                         // coverts on the hand
+    ctx.shadowColor='rgba(42,30,36,.85)'; ctx.shadowBlur=lowFx?0:clamp(5*S,2,9);                       // soft, slightly blurred edges on the black feathers
+    for(let j=0;j<8;j++){ const tr=2.05+j*0.13, tt=Math.min(4,2.5+j*0.215), ft=(-17+j*2.1)*(0.72+0.5*down)*(0.35+0.65*OP[3]);   // black primaries fanning to the tip
+      poly([Wp(tr,0.5),Wp(tr+0.12,-1.5),Wp(Math.min(4,tt+0.1),ft-1.7),Wp(tt,ft)],'rgba(42,30,36,.8)'); }
+    ctx.shadowBlur=0;
+    ln([Wp(0,9),Wp(1,8.5),Wp(2,7.5),Wp(3,5.5),Wp(3.3,3.5)], far?'#f09ab0':'#ffd3dc',1.1);       // light leading edge
+    for(let j=1;j<6;j++) ln([Wp(j/3,6.5),Wp(j/3,-3)], far?'#d6688a':'#ee8fa6',0.5);             // rows of covert feathers
+  };
+  const legs=()=>{ for(const o of [-1.4,1.4]){                                                  // held straight; only the hips ride the body
+    const hp=P(o,-9,-2+bob), kn=P(o,-27,-2.4+bob*0.6), ft=P(o,-44,-2.2+bob*0.3);
+    ln([hp,kn],'#e98da0',1.6); dot(kn,1.15,'#d9728c'); ln([kn,ft],'#e98da0',1.35);
+    poly([P(o-1.7,-44,-2.2+bob*0.3),P(o+1.7,-44,-2.2+bob*0.3),P(o,-48.5,-2.5+bob*0.25)],'#c9566f'); } };
+  const body=()=>{
+    const tail=()=>poly([P(-3.6,-8,1.5+bob),P(3.6,-8,1.5+bob),P(1.6,-19,0.8+bob*0.8),P(0,-22,1+bob*0.75),P(-1.6,-19,0.8+bob*0.8)],'#e2607f');
+    if(cfz<=0) tail();
+    ln([P(0,-9,bob),P(0,10,1+bob)],'#ef8aa3',10.5); ln([P(0,-8,-2.6+bob),P(0,6,-2.2+bob)],'#dc6a89',3.6); ln([P(0,-6,2.4+bob),P(0,8,3.1+bob)],'#fab8c6',4.4);   // body, belly shade, back highlight
+    if(cfz>0) tail();                                                                           // flying away: the tail is the nearest part of the body
+  };
+  const neck=()=>{
+    ln([P(0,9,1.5+bob),P(sway*0.5,17,4.6+bob*0.62),P(sway,26,4.1+bob*0.25),P(sway*0.4,35,2.7)],'#f4a0b3',3.7); ln([P(sway*0.6,20,5+bob*0.45),P(sway*0.4,34,3.2)],'#fbc0cc',1.7);
+    const h=P(0,37.5,2.8), hk=1-0.0065*37.5*cfz;
+    const bill=()=>{ ln([h,P(0,42.5,2.3)],'#f7dcd0',2.7*hk); ln([P(0,42.5,2.3),P(0,45.7,0.7),P(0,45.3,-1.4)],DARK,2.3*hk); };   // pale bill with a black, down-bent tip
+    if(cfz>0.15){ if(cfz<0.72) bill(); dot(h,3.4*hk,'#f29ab0'); }                               // from behind: the bill is hidden past the head and no eyes show
+    else { dot(h,3.2*hk,'#f6a6b8'); for(const o of [-1.7,1.7]){ const e=P(o,38.6,3.5); dot(e,1*hk,'#fff3c8'); dot(e,0.5*hk,DARK); } bill(); }
+  };
+  const far=cfx>0?-1:1;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  if(cfz>0){ neck(); wing(far); body(); wing(-far); legs(); } else { legs(); wing(far); body(); wing(-far); neck(); }
+}
+
+function drawBirdFar(i,sx,sy,s){   // a far-off bird: a pink stroke for the body and two flapping wing strokes with dark tips
+  const cfx=flock.dx*rgtX+flock.dz*rgtZ, cfz=flock.dx*fwdX+flock.dz*fwdZ, S=s*1.9, ph=BIRD_PH[i];
+  const beat=time*4.2*(0.92+0.16*h2(i,3))+ph, a=Math.sin(beat+0.4*Math.sin(beat))*0.75, lw=Math.max(1,2.6*S);
+  const P=(lat,fwd,up)=>[sx+(lat*cfz+fwd*cfx)*S, sy-(up*0.95+(-lat*cfx+fwd*cfz)*0.3)*S];
+  ctx.lineCap='round'; ctx.lineWidth=lw;
+  ctx.strokeStyle='#ee8ba3'; ctx.beginPath(); let p=P(0,-44,-2), q=P(0,44,2); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
+  for(const sd of [-1,1]){ const m=P(sd*34*Math.cos(a),-2,34*Math.sin(a)), t=P(sd*58*Math.cos(a*1.2),-6,58*Math.sin(a*1.2)); p=P(sd*3,0,2);
+    ctx.strokeStyle='#f39bb0'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(m[0],m[1]); ctx.stroke();
+    ctx.strokeStyle='#4a3038'; ctx.beginPath(); ctx.moveTo(m[0],m[1]); ctx.lineTo(t[0],t[1]); ctx.stroke(); }
+}
+function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs striding through the grass, wings folded, neck up (stretched forward at a run)
+  const cfx=m.hx*rgtX+m.hz*rgtZ, cfz=m.hx*fwdX+m.hz*fwdZ, S=Math.max(s,0.17)*1.08, ce=Math.cos(0.14), se=Math.sin(0.14), DARK='#2a1e24';
+  const P=(lat,fwd,up)=>{ const d=-lat*cfx+fwd*cfz, k=S*(1-0.0065*d); return [sx+(lat*cfz+fwd*cfx)*k, sy-(up*ce+d*se)*k]; };
+  const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
+  const dot=(p,r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(0.7,r*S),0,7); ctx.fill(); };
+  const run=clamp(m.sp/300,0,1), mv=Math.min(1,m.sp/40), wp=m.wp, bob=Math.abs(Math.sin(wp))*1.6*mv;
+  const poly=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.closePath(); ctx.fill(); };
+  // A flamingo leg has four parts: a short feathered thigh, the long shin, the long lower leg below the backward-bending
+  // ankle (the joint that looks like a knee), and a webbed foot. The foot is planted while it carries weight, then lifts, folds and swings through.
+  const leg=sd=>{
+    const p2=wp+(sd>0?Math.PI:0), stride=(7+12*run)*mv, sw=Math.sin(p2)*stride, swing=Math.max(0,Math.cos(p2)), lift=swing*(3+9*run)*mv;
+    const farLeg=(-sd*cfx>0), c1=farLeg?'#d97c92':'#e98da0', c2=farLeg?'#c4607a':'#d9728c', x=sd*1.7;
+    const hipF=-1, hipU=35+bob, kneeF=hipF+2.2+sw*0.12, kneeU=hipU-6.5;
+    const ankF=(kneeF+sw)/2-(3.5+lift*0.9+2*run), ankU=(kneeU+lift)/2+1+lift*0.35;        // the ankle folds backward as the foot lifts
+    const hip=P(x,hipF,hipU), knee=P(x,kneeF,kneeU), ank=P(x,ankF,ankU), foot=P(x,sw,lift);
+    ln([hip,knee],farLeg?'#e07f98':'#f29ab0',3.4);                                             // feathered thigh
+    ln([knee,ank],c1,1.7); ln([ank,foot],c1,1.4); dot(knee,1.2,c2); dot(ank,1.35,c2);
+    const tf=4.6-swing*3.2*mv, tu=-swing*3.4*mv;                                              // toes point forward on the ground and hang when lifted
+    const t0=P(x,sw+tf,lift+tu), t1=P(x-1.9,sw+tf*0.8,lift+tu*0.8), t2=P(x+1.9,sw+tf*0.8,lift+tu*0.8);
+    poly([foot,t1,t0,t2],'#c9566f'); ln([foot,t0],c2,0.8); ln([foot,P(x,sw-1.6,lift+0.4)],c2,0.9);   // webbed toes and a small back toe
+  };
+  const wingFold=sd=>{ const far=(-sd*cfx>0);
+    ln([P(sd*3.1,-15,38+bob),P(sd*3.3,-8,40+bob)],DARK,2.6);                                   // black flight feathers tucked at the back
+    ln([P(sd*3.3,-9,40.5+bob),P(sd*3.5,5,42.5+bob)],far?'#e27590':'#f39bb0',6); ln([P(sd*3.6,-8,39+bob),P(sd*3.6,3,40.5+bob)],far?'#c64a6e':'#e56f8d',2.2); };
+  const body=()=>{ ln([P(0,-10,38+bob),P(0,9,41+bob)],'#ef8aa3',11); ln([P(0,-8,35.4+bob),P(0,6,37.6+bob)],'#dc6a89',3.6); ln([P(0,-7,41.5+bob),P(0,7,44+bob)],'#fab8c6',3.8); };
+  const neck=()=>{
+    const st=Math.pow(run,1.2), nod=Math.sin(wp*2)*1.6*mv*(1-st), L=(a,b)=>a+(b-a)*st;
+    const n1=P(0,9,42+bob), n2=P(0,L(14,17)+nod*0.3,L(53,49)+bob*0.6), n3=P(0,L(10,24)+nod*0.6,L(63,55)+bob*0.3), n4=P(0,L(13,30)+nod,L(72,59));
+    ln([n1,n2,n3,n4],'#f4a0b3',3.6); ln([n2,n3,n4],'#fbc0cc',1.5);
+    const hf=L(15,33)+nod, hu=L(75,60), h=P(0,hf,hu), hk=1-0.0065*hf*cfz;
+    const bill=()=>{ ln([h,P(0,hf+5,hu-1.6)],'#f7dcd0',2.7*hk); ln([P(0,hf+5,hu-1.6),P(0,hf+7.6,hu-3.4),P(0,hf+7,hu-5.6)],DARK,2.3*hk); };
+    if(cfz>0.15){ if(cfz<0.72) bill(); dot(h,3.4*hk,'#f29ab0'); }
+    else { dot(h,3.2*hk,'#f6a6b8'); for(const o of [-1.7,1.7]){ const e=P(o,hf+1,hu+0.7); dot(e,1*hk,'#fff3c8'); dot(e,0.5*hk,DARK); } bill(); }
+  };
+  const far=cfx>0?-1:1;
+  ctx.lineCap='round'; ctx.lineJoin='round';
+  const tail=()=>{ poly([P(-3,-9,41+bob),P(3,-9,41+bob),P(1.2,-17,38+bob),P(0,-19,37.5+bob),P(-1.2,-17,38+bob)],'#e2607f'); };
+  if(cfz>0){ neck(); leg(far); wingFold(far); body(); tail(); wingFold(-far); leg(-far); }
+  else { leg(far); wingFold(far); tail(); body(); wingFold(-far); leg(-far); neck(); }
+}
+
+/* ---------- feathers ---------- */
+function featherShape(c,size){ c.beginPath(); c.moveTo(0,-size); c.quadraticCurveTo(size*0.62,-size*0.15,size*0.06,size*0.72); c.quadraticCurveTo(-size*0.6,-size*0.05,0,-size); }
+function drawFeather(f,sx,sy,s){
+  // floats just above the grass tips so it can be spotted from far off
+  const big=f.big?1:0, y=sy-(62+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*s, size=Math.max(3.4,11*s)*(1+big*1.9), tw=0.75+0.25*Math.sin(time*5+f.ph*40);
+  if(big){                                                    // the great feather: a wide golden halo and slow turning rays
+    const R=size*5, g2=ctx.createRadialGradient(sx,y,0,sx,y,R); g2.addColorStop(0,'rgba(255,236,170,'+0.55*tw+')'); g2.addColorStop(0.4,'rgba(255,200,190,.22)'); g2.addColorStop(1,'rgba(255,200,190,0)');
+    ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(sx,y,R,0,7); ctx.fill();
+    ctx.strokeStyle='rgba(255,244,210,'+0.5*tw+')'; ctx.lineWidth=Math.max(1,size*0.07); ctx.beginPath();
+    for(let j=0;j<8;j++){ const an=time*0.5+j*Math.PI/4; ctx.moveTo(sx+Math.cos(an)*size*1.5,y+Math.sin(an)*size*1.5); ctx.lineTo(sx+Math.cos(an)*size*(2.3+0.5*Math.sin(time*3+j)),y+Math.sin(an)*size*(2.3+0.5*Math.sin(time*3+j))); }
+    ctx.stroke();
+  }
+  const g=ctx.createRadialGradient(sx,y,0,sx,y,size*2.8); g.addColorStop(0,'rgba(255,226,232,'+0.65*tw+')'); g.addColorStop(1,'rgba(255,226,232,0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,y,size*2.8,0,7); ctx.fill();
+  if(night>0.05) GLOWS.push(sx,y,size*(big?3.2:2.6));
+  ctx.save(); ctx.translate(sx,y); ctx.rotate(0.6+Math.sin(time*1.6+f.ph*9)*0.5);
+  featherShape(ctx,size); ctx.fillStyle='#f8a6b9'; ctx.fill();
+  ctx.save(); featherShape(ctx,size); ctx.clip(); ctx.fillStyle='#ffd3dc'; ctx.fillRect(-size,-size*0.1,size*2,size); ctx.fillStyle='#2a1e24'; ctx.fillRect(-size,-size*1.05,size*2,size*0.36); ctx.restore();   // pale base, black tip
+  ctx.strokeStyle='rgba(186,146,88,.85)'; ctx.lineWidth=Math.max(0.6,size*0.09); ctx.beginPath(); ctx.moveTo(0,-size*0.8); ctx.lineTo(size*0.08,size*1.15); ctx.stroke();
+  ctx.restore();
+}
+function drawHud(){
+  const q=clamp(W/1100,0.8,1.15), gap=24*q, y=W<700?72:34, x0=W/2-(NEED-1)*gap/2;
+  const free=freeFly(), have=free?NEED:lead.fly?Math.ceil(flightLeft/FLY_TIME*NEED):feathers, ready=!lead.fly&&(feathers>=NEED||free), lit=ready||lead.fly;
+  for(let i=0;i<NEED;i++){
+    const on=i<have; let sc=1;
+    if(on&&i===have-1&&!lead.fly) sc+=0.6*Math.max(0,1-(time-lastGot)*3);
+    if(ready) sc*=1+0.1*Math.sin(time*6+i*0.6);
+    ctx.save(); ctx.translate(x0+i*gap,y); ctx.rotate(0.5); ctx.scale(sc,sc); featherShape(ctx,9*q);
+    if(on){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=lit?12:3; ctx.fillStyle=lit?'#ffc4d0':'#f8a6b9'; } else ctx.fillStyle='rgba(58,42,18,.3)';
+    ctx.fill(); ctx.restore();
+  }
+  if(mates.length){                                          // your flock so far
+    ctx.save(); ctx.font='600 '+Math.round(15*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='left';
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffd3dc'; ctx.fillText('Flock  '+mates.length+' / '+MATES_MAX,20,64); ctx.restore();
+  }
+  if(time-mateMsgT<5){
+    ctx.save(); ctx.globalAlpha=clamp((5-(time-mateMsgT))/1.2,0,1); ctx.font='600 '+Math.round(17*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(free?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+54*q); ctx.restore();
+  }
+  if(flock){
+    const p=proj(flock.x,flock.z), off=p[1]<=0||Math.abs(p[0])>p[1]*(W/2)/focal;
+    if(off && flock.s<FLOCK_NEAR){                              // flock is out of view: a pink marker on the side it's coming from
+      const sd=p[0]>0?1:-1, ax=sd>0?W-22:22, ay=H*0.3, pu=1+0.15*Math.sin(time*6);
+      ctx.save(); ctx.translate(ax,ay); ctx.scale(sd*pu,pu); ctx.fillStyle='#f6a3b6'; ctx.shadowColor='rgba(120,40,60,.6)'; ctx.shadowBlur=6;
+      ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(-7,-10); ctx.lineTo(-2,0); ctx.lineTo(-7,10); ctx.closePath(); ctx.fill(); ctx.restore();
+    }
+    if(flock.joined){
+      ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
+      ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText('Flying with the flamingos',W/2,y+30*q); ctx.restore();
+    }
+  }
+  if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<6){
+    ctx.save(); ctx.globalAlpha=clamp(6-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Tap to land':'Tap Space to land, hold it to soar',W/2,y+30*q); ctx.restore();
+  }
+  if(ready){
+    ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc';
+    ctx.fillText(touchy?'Tap twice to fly':'Jump twice to fly  (Space, Space)',W/2,y+30*q); ctx.restore();
+  }
+}
+function chime(n){
+  if(!actx||!master) return;
+  const t=actx.currentTime, o=actx.createOscillator(), g=actx.createGain();
+  o.type='sine'; o.frequency.value=660*Math.pow(2,n/12);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.12,t+0.01); g.gain.exponentialRampToValueAtTime(0.001,t+0.35);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+0.4);
+}
+
+/* ---------- field sound: the recording loops forever, each pass starting 4 s before the last one ends ---------- */
+const OVERLAP=4, soundBtn=document.getElementById('sound');
+let actx=null, master=null, fieldBuf=null, nextAt=0, soundOn=true, runGain=null, runSrc=null, palGain=null, palSrc=null;
+const fadeOut=new Float32Array(48).map((_,i)=>Math.cos(i/47*Math.PI/2));
+function scheduleField(){
+  if(!fieldBuf) return;
+  while(nextAt<actx.currentTime+12){
+    const t=Math.max(nextAt,actx.currentTime+0.05), dur=fieldBuf.duration, src=actx.createBufferSource(), g=actx.createGain();
+    src.buffer=fieldBuf; g.gain.setValueAtTime(1,t); g.gain.setValueCurveAtTime(fadeOut,t+dur-OVERLAP,OVERLAP);
+    src.connect(g); g.connect(master); src.start(t);
+    nextAt=t+dur-OVERLAP;
+  }
+}
+function startSound(){
+  if(actx){ if(actx.state==='suspended'&&!document.hidden) actx.resume(); return; }
+  const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+  actx=new AC(); master=actx.createGain(); master.gain.value=soundOn?0.85:0; master.connect(actx.destination);
+  fetch('field.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ fieldBuf=buf; scheduleField(); setInterval(scheduleField,2000); })
+    .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; });
+  // the big kid's footsteps: a steady stretch of the recording looped, heard only while running on the ground
+  fetch('run_big.wav').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ runGain=actx.createGain(); runGain.gain.value=0; runGain.connect(master);
+      runSrc=actx.createBufferSource(); runSrc.buffer=buf; runSrc.loop=true; runSrc.connect(runGain); runSrc.start();
+      // the small kid: the same footsteps played 10% faster, started part-way in so the two don't land together
+      palGain=actx.createGain(); palGain.gain.value=0; palGain.connect(master);
+      palSrc=actx.createBufferSource(); palSrc.buffer=buf; palSrc.loop=true; palSrc.playbackRate.value=1.1; palSrc.connect(palGain); palSrc.start(0,1.29); })
+    .catch(()=>{});
+  fetch('pad.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ padBuf=buf; padGain=actx.createGain(); padGain.gain.value=0.7; padGain.connect(master); })
+    .catch(()=>{});
+  fetch('flamingos.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ flamBuf=buf; flamGain=actx.createGain(); flamGain.gain.value=0; flamGain.connect(master); })
+    .catch(()=>{});
+}
+// the flock's calls: the clip loops with a short overlap while a flock is in the sky, louder the nearer it is
+let flamBuf=null, flamGain=null, flamNext=0;
+function updateFlamSound(){
+  if(!flamGain) return;
+  const t=actx.currentTime;
+  if(!flock){ flamGain.gain.setTargetAtTime(0,t,0.4); return; }
+  if(flamNext<t-0.1) flamNext=t+0.02;
+  while(flamNext<t+1.5){
+    const src=actx.createBufferSource(), g=actx.createGain(), dur=flamBuf.duration;
+    src.buffer=flamBuf; g.gain.setValueAtTime(1,flamNext); g.gain.setValueCurveAtTime(fadeOut,flamNext+dur-1.5,1.5);
+    src.connect(g); g.connect(flamGain); src.start(flamNext); flamNext+=dur-1.5;
+  }
+  const d=Math.hypot(lead.x-flock.x,lead.z-flock.z), leaving=flock.s>FLOCK_NEAR?clamp(1-(flock.s-FLOCK_NEAR)/4500,0,1):1;
+  flamGain.gain.setTargetAtTime(clamp(1.15-d/3000,0.04+0.1*clamp((7000-d)/3000,0,1),1)*leaving*0.9,t,0.3);
+}
+// Music: plays once, from the moment the flock is complete.
+let padBuf=null, padGain=null, padPlayed=false;
+function updateMusic(){
+  if(!padGain || padPlayed || !freeFly()) return;
+  padPlayed=true;
+  const src=actx.createBufferSource(); src.buffer=padBuf; src.connect(padGain); src.start(actx.currentTime+0.02);
+}
+function updateRunSound(){
+  if(!runGain) return;
+  const on=lead.y===0 ? clamp((lead.run-0.25)/0.5,0,1) : 0, t=actx.currentTime;
+  runGain.gain.setTargetAtTime(on*0.9,t,on>0?0.05:0.09);
+  runSrc.playbackRate.setTargetAtTime(1+0.28*lead.sprint,t,0.15);
+  const pon=pal.y===0 ? clamp((pal.run-0.25)/0.5,0,1) : 0;
+  palGain.gain.setTargetAtTime(pon*0.75,t,pon>0?0.05:0.09);
+  palSrc.playbackRate.setTargetAtTime(1.1*(1+0.28*pal.sprint),t,0.15);
+}
+soundBtn.addEventListener('click',()=>{
+  soundOn=!soundOn; soundBtn.textContent=soundOn?'Sound on':'Sound off'; soundBtn.setAttribute('aria-pressed',soundOn);
+  startSound(); if(master) master.gain.setTargetAtTime(soundOn?0.85:0,actx.currentTime,0.15);
+  cv.focus();
+});
+document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
+
+/* ---------- night: a blue moonlight grade over the finished frame, then the things that give light ---------- */
+function nightGrade(){
+  const n=night; if(n<=0.005){ GLOWS.length=0; return; }
+  // dusk passes through a dusty violet on the way to moonlit blue
+  const c = n<0.5 ? mix([255,255,255],[168,128,166],n*2) : mix([168,128,166],[44,74,158],(n-0.5)*2);
+  ctx.globalCompositeOperation='multiply'; ctx.fillStyle=c; ctx.fillRect(0,0,W,H);
+  ctx.globalCompositeOperation='screen'; ctx.fillStyle='rgba(4,8,30,'+n+')'; ctx.fillRect(0,0,W,H);
+  const sa=clamp((n-0.45)/0.55,0,1);
+  for(let i=0;i<NSTARS.length;i+=4){ if(NSTARS[i+1]>RIDGE[Math.min(511,(NSTARS[i]+40)>>3)]-3 || behindCloud(NSTARS[i],NSTARS[i+1])) continue;
+    ctx.fillStyle='rgba(215,228,255,'+0.75*NSTARS[i+3]*sa+')'; ctx.beginPath(); ctx.arc(NSTARS[i],NSTARS[i+1],NSTARS[i+2]*0.75,0,7); ctx.fill(); }
+  const mx=clamp(sunX,-400,W+400), my=horizon*0.36, q=H/650, ma=clamp((n-0.3)/0.7,0,1);
+  let g=ctx.createRadialGradient(mx,my,0,mx,my,Math.max(W,H)*0.75); g.addColorStop(0,'rgba(150,180,255,'+0.42*ma+')'); g.addColorStop(0.12,'rgba(110,145,235,'+0.14*ma+')'); g.addColorStop(1,'rgba(90,120,220,0)');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // moonlight lying across the field below the moon
+  ctx.save(); ctx.translate(mx,horizon); ctx.scale(0.45,1.1); g=ctx.createRadialGradient(0,0,0,0,0,W*0.6); g.addColorStop(0,'rgba(170,200,255,'+0.2*ma+')'); g.addColorStop(1,'rgba(170,200,255,0)');
+  ctx.fillStyle=g; ctx.fillRect(-W*2,0,W*4,H*2); ctx.restore();
+  // feathers give off their own light
+  for(let i=0;i<GLOWS.length;i+=3){ const R=GLOWS[i+2]; g=ctx.createRadialGradient(GLOWS[i],GLOWS[i+1],0,GLOWS[i],GLOWS[i+1],R);
+    g.addColorStop(0,'rgba(255,190,214,'+0.85*n+')'); g.addColorStop(0.25,'rgba(255,150,190,'+0.4*n+')'); g.addColorStop(1,'rgba(255,150,190,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(GLOWS[i],GLOWS[i+1],R,0,7); ctx.fill(); }
+  GLOWS.length=0;
+  if(sunI>0.01 && ma>0.01){ ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=sunI*ma; ctx.fillStyle='rgb(236,242,255)'; ctx.beginPath(); ctx.arc(mx,my,30*q,0,7); ctx.fill();
+    ctx.fillStyle='rgba(200,210,238,.5)'; for(const c of [[-9,-6,8],[9,6,10],[4,-14,5],[-13,10,6],[14,-9,4]]){ ctx.beginPath(); ctx.arc(mx+c[0]*q,my+c[1]*q,c[2]*q,0,7); ctx.fill(); } 
+    // the moon is far beyond the clouds: paint the clouds again over the disc so they pass in front of it
+    ctx.save(); ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip(); ctx.globalAlpha=Math.min(1,ma*1.4)*0.8; drawClouds(clouds,0,0.7,0.74,nightClouds());   // slightly see-through, so the cloud looks lit from behind ctx.restore();
+    ctx.globalAlpha=1; }
+  ctx.globalCompositeOperation='source-over';
+}
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){
+  const raw=Math.max(0,(now-last)/1000), dt=Math.min(0.05,raw); last=now;
+  slow = raw>0.03 ? slow+raw : Math.max(0,slow-raw);
+  if(slow>1.2){ slow=0; if(dprCap>1){ dprCap=1; resize(); } else if(bladeCut<1) bladeCut=1; else lowFx=true; }
+  requestAnimationFrame(frame);          // booked first, so one bad frame can never stop the game
+  try{
+    update(dt); updateNight(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic();
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); drawWorld(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawHud(); drawStick();
+  }catch(err){
+    if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
+    ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
+  }
+}
+let lowFx=false;   // last quality step on slow devices: drop the soft blur on the birds' black feathers
+function start(saved){
+  if(saved && saved.kids){ saved.kids.forEach((p,i)=>{ if(kids[i]){ kids[i].x=p.x; kids[i].z=p.z; } }); focX=lead.x; focZ=lead.z; }
+  if(saved && saved.day) dayOffset=saved.day;
+  if(saved && saved.mates) for(let i=0;i<Math.min(MATES_MAX,saved.mates);i++) addMate(lead.x-60-i*30,lead.z-90-i*20,0,0,1);
+  camY=ground(lead.x,lead.z)+CAM_H;
+  requestAnimationFrame(frame);
+}
+const hot=window.claude&&window.claude.hot;
+if(hot&&hot.snapshot) hot.snapshot(()=>({kids:kids.map(k=>({x:k.x,z:k.z})), mates:mates.length, day:(time+dayOffset)%DAY_LEN}));
+if(hot&&hot.ready) hot.ready(start); else start((hot&&hot.data)||{});
+})();
+</script>
+</body>
+</html>
