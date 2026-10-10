@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 00:20</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 00:35</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1607,6 +1607,7 @@ function nightGrade(){
   const clear=()=>{ mates.length=0; mateMsgT=-99; if(lead.fly){ flyStart=-9; land(); } if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(e){} } padPlayed=false; cv.focus(); };
   fb.addEventListener('click',()=>{ if(mates.length>=MATES_MAX) clear(); else give(MATES_MAX); label(); });
   setInterval(label,500);
+  { const bs=document.getElementById('buildStamp'), b0=bs.textContent; setInterval(()=>{ if(!box.hidden) bs.textContent=b0+' · flock '+mates.length+' · clock '+Math.round((((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN)+(nightOn?'':' (waiting)')+' · night '+night.toFixed(2); },500); }
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); nightOn=true; dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
@@ -1637,8 +1638,9 @@ function frame(now){
 let lowFx=false;   // last quality step on slow devices: drop the soft blur on the birds' black feathers
 function start(saved){
   if(saved && saved.kids){ saved.kids.forEach((p,i)=>{ if(kids[i]){ kids[i].x=p.x; kids[i].z=p.z; } }); focX=lead.x; focZ=lead.z; }
-  if(saved && saved.day){ dayOffset=saved.day; nightOn=true; }
   if(saved && saved.mates) for(let i=0;i<Math.min(MATES_MAX,saved.mates);i++) addMate(lead.x-60-i*30,lead.z-90-i*20,0,0,1);
+  // carried over from a page that was open: with four or more flamingos the night has begun (or begins now); with fewer, the day still waits
+  if(saved && mates.length>=4){ nightOn=true; dayOffset=(saved.day>=EVENING-10?saved.day:EVENING-10)-time; }
   camY=ground(lead.x,lead.z)+CAM_H;
   requestAnimationFrame(frame);
 }
