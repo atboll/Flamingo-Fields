@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 01:45</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 22:35</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1338,8 +1338,8 @@ let flamBuf=null, flamGain=null, flamNext=0;
 function updateFlamSound(){
   if(!flamGain) return;
   const t=actx.currentTime;
-  const bn=beachNear()*0.4;                                   // on the beach the calls carry on under the shore's own flamingos
-  if(!flock && bn<=0.001){ flamGain.gain.setTargetAtTime(0,t,0.4); return; }
+  const bn=beachNear();                                       // on the beach only the shore's own flamingos are heard
+  if(!flock || bn>=0.999){ flamGain.gain.setTargetAtTime(0,t,0.4); return; }
   if(flamNext<t-0.1) flamNext=t+0.02;
   while(flamNext<t+1.5){
     const src=actx.createBufferSource(), g=actx.createGain(), dur=flamBuf.duration;
@@ -1347,7 +1347,7 @@ function updateFlamSound(){
     src.connect(g); g.connect(flamGain); src.start(flamNext); flamNext+=dur-1.5;
   }
   let lv=0; if(flock){ const d=Math.hypot(lead.x-flock.x,lead.z-flock.z), coming=flock.s<FLOCK_NEAR?1:0; lv=clamp(1.15-d/3000,coming*(0.03+0.11*clamp((9000-d)/5000,0,1)),1)*0.9; }
-  flamGain.gain.setTargetAtTime(Math.max(lv,bn),t,0.3);
+  flamGain.gain.setTargetAtTime(lv*(1-bn),t,0.3);
 }
 // Music: plays once, from the moment the flock is complete.
 // It is streamed, not decoded into memory, and only fetched once the flock is one flamingo short of complete.
@@ -1408,7 +1408,7 @@ function updateOceanSound(){
   const t=actx.currentTime, v=clamp((coastAlong(lead.x,lead.z)+2000)/(SHORE+2000),0,1);
   ocean.out.gain.setTargetAtTime(Math.pow(v,1.5)*0.9,t,0.5);
   if(fieldGain) fieldGain.gain.setTargetAtTime(1-0.4*Math.pow(v,1.5),t,0.5);   // the field falls to 60% as the sea rises to full
-  seaBirds.out.gain.setTargetAtTime(beachNear()*0.8,t,0.6);
+  seaBirds.out.gain.setTargetAtTime(beachNear()*0.64,t,0.6);
 }
 function updateRunSound(){
   if(!runGain) return;
