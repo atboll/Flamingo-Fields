@@ -903,7 +903,7 @@ function flamingoIcon(u,body,leg,bill){   // a small standing flamingo, drawn ar
   ctx.fillStyle=bill; ctx.beginPath(); ctx.moveTo(u*0.76,-u*1.32); ctx.lineTo(u*1.08,-u*1.06); ctx.lineTo(u*0.74,-u*1.1); ctx.closePath(); ctx.fill();
 }
 function drawHud(){
-  const q=clamp(W/1100,0.8,1.15), gap=24*q, y=W<700?72:34, x0=W/2-(NEED-1)*gap/2;
+  const q=clamp(Math.min(W/1100,H/560),0.62,1.15), gap=24*q, y=W<500?50:Math.max(16,24*q), x0=W/2-(NEED-1)*gap/2;   // tucked against the top edge, smaller on a phone
   const free=freeFly(), have=free?NEED:lead.fly?Math.ceil(flightLeft/FLY_TIME*NEED):feathers, ready=!lead.fly&&(feathers>=NEED||free), lit=ready||lead.fly;
   for(let i=0;i<NEED;i++){
     const on=i<have; let sc=1;
