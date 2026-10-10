@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 19:55</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 20:15</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -705,7 +705,7 @@ function seaGlints(){
   if(coast){ const s0=coastAlong(camPx,camPz), k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
     if(s0>=SHORE) yEnd=H; else if(k>0.02){ const d=(SHORE-s0)/k; if(d<60000) yEnd=Math.min(H,horizon+camY*focal/d); } }
   const span=yEnd-yTop; if(span<3) return;
-  const N=Math.min(560,Math.round(80+span*2)), A=sunI*clamp(seaGap()/0.06,0,1);
+  const N=Math.min(560,Math.round(80+span*2)), A=sunI*clamp(seaGap()/0.06,0,1)*(night>0.5?clamp(moonUp*4,0,1):1);
   for(let i=0;i<N;i++){ const r=h2(i,91), u=r*r, tw=Math.sin(time*(0.8+2.4*h2(i,99))+i*1.31); if(tw<=0.1) continue;
     const wd=(10+u*250)*q, x=sunX+(h2(i,93)+h2(i,95)-1)*wd+Math.sin(time*0.5+i)*3*u*q, len=(2.5+h2(i,97)*(7+64*u))*q, a=tw*tw*(1-0.5*u)*A; if(a<0.06) continue;
     GL.push(x-len/2, yTop+u*span+Math.sin(time*0.7+i*0.9)*1.6*u*q, len, Math.max(1,(0.9+1.5*u)*q), a); }
@@ -762,7 +762,25 @@ function updateCoast(dt){
     flock=null; nextFlock=time+50; }
   if(!arrived && lead.y===0 && !lead.fly && coastAlong(lead.x,lead.z)>SAND_RAMP*0.8){ arrived=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; }   // the first landing on the beach: level 2, and the day begins to break
 }
-function moonSetup(){ FRONT.length=0; REDO.length=0; moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0; }
+// The moon rises out of the horizon at dusk, stands highest in the middle of the night, and sinks back into it by dawn.
+let moonUp=0;
+function moonSetup(){ FRONT.length=0; REDO.length=0;
+  const p=(((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN, mp=clamp((p-EVENING)/(DAY_LEN-EVENING),0,1), e=Math.pow(Math.sin(Math.PI*mp),0.75);
+  moonUp=p<EVENING?0:e; moonX=clamp(sunX,-400,W+400); moonY=horizon+46*H/650-(horizon*0.64+46*H/650)*moonUp; moonR=(night>0.3 && sunI>0.01)?34*H/650:0; }
+// The moon itself, painted once: a warm cream disc with soft grey-brown seas, speckled like the clouds.
+let moonArt=null;
+function paintMoon(){
+  const N=72, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), img=g.createImageData(N,N), px=img.data, r=rng(4242);
+  const seas=[[-0.36,-0.26,0.36],[0.04,-0.42,0.24],[-0.08,0.08,0.27],[0.34,-0.08,0.2],[-0.42,0.3,0.2],[0.2,0.42,0.16],[0.5,0.3,0.12]];
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const u=(x+0.5)/N*2-1, v=(y+0.5)/N*2-1, d=Math.hypot(u,v), i=(y*N+x)*4; if(d>1){ px[i+3]=0; continue; }
+    let m=-1; for(const q of seas) m=Math.max(m,1-Math.hypot(u-q[0],v-q[1])/q[2]);
+    m+=(vnoise(x/7,y/7,31)-0.5)*0.7+(vnoise(x/3,y/3,57)-0.5)*0.3;
+    let col = m>0.34 ? [172,160,146] : m>0.12 ? [198,188,168] : m>-0.05 ? [226,217,192] : vnoise(x/5,y/5,77)>0.62 ? [255,251,236] : [244,236,208];
+    const limb=1-0.16*Math.pow(d,5)-0.05*clamp(u*0.6+v*0.8,0,1), sp=(r()-0.5)*12;
+    px[i]=clamp(col[0]*limb+sp,0,255); px[i+1]=clamp(col[1]*limb+sp,0,255); px[i+2]=clamp(col[2]*limb+sp,0,255);
+    px[i+3]=d>0.955?(r()<(1-d)/0.045?255:0):255; }                                            // a ragged, speckled edge
+  g.putImageData(img,0,0); return c;
+}
 function drawWorld(){
   OCC.length=0;
   const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
@@ -1406,7 +1424,7 @@ function nightGrade(){
   const sa=clamp((n-0.45)/0.55,0,1);
   for(let i=0;i<NSTARS.length;i+=4){ if(NSTARS[i+1]>RIDGE[Math.min(511,(NSTARS[i]+40)>>3)]-3 || behindCloud(NSTARS[i],NSTARS[i+1])) continue;
     ctx.fillStyle='rgba(215,228,255,'+0.75*NSTARS[i+3]*sa+')'; ctx.beginPath(); ctx.arc(NSTARS[i],NSTARS[i+1],NSTARS[i+2]*0.75,0,7); ctx.fill(); }
-  const mx=clamp(sunX,-400,W+400), my=horizon*0.36, q=H/650, ma=clamp((n-0.3)/0.7,0,1)*(1-fogNow())*(1-0.8*ceilNear());   // cloud between the kids and the moon dims it
+  const mx=clamp(sunX,-400,W+400), my=moonY, q=H/650, ma=clamp((n-0.3)/0.7,0,1)*clamp(moonUp*5,0.25,1)*(1-fogNow())*(1-0.8*ceilNear());   // cloud between the kids and the moon dims it
   let g=ctx.createRadialGradient(mx,my,0,mx,my,Math.max(W,H)*0.75); g.addColorStop(0,'rgba(150,180,255,'+0.42*ma+')'); g.addColorStop(0.12,'rgba(110,145,235,'+0.14*ma+')'); g.addColorStop(1,'rgba(90,120,220,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   // moonlight lying across the field below the moon
@@ -1421,8 +1439,12 @@ function nightGrade(){
     ctx.fillStyle='rgba(255,170,200,'+(0.26*a*k).toFixed(3)+')'; ctx.fillRect(FARDOTS[i]-3*k,FARDOTS[i+1]-3*k,6*k,6*k);
     ctx.fillStyle='rgba(255,224,234,'+(0.85*a).toFixed(3)+')'; ctx.fillRect(FARDOTS[i]-1.2*k,FARDOTS[i+1]-1.2*k,2.4*k,2.4*k); }
   FARDOTS.length=0;
-  if(sunI>0.01 && ma>0.01){ ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=sunI*ma; ctx.fillStyle='rgb(236,242,255)'; ctx.beginPath(); ctx.arc(mx,my,30*q,0,7); ctx.fill();
-    ctx.fillStyle='rgba(200,210,238,.5)'; for(const c of [[-9,-6,8],[9,6,10],[4,-14,5],[-13,10,6],[14,-9,4]]){ ctx.beginPath(); ctx.arc(mx+c[0]*q,my+c[1]*q,c[2]*q,0,7); ctx.fill(); } 
+  if(sunI>0.01 && n>0.02 && my-34*q<horizon+6){ const mo=clamp(n*1.6,0,1)*(1-fogNow())*(1-0.8*ceilNear()), R=30*q;
+    ctx.globalCompositeOperation='source-over'; ctx.save();
+    // it rises and sets behind the mountains, or out of the sea where they have parted
+    { const cp=new Path2D(), xa=mx-R*1.5, xb=mx+R*1.5; cp.moveTo(xa,-10); for(let x=xa;x<=xb+8;x+=8) cp.lineTo(x,RIDGE[clamp((x+40)>>3,0,511)]+1); cp.lineTo(xb+8,-10); cp.closePath(); ctx.clip(cp); }
+    ctx.globalAlpha=sunI*mo*0.16; ctx.fillStyle='rgb(214,220,246)'; ctx.beginPath(); ctx.arc(mx,my,R*1.3,0,7); ctx.fill();    // a pale ring of haze close around it
+    ctx.globalAlpha=sunI*mo; ctx.imageSmoothingEnabled=false; ctx.drawImage(moonArt||(moonArt=paintMoon()), mx-R, my-R, R*2, R*2); ctx.imageSmoothingEnabled=true;
     // the moon is far beyond the clouds: paint the clouds again over the disc so they pass in front of it
     ctx.save(); ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip(); ctx.globalAlpha=Math.min(1,ma*1.4)*0.8; drawClouds(clouds,0,0.7,0.74,nightClouds()); ctx.restore();   // slightly see-through, so the cloud looks lit from behind
     if(FRONT.length){   // the kids and birds crossing the disc, painted again in night colours in front of the moon
@@ -1439,7 +1461,7 @@ function nightGrade(){
       ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip();
       ctx.drawImage(fcv,x0,y0,sz/DPR,sz/DPR); ctx.restore();
     }
-    ctx.globalAlpha=1; }
+    ctx.restore(); ctx.globalAlpha=1; }
   ctx.globalCompositeOperation='source-over';
 }
 
