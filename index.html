@@ -593,6 +593,33 @@ function groundColor(v,k){
   const a=GSTOPS[i-1], b=GSTOPS[i], t=clamp((v-a[0])/(b[0]-a[0]),0,1);
   return 'rgb('+((a[1][0]+(b[1][0]-a[1][0])*t)*k|0)+','+((a[1][1]+(b[1][1]-a[1][1])*t)*k|0)+','+((a[1][2]+(b[1][2]-a[1][2])*t)*k|0)+')';
 }
+// The ground as seen from high up: a small picture computed point by point and scaled up over the ground area.
+// Each point takes its colour from distance, its light from the slope of the hill there, a slow wind ripple, and a grain fixed to the land.
+const HG_W=176, HG_H=96, hgCv=document.createElement('canvas'); hgCv.width=HG_W; hgCv.height=HG_H;
+const hgCtx=hgCv.getContext('2d'), hgImg=hgCtx.createImageData(HG_W,HG_H);
+function paintHighGround(hC,hk){
+  const px=hgImg.data, gh=H-horizon, rowPx=gh/HG_H, cK=CAM_H*hk/hC;
+  const dAlias=Math.sqrt(450*hC*focal/rowPx);                    // beyond this one row spans a whole hill, so detail is faded out
+  for(let r=0;r<HG_H;r++){
+    const yy=(r+0.5)*rowPx, dz=hC*focal/yy, sc=dz/focal, v=clamp(cK*(r+0.5)/HG_H,0,1);
+    let si=1; while(si<GSTOPS.length-1 && v>GSTOPS[si][0]) si++;
+    const A=GSTOPS[si-1], B=GSTOPS[si], t=clamp((v-A[0])/(B[0]-A[0]),0,1);
+    const cr=A[1][0]+(B[1][0]-A[1][0])*t, cg=A[1][1]+(B[1][1]-A[1][1])*t, cb=A[1][2]+(B[1][2]-A[1][2])*t;
+    const det=clamp(2-dz/dAlias,0,1), gs=64*Math.pow(2,Math.max(0,Math.floor(Math.log2(dz/2200))));   // grain cells grow with distance so they never shrink below a point
+    const bx=camPx+fwdX*dz, bz=camPz+fwdZ*dz, stepX=rgtX*sc*W/HG_W, stepZ=rgtZ*sc*W/HG_W;
+    for(let c=0;c<HG_W;c++){
+      const u=c+0.5-HG_W/2, X=bx+stepX*u, Z=bz+stepZ*u, hgt=ground(X,Z);
+      const lit=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ);
+      const gust=Math.sin(X*0.0028+Z*0.0042-time*1.5+Math.sin(Z*0.0016+time*0.25)*2.2);
+      const k=clamp(1+(lit*1.15+hgt*0.0004+gust*0.03+(h2(Math.floor(X/gs),Math.floor(Z/gs))-0.5)*0.13+(h2(Math.floor(X/gs/4)+91,Math.floor(Z/gs/4))-0.5)*0.07)*det,0.8,1.2);
+      const o=(r*HG_W+c)*4; px[o]=cr*k; px[o+1]=cg*k; px[o+2]=cb*k; px[o+3]=255;
+    }
+  }
+  hgCtx.putImageData(hgImg,0,0);
+  const hT=clamp((hC-450)/550,0,1);
+  ctx.globalAlpha=hT*hT*(3-2*hT); ctx.imageSmoothingEnabled=true; ctx.imageSmoothingQuality='high';
+  ctx.drawImage(hgCv,0,0,HG_W,HG_H,0,horizon,W,gh+1); ctx.globalAlpha=1;
+}
 function drawWorld(){
   const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
   { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
@@ -622,7 +649,11 @@ function drawWorld(){
   // From high up the air below is clear: distances are judged against the camera's height, so the hills keep their colour and shading.
   const hk=Math.pow(Math.max(1,(camY-ground(focX,focZ))/CAM_H),0.75);
   const dMin=Math.max(0,(camY-130)*focal/(H-horizon+60));       // nearest ground still on screen
+  // High up, the far ground is painted smooth from the real shape of the hills, in place of the flat strips and far strokes.
+  const hC=camY-ground(focX,focZ), hiT=clamp((hC-450)/550,0,1), hiG=hiT*hiT*(3-2*hiT);
+  if(hiG>0) paintHighGround(hC,hk);
   for(let bi=BANDS.length-1;bi>=0;bi--){
+    if(hiG>=0.999) break;                                       // fully handed over to the smooth ground
     const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi>=6&&camY<600)?0:(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
     if(b.b<dMin) continue;                                     // this whole band lies under the bottom edge of the view
     // world-grid cells under this depth slice of the view
@@ -658,19 +689,21 @@ function drawWorld(){
       const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
       kidsBeyond(dn+sp);
       // the strip of bare ground under this row, so a hill hides whatever lies behind it
+      ctx.globalAlpha=1-hiG;
       ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1)),0.72,1.25));
       ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
       for(let i=1;i<=NX;i++) ctx.lineTo(i*W/NX,farP[i]-0.5);
       for(let i=NX;i>=0;i--) ctx.lineTo(i*W/NX,Math.max(nearP[i],farP[i])+1);
       ctx.fill();
       farP=nearP;
-      const paths=bins[bn]; if(!paths) continue;
+      const paths=bins[bn]; if(!paths){ ctx.globalAlpha=1; continue; }
       const hz=Math.pow(clamp((dz/hk-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
       ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
       for(let c=0;c<5;c++){
         const col = near>0 ? mix(BLADE[c],DEEP,near) : mix(BLADE[c],HAZE,hz);
         if(b.fill){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
       }
+      ctx.globalAlpha=1;
     }
   }
   kidsBeyond(-1e9);
