@@ -135,7 +135,7 @@ function updateMates(dt){
   mates.forEach((m,i)=>{
     // a place behind the kids, two abreast, wider and looser in the air
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
-    const back=(air?80:85)+row*(air?60:52), lat=side*((air?75:58)+row*(air?55:26))+wob;
+    const tight=1-0.35*pathAlign, back=((air?80:85)+row*(air?60:52))*tight, lat=(side*((air?75:58)+row*(air?55:26))+wob)*tight;
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
     const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1000:400,d*2.2), e=1-Math.exp(-dt*3.5);
     m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
@@ -863,7 +863,7 @@ function drawFeather(f,sx,sy,s){
   }
   const g=ctx.createRadialGradient(sx,y,0,sx,y,size*2.8); g.addColorStop(0,'rgba(255,226,232,'+0.65*tw+')'); g.addColorStop(1,'rgba(255,226,232,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,y,size*2.8,0,7); ctx.fill();
-  if(night>0.05) GLOWS.push(sx,y,size*(big?3.2:2.6));
+  if(night>0.05) GLOWS.push(sx,y,size*(big?3.2:2.6)*(1+0.7*pathA*clamp(1-Math.abs((f.x-pathPx)*SUNDZ-(f.z-pathPz)*SUNDX)/260,0,1)));
   ctx.save(); ctx.translate(sx,y); ctx.rotate(0.6+Math.sin(time*1.6+f.ph*9)*0.5);
   featherShape(ctx,size); ctx.fillStyle='#f8a6b9'; ctx.fill();
   ctx.save(); featherShape(ctx,size); ctx.clip(); ctx.fillStyle='#ffd3dc'; ctx.fillRect(-size,-size*0.1,size*2,size); ctx.fillStyle='#2a1e24'; ctx.fillRect(-size,-size*1.05,size*2,size*0.36); ctx.restore();   // pale base, black tip
@@ -1041,6 +1041,36 @@ soundBtn.addEventListener('click',()=>{
 });
 document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
 
+/* ---------- the moonlight path: a clue, not a signpost ---------- */
+// On a settled night, once the flock is complete, a faint band of moonlit grass runs across the field toward the moon.
+// It lies in a fixed place in the world, a little to one side of where the kids were when it appeared.
+let pathA=0, pathPx=0, pathPz=0, pathAlign=0;
+function updatePath(dt){
+  const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX;
+  const ok=night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
+  if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lead.x+SUNDZ*sd*700; pathPz=lead.z-SUNDX*sd*700; }
+  pathA=clamp(pathA+(ok?dt/7:-dt/3),0,1);
+  // the path answers when the kids travel along it toward the moon
+  const on=pathA>0.3 && Math.abs(lat)<300 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
+  pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
+}
+function drawPath(){
+  if(pathA<=0.01) return;
+  const along=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ, pts=[];
+  for(let k=0;k<46;k++){ const t=along-1600+Math.pow(k/45,2.2)*30000, x=pathPx+SUNDX*t, z=pathPz+SUNDZ*t, p=proj(x,z);
+    pts.push(p[1]>90?{x,z,d:p[1],g:ground(x,z),e:clamp(k/5,0,1)}:null); }
+  ctx.globalCompositeOperation='screen';
+  for(const [hw,a] of [[270,0.02],[225,0.02],[182,0.021],[142,0.022],[104,0.022],[70,0.023],[40,0.024]]){   // many thin layers, so the edge is soft
+    for(let k=0;k<pts.length-1;k++){ const A=pts[k], B=pts[k+1]; if(!A||!B) continue;
+      const fade=A.e*clamp(1-A.d/24000,0,1)*(1+0.4*pathAlign*clamp(A.d/2500,0,1));   // when followed, the light ahead lifts a little
+      ctx.fillStyle='rgba(196,218,255,'+(a*pathA*fade).toFixed(4)+')';
+      ctx.beginPath();
+      for(const [Q,sg] of [[A,-1],[B,-1],[B,1],[A,1]]){ const p=proj(Q.x+SUNDZ*sg*hw,Q.z-SUNDX*sg*hw), sc=focal/Math.max(60,p[1]);
+        ctx.lineTo(W/2+p[0]*sc, horizon+(camY-Q.g)*sc); }
+      ctx.closePath(); ctx.fill(); } }
+  ctx.globalCompositeOperation='screen';
+}
+
 /* ---------- night: a blue moonlight grade over the finished frame, then the things that give light ---------- */
 function nightGrade(){
   const n=night; if(n<=0.005){ GLOWS.length=0; return; }
@@ -1057,6 +1087,7 @@ function nightGrade(){
   // moonlight lying across the field below the moon
   ctx.save(); ctx.translate(mx,horizon); ctx.scale(0.45,1.1); g=ctx.createRadialGradient(0,0,0,0,0,W*0.6); g.addColorStop(0,'rgba(170,200,255,'+0.2*ma+')'); g.addColorStop(1,'rgba(170,200,255,0)');
   ctx.fillStyle=g; ctx.fillRect(-W*2,0,W*4,H*2); ctx.restore();
+  drawPath();
   // feathers give off their own light
   for(let i=0;i<GLOWS.length;i+=3){ const R=GLOWS[i+2]; g=ctx.createRadialGradient(GLOWS[i],GLOWS[i+1],0,GLOWS[i],GLOWS[i+1],R);
     g.addColorStop(0,'rgba(255,190,214,'+0.85*n+')'); g.addColorStop(0.25,'rgba(255,150,190,'+0.4*n+')'); g.addColorStop(1,'rgba(255,150,190,0)');
@@ -1092,7 +1123,7 @@ function frame(now){
   if(slow>1.2){ slow=0; if(dprCap>1){ dprCap=1; resize(); } else if(bladeCut<1) bladeCut=1; else lowFx=true; }
   requestAnimationFrame(frame);          // booked first, so one bad frame can never stop the game
   try{
-    update(dt); updateNight(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
+    update(dt); updateNight(); updatePath(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
     drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); drawWorld(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawHud(); drawStick();
   }catch(err){
