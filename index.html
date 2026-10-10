@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 20:35</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 21:00</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -452,7 +452,14 @@ function drawMountains(){
   const q=H/650, up=clamp((camY-CAM_H)/550,-0.2,1), y0=horizon+4, sunSide=sunX>=W/2?1:-1;   // climbing lets the farther ranges show over the nearer ones
   RIDGE.fill(y0);
   if(level===2) return;                                       // nothing stands above a sea of cloud
-  const gap=seaGap(); drawSea(true);
+  const gap=seaGap(), grow=sea*sea*(3-2*sea);
+  if(grow>0.02){   // great banks of cloud pile up behind the peaks on either side of the bay
+    const n=cloudArt.length; ctx.globalAlpha=clamp(grow*1.6,0,1)*0.95;
+    for(const sd of [-1,1]) for(let j=0;j<3;j++){ const x=bearingX(SUN_B+sd*(gap+0.24+j*0.2)); if(x===null) continue;
+      const k=(0.72+0.2*((j*5+(sd>0?2:0))%3))*(0.5+0.5*grow), w=640*k*q, h=240*k*q, cy=y0-(70+((j*7+(sd>0?1:3))%3)*26)*q*grow-h*0.6, ai=(j*3+(sd>0?1:4))%n;
+      if(x<-w||x>W+w) continue; ctx.drawImage(cloudArt[ai], x-w/2, cy, w, h); CLOUD_RECTS.push(x-w/2,cy,w,h,ai); }
+    ctx.globalAlpha=1; }
+  drawSea(true);
   if(gap>0.002){ const st=y0-seaTop(); for(let x=-40;x<=W+48;x+=8){ if(Math.abs(fromMoon(camYaw+Math.atan((x-W/2)/focal)))<gap) RIDGE[Math.min(511,(x+40)>>3)]=st; } }   // no stars in the water
   for(const R of RANGES){
     const p=new Path2D(); p.moveTo(-40,y0);
@@ -461,6 +468,7 @@ function drawMountains(){
       const n=0.45*Math.sin(R.ks[0]*th+R.ph[0])+0.3*Math.sin(R.ks[1]*th+R.ph[1])+0.17*Math.sin(R.ks[2]*th+R.ph[2])+0.08*Math.sin(R.ks[3]*th+R.ph[3]);
       const w=Math.exp(-(src/0.36)*(src/0.36)), pe=(src-R.pk)/0.08, des=0.2+1.0*Math.exp(-pe*pe);                                              // the two peaks and the dip between them
       let v=Math.pow(0.5+0.5*n,1.6); v+=(des-v)*w;
+      if(grow>0){ const wg=Math.exp(-(src/0.75)*(src/0.75)); v=v*(1+1.25*grow*wg)+grow*wg*0.16*(Math.abs(Math.sin(src*43+R.pk*31))+0.6*Math.abs(Math.sin(src*97+R.pk*7))-0.7); }   // as they part, the ranges by the bay rise taller and sharper
       const edge=clamp((ad-gap)/0.06+(1-Math.min(1,gap/0.05)),0,1), es=edge*edge*(3-2*edge);                                                   // the flanks run down into the water
       const yy=y0-(R.base+R.amp*v*1.3+R.rise*up)*q*es, ri=Math.min(511,(x+40)>>3); if(yy<RIDGE[ri]) RIDGE[ri]=yy;
       p.lineTo(x, yy);
@@ -701,9 +709,16 @@ function coastFar(){
 // Painted over the finished frame so the night does not dull it, and checked against the kids and flamingos standing in front.
 const GL=[];
 function seaGlints(){
-  GL.length=0; if(level!==1 || !coast || sunI<=0.01 || sunX<-80 || sunX>W+80) return;
-  const s0=coastAlong(camPx,camPz), near=clamp((s0+900)/2400,0,1), A=sunI*near*(night>0.5?clamp(moonUp*4,0,1):1); if(A<=0.02) return;
-  const q=H/650, px=Math.max(1,Math.round(q)), yTop=Math.round(horizon+4-seaTop())+px, k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
+  GL.length=0; if(level!==1 || !coast) return;
+  const s0=coastAlong(camPx,camPz), near=clamp((s0+900)/2400,0,1), q=H/650, px=Math.max(1,Math.round(q)); if(near<=0.02) return;
+  if(night<0.6){   // by day the whole near water catches the sun in scattered sparks
+    const sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ, D=(1-night/0.6)*near;
+    for(let i=0;i<150;i++){ const tq=Math.floor(time*(1.4+1.6*h2(i,371))+h2(i,373)*20); if(h2(i,tq)>0.5) continue;
+      const u=Math.pow(h2(i,tq+7),1.6), y=Math.round(horizon+6+u*(H-horizon-6)), x=Math.round(h2(i,tq+11)*W), d=camY*focal/Math.max(2,y-horizon);
+      if(s0+d*(sf+((x-W/2)/focal)*sr)<SHORE+40) continue;
+      GL.push(x, y, px*(1+Math.floor(h2(i,tq+13)*(1+u*7))), px, (0.35+0.45*h2(i,tq+17))*D); } }
+  const A=sunI*near*(night>0.5?clamp(moonUp*4,0,1):1); if(A<=0.02 || sunX<-80 || sunX>W+80) return;
+  const yTop=Math.round(horizon+4-seaTop())+px, k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
   let yEnd=horizon+4; if(s0>=SHORE) yEnd=H; else if(k>0.02){ const d=(SHORE-s0)/k; if(d<60000) yEnd=Math.min(H,horizon+camY*focal/d); }
   const span=yEnd-yTop; if(span<3) return;
   for(let y=yTop, row=0; y<yEnd; row++){ const u=(y-yTop)/span, wd=(5+u*u*230)*q, nd=4+Math.floor(u*5+h2(row,81)*2);
@@ -737,6 +752,21 @@ function updateShore(dt){
     else { b.sp=0; b.pace=30; b.wait-=dt; b.feed=clamp(b.feed+(b.eats?dt:-dt)*0.9,0,1);
       if(b.wait<=0){ const n=++b.n, p=shorePos(b.homeLat+(h2(b.id,n*3+1)-0.5)*700, clamp(b.homeCs+(h2(b.id+9,n*5+2)-0.5)*420,SHORE-950,SHORE+32)); b.tx=p[0]; b.tz=p[1]; b.wait=4+h2(b.id+3,n)*9; b.eats=h2(b.id+5,n)<0.6; } }
   }
+}
+function drawProp(o,X,Y,s){
+  const r=o.r*s, sd=o.sd; if(r<0.8) return;
+  ctx.fillStyle='rgba(70,48,24,.22)'; ctx.beginPath(); ctx.ellipse(X+r*0.25,Y+r*0.06,r*1.25,r*0.3,0,0,7); ctx.fill();          // its shadow on the sand
+  if(o.t===0){   // a boulder: a lumpy grey-brown stone, lighter on top, dark and wet at the foot
+    const N=8, P=k=>{ const pts=[]; for(let i=0;i<N;i++){ const a=i/N*6.283, rr=r*(0.78+0.3*h2(sd*7+i,341))*k; pts.push([X+Math.cos(a)*rr*1.2, Y-r*0.52-Math.sin(a)*rr*0.72]); } return pts; };
+    const fill=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<N;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.fill(); };
+    fill(P(1),'#7d7468'); ctx.save(); ctx.beginPath(); const b=P(1); ctx.moveTo(b[0][0],b[0][1]); for(let i=1;i<N;i++) ctx.lineTo(b[i][0],b[i][1]); ctx.closePath(); ctx.clip();
+    ctx.translate(-r*0.2,-r*0.26); fill(P(0.86),'#a89e8c'); ctx.translate(-r*0.12,-r*0.2); fill(P(0.55),'#c9c0aa'); ctx.restore();
+    ctx.fillStyle='rgba(52,44,40,.5)'; ctx.fillRect(X-r*1.05,Y-r*0.12,r*2.1,r*0.14); }
+  else {         // a bush: a few rounded clumps of leaf, with small flowers
+    const cols=['#566f38','#6a843e','#83994a','#9fae5c'];
+    for(let i=0;i<8;i++){ const a=h2(sd*5+i,351), bx=X+(a-0.5)*r*2.3, br=r*(0.3+0.26*h2(sd+i,353)), by=Y-br*0.8-h2(sd*3+i,355)*r*0.5;
+      ctx.fillStyle=cols[Math.min(3,(i>>1)+(h2(sd+i,357)>0.5?1:0))]; ctx.beginPath(); ctx.ellipse(bx,by,br*1.1,br*0.85,0,0,7); ctx.fill(); }
+    if(r>3){ const fc=['#f7a3bd','#f6e6c0','#f2c860']; for(let i=0;i<9;i++){ ctx.fillStyle=fc[((sd+i)%3+3)%3]; const fx=X+(h2(sd*9+i,361)-0.5)*r*2.1, fy=Y-r*(0.25+h2(sd*11+i,363)*0.75), fr=Math.max(0.6,r*0.035); ctx.fillRect(fx-fr,fy-fr,fr*2,fr*2); } } }
 }
 function drawBirdTiny(m,X,Y,s){   // a flamingo far down the beach: a pink body on a thread of leg, with the neck up or down at the sand
   const dir=(m.hx*rgtX+m.hz*rgtZ)>=0?1:-1, by=Y-40*s, f=m.feed||0;
@@ -794,6 +824,15 @@ function drawWorld(){
   if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
   for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
+  if(coast){   // boulders along the waterline, and low bushes with flowers where the grass gives way to sand
+    const cl=(camPx-coastX)*SUNDZ-(camPz-coastZ)*SUNDX, cc=coastAlong(camPx,camPz), th=(W/2)/focal, RNG=4600;
+    if(cc>SHORE-RNG-300 && cc<SHORE+RNG) for(let i=Math.floor((cl-RNG)/230), i1=Math.floor((cl+RNG)/230); i<=i1; i++){ if(h2(i,301)>0.34) continue;
+      const cs=h2(i,307)<0.22?SHORE+10+h2(i,309)*38:SHORE-24-h2(i,311)*h2(i,313)*330, pp=shorePos((i+h2(i,303))*230,cs), p=proj(pp[0],pp[1]);
+      if(p[1]>70 && p[1]<RNG && Math.abs(p[0])<p[1]*th+120) kd.push({p:{t:0,x:pp[0],z:pp[1],r:12+h2(i,305)*h2(i,315)*40,sd:i}, cx:p[0], dz:p[1]}); }
+    if(cc>-RNG && cc<SAND_RAMP+RNG) for(let j=1;j<=10;j++) for(let i=Math.floor((cl-RNG)/250), i1=Math.floor((cl+RNG)/250); i<=i1; i++){ if(h2(i*3+j,331)>0.2-j*0.012) continue;
+      const pp=shorePos((i+h2(i,333+j))*250, (j-0.5+h2(i+j*17,335)-0.5)*250), p=proj(pp[0],pp[1]);
+      if(p[1]>70 && p[1]<RNG && Math.abs(p[0])<p[1]*th+120) kd.push({p:{t:1,x:pp[0],z:pp[1],r:20+h2(i,337+j)*22,sd:i*31+j}, cx:p[0], dz:p[1]}); }
+  }
   if(coast){ const th=(W/2)/focal; for(const m of shore){ const p=proj(m.x,m.z); if(p[1]>60 && p[1]<12000 && Math.abs(p[0])<p[1]*th+160) kd.push({m, cx:p[0], dz:p[1]}); } }
   if(pathA>0.01){ const al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
     for(let j=Math.floor((al-1100)/ROAD_STEP), j1=Math.floor((al+ROAD_END)/ROAD_STEP); j<=j1; j++){ const q=trailFeather(j,al); if(!q) continue; const p=proj(q.x,q.z); if(p[1]>60 && Math.abs(p[0])<p[1]*(W/2)/focal+300) kd.push({f:q, cx:p[0], dz:p[1]}); } }
@@ -810,6 +849,7 @@ function drawWorld(){
         if(s<0.13) drawBirdFar(e.b,X,Y,s); else drawBird({hx:flock.dx,hz:flock.dz,ph:BIRD_PH[e.b],id:e.b,y:flock.y,tiny:true}, X, Y, s);
         ctx.globalAlpha=1; };
       dr(); front(X,Y,130*s,90*s,dr); }
+    else if(e.p){ const s=focal/e.dz; drawProp(e.p, W/2+e.cx*s, horizon+(camY-ground(e.p.x,e.p.z))*s, s); }
     else if(e.dz>60){ const s=focal/e.dz, o=e.k||e.f, sy=horizon+(camY-ground(o.x,o.z))*s; if(e.k){ const fl=e.k.flyT||0; OCC.push(W/2+e.cx*s, sy-(e.k.y+44)*s, (22+16*fl)*s*1.15, (48-12*fl)*s*1.15, e.dz); }
       if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); REDO.push(dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
   const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
