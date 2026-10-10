@@ -796,7 +796,7 @@ function drawBird(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute height,
   if(cfz>0){ neck(); wing(far); body(); wing(-far); legs(); } else { legs(); wing(far); body(); wing(-far); neck(); }
 }
 
-function drawBirdFar(i,sx,sy,s){   // a far-off bird: a pink stroke for the body and two flapping wing strokes with dark tips
+function drawBirdFar(i,sx,sy,s){   // a far-off bird: a pink stroke for the body and two flapping wing strokes, all pink
   const cfx=flock.dx*rgtX+flock.dz*rgtZ, cfz=flock.dx*fwdX+flock.dz*fwdZ, S=s*1.9, ph=BIRD_PH[i];
   const beat=time*4.2*(0.92+0.16*h2(i,3))+ph, a=Math.sin(beat+0.4*Math.sin(beat))*0.75, lw=Math.max(1,2.6*S);
   const P=(lat,fwd,up)=>[sx+(lat*cfz+fwd*cfx)*S, sy-(up*0.95+(-lat*cfx+fwd*cfz)*0.3)*S];
@@ -804,7 +804,7 @@ function drawBirdFar(i,sx,sy,s){   // a far-off bird: a pink stroke for the body
   ctx.strokeStyle='#ee8ba3'; ctx.beginPath(); let p=P(0,-44,-2), q=P(0,44,2); ctx.moveTo(p[0],p[1]); ctx.lineTo(q[0],q[1]); ctx.stroke();
   for(const sd of [-1,1]){ const m=P(sd*34*Math.cos(a),-2,34*Math.sin(a)), t=P(sd*58*Math.cos(a*1.2),-6,58*Math.sin(a*1.2)); p=P(sd*3,0,2);
     ctx.strokeStyle='#f39bb0'; ctx.beginPath(); ctx.moveTo(p[0],p[1]); ctx.lineTo(m[0],m[1]); ctx.stroke();
-    ctx.strokeStyle='#4a3038'; ctx.beginPath(); ctx.moveTo(m[0],m[1]); ctx.lineTo(t[0],t[1]); ctx.stroke(); }
+    ctx.strokeStyle='#e9879f'; ctx.beginPath(); ctx.moveTo(m[0],m[1]); ctx.lineTo(t[0],t[1]); ctx.stroke(); }
 }
 function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs striding through the grass, wings folded, neck up (stretched forward at a run)
   const cfx=m.hx*rgtX+m.hz*rgtZ, cfz=m.hx*fwdX+m.hz*fwdZ, S=Math.max(s,0.17)*1.08, ce=Math.cos(0.14), se=Math.sin(0.14), DARK='#2a1e24';
