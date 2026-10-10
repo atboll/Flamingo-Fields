@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:25</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:35</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1101,15 +1101,16 @@ let flamBuf=null, flamGain=null, flamNext=0;
 function updateFlamSound(){
   if(!flamGain) return;
   const t=actx.currentTime;
-  if(!flock){ flamGain.gain.setTargetAtTime(0,t,0.4); return; }
+  const bn=beachNear()*0.4;                                   // on the beach the calls carry on under the shore's own flamingos
+  if(!flock && bn<=0.001){ flamGain.gain.setTargetAtTime(0,t,0.4); return; }
   if(flamNext<t-0.1) flamNext=t+0.02;
   while(flamNext<t+1.5){
     const src=actx.createBufferSource(), g=actx.createGain(), dur=flamBuf.duration;
     src.buffer=flamBuf; g.gain.setValueAtTime(1,flamNext); g.gain.setValueCurveAtTime(fadeOut,flamNext+dur-1.5,1.5);
     src.connect(g); g.connect(flamGain); src.start(flamNext); flamNext+=dur-1.5;
   }
-  const d=Math.hypot(lead.x-flock.x,lead.z-flock.z), coming=flock.s<FLOCK_NEAR?1:0;
-  flamGain.gain.setTargetAtTime(clamp(1.15-d/3000,coming*(0.03+0.11*clamp((9000-d)/5000,0,1)),1)*0.9,t,0.3);
+  let lv=0; if(flock){ const d=Math.hypot(lead.x-flock.x,lead.z-flock.z), coming=flock.s<FLOCK_NEAR?1:0; lv=clamp(1.15-d/3000,coming*(0.03+0.11*clamp((9000-d)/5000,0,1)),1)*0.9; }
+  flamGain.gain.setTargetAtTime(Math.max(lv,bn),t,0.3);
 }
 // Music: plays once, from the moment the flock is complete.
 // It is streamed, not decoded into memory, and only fetched once the flock is one flamingo short of complete.
@@ -1144,25 +1145,32 @@ function updateFastSound(){
   const on=(lead.fly&&freeFly())?clamp((Math.hypot(lead.vx,lead.vz)-450)/(FAST-450),0,1):0;
   fastGain.gain.setTargetAtTime(on*1.8,t,on>0?0.25:0.5);
 }
-// The sea: streamed, not held in memory, and looped by two players that hand over to each other with a six-second crossfade.
-// It is heard from a little before the sand and is at its fullest on the shore.
-const OCEAN_X=6; let ocean=null;
+// Long beach sounds are streamed, not held in memory, and looped by two players that hand over to each other with a crossfade.
+function streamLoop(url,x){
+  const out=actx.createGain(); out.gain.value=0; out.connect(master);
+  const mk=()=>{ const el=new Audio(url); el.preload='auto'; const g=actx.createGain(); g.gain.value=0; try{ actx.createMediaElementSource(el).connect(g); g.connect(out); }catch(e){} return {el,g}; };
+  return {p:[mk(),mk()],cur:0,out,x,started:false,xing:false};
+}
+function runLoop(o){
+  const t=actx.currentTime, c=o.p[o.cur], d=c.el.duration;
+  if(!o.started){ o.started=true; c.g.gain.setValueAtTime(1,t); const pr=c.el.play(); if(pr&&pr.catch) pr.catch(()=>{ o.started=false; }); }
+  if(d>o.x*2 && !o.xing && c.el.currentTime>d-o.x-0.1){ o.xing=true; const n=o.p[1-o.cur];
+    try{ n.el.currentTime=0; }catch(e){}
+    try{ n.g.gain.cancelScheduledValues(t); n.g.gain.setValueCurveAtTime(fastIn,t,o.x); c.g.gain.cancelScheduledValues(t); c.g.gain.setValueCurveAtTime(fadeOut,t,o.x); }catch(e){ n.g.gain.value=1; }
+    const pr=n.el.play(); if(pr&&pr.catch) pr.catch(()=>{});
+    setTimeout(()=>{ o.cur=1-o.cur; o.xing=false; },o.x*1000+300); }
+}
+// The sea (six-second crossfade) is heard from a little before the sand and is fullest on the shore.
+// The flamingos by the sea belong to the shore itself, and the flock's own calls are blended in with them there.
+let ocean=null, seaBirds=null;
+function beachNear(){ return coast&&level===1 ? clamp((coastAlong(lead.x,lead.z)-3200)/3000,0,1) : 0; }
 function updateOceanSound(){
   if(!actx || !master || !coast) return;
-  if(!ocean){
-    const out=actx.createGain(); out.gain.value=0; out.connect(master);
-    const mk=()=>{ const el=new Audio('ocean.mp3'); el.preload='auto'; const g=actx.createGain(); g.gain.value=0; try{ actx.createMediaElementSource(el).connect(g); g.connect(out); }catch(e){} return {el,g}; };
-    ocean={p:[mk(),mk()],cur:0,out,started:false,xing:false};
-  }
-  const o=ocean, t=actx.currentTime, c=o.p[o.cur], d=c.el.duration;
-  if(!o.started){ o.started=true; c.g.gain.setValueAtTime(1,t); const pr=c.el.play(); if(pr&&pr.catch) pr.catch(()=>{ o.started=false; }); }
-  if(d>OCEAN_X*2 && !o.xing && c.el.currentTime>d-OCEAN_X-0.1){ o.xing=true; const n=o.p[1-o.cur];
-    try{ n.el.currentTime=0; }catch(e){}
-    try{ n.g.gain.cancelScheduledValues(t); n.g.gain.setValueCurveAtTime(fastIn,t,OCEAN_X); c.g.gain.cancelScheduledValues(t); c.g.gain.setValueCurveAtTime(fadeOut,t,OCEAN_X); }catch(e){ n.g.gain.value=1; }
-    const pr=n.el.play(); if(pr&&pr.catch) pr.catch(()=>{});
-    setTimeout(()=>{ o.cur=1-o.cur; o.xing=false; },OCEAN_X*1000+300); }
-  const v=clamp((coastAlong(lead.x,lead.z)+2000)/(SHORE+2000),0,1);
-  o.out.gain.setTargetAtTime(Math.pow(v,1.5)*0.9,t,0.5);
+  if(!ocean){ ocean=streamLoop('ocean.mp3',6); seaBirds=streamLoop('flamingos_sea.mp3',4); }
+  runLoop(ocean); runLoop(seaBirds);
+  const t=actx.currentTime, v=clamp((coastAlong(lead.x,lead.z)+2000)/(SHORE+2000),0,1);
+  ocean.out.gain.setTargetAtTime(Math.pow(v,1.5)*0.9,t,0.5);
+  seaBirds.out.gain.setTargetAtTime(beachNear()*0.8,t,0.6);
 }
 function updateRunSound(){
   if(!runGain) return;

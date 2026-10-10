@@ -50,3 +50,4 @@ Add `#test` to the end of the address to show four test buttons: a full flock on
 - `fast.mp3`: wind for fast flying, looped.
 - `path.mp3`: the sound that answers when you fly along the feather road.
 - `ocean.mp3`: the sea, looped with a six-second crossfade.
+- `flamingos_sea.mp3`: flamingos by the sea, looped on the beach and blended with the flock calls.
