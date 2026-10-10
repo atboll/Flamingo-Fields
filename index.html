@@ -621,6 +621,8 @@ function drawWorld(){
   ctx.lineCap='round';
   // From high up the air below is clear: distances are judged against the camera's height, so the hills keep their colour and shading.
   const hk=Math.pow(Math.max(1,(camY-ground(focX,focZ))/CAM_H),0.75);
+  // In the air, far strips lose their lit-or-shaded tint: it depends on heading, so it made bands pop in and out while turning.
+  const hiF=clamp((camY-ground(focX,focZ)-120)/200,0,1);
   const dMin=Math.max(0,(camY-130)*focal/(H-horizon+60));       // nearest ground still on screen
   for(let bi=BANDS.length-1;bi>=0;bi--){
     const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi>=6&&camY<600)?0:(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
@@ -658,7 +660,7 @@ function drawWorld(){
       const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
       kidsBeyond(dn+sp);
       // the strip of bare ground under this row, so a hill hides whatever lies behind it
-      ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1)),0.72,1.25));
+      ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1))*(1-hiF*clamp((dz-900)/2500,0,1)),0.72,1.25));
       ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
       for(let i=1;i<=NX;i++) ctx.lineTo(i*W/NX,farP[i]-0.5);
       for(let i=NX;i>=0;i--) ctx.lineTo(i*W/NX,Math.max(nearP[i],farP[i])+1);
