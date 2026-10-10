@@ -28,7 +28,7 @@ then open http://localhost:8000.
 ## How it works
 
 - Collect 10 feathers to fly for 10 seconds. A rare great feather fills the counter at once.
-- A flock of ten flamingos crosses the sky once a minute. Fly with them for 8 seconds of a pass and one joins you.
+- A flock of ten flamingos crosses the sky once a minute. Fly with them for 8 seconds and one joins you; the row of small flamingos at the top fills in as you go.
 - With five flamingos your flock is complete: you can fly whenever you like, for as long as you like.
 - The day turns slowly from golden evening to moonlit night and back, on an eight-minute cycle.
 
