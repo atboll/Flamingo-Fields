@@ -41,3 +41,4 @@ then open http://localhost:8000.
 - `run_big.wav`: footsteps, looped for both kids.
 - `flamingos.mp3`: flock calls.
 - `pad.mp3`: music that plays once when the flock is complete.
+- `fast.mp3`: wind for fast flying, looped.

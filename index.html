@@ -977,6 +977,28 @@ function updateMusic(){
   }
   if(padEl && freeFly()){ padPlayed=true; const p=padEl.play(); if(p&&p.catch) p.catch(()=>{}); }
 }
+// Fast-flight wind: fetched once the flock is one flamingo short, looped with a 3-second overlap, and heard only at speed.
+const FAST_OVERLAP=3, fastIn=new Float32Array(48).map((_,i)=>Math.sin(i/47*Math.PI/2));
+let fastBuf=null, fastGain=null, fastNext=-1, fastLoading=false;
+function updateFastSound(){
+  if(!actx || !master) return;
+  if(!fastBuf){
+    if(!fastLoading && mates.length>=MATES_MAX-1){ fastLoading=true;
+      fetch('fast.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+        .then(buf=>{ fastGain=actx.createGain(); fastGain.gain.value=0; fastGain.connect(master); fastBuf=buf; }).catch(()=>{}); }
+    return;
+  }
+  const t=actx.currentTime, dur=fastBuf.duration;
+  if(fastNext<t-0.1) fastNext=t+0.02;
+  while(fastNext<t+6){
+    const src=actx.createBufferSource(), g=actx.createGain(); src.buffer=fastBuf;
+    g.gain.setValueCurveAtTime(fastIn,fastNext,FAST_OVERLAP); g.gain.setValueCurveAtTime(fadeOut,fastNext+dur-FAST_OVERLAP,FAST_OVERLAP);
+    src.connect(g); g.connect(fastGain); src.start(fastNext); fastNext+=dur-FAST_OVERLAP;
+  }
+  // it swells as the kids pick up speed beyond normal flying pace and dies away as they slow
+  const on=(lead.fly&&freeFly())?clamp((Math.hypot(lead.vx,lead.vz)-450)/(FAST-450),0,1):0;
+  fastGain.gain.setTargetAtTime(on*0.9,t,on>0?0.25:0.5);
+}
 function updateRunSound(){
   if(!runGain) return;
   const on=lead.y===0 ? clamp((lead.run-0.25)/0.5,0,1) : 0, t=actx.currentTime;
@@ -1030,7 +1052,7 @@ function frame(now){
   if(slow>1.2){ slow=0; if(dprCap>1){ dprCap=1; resize(); } else if(bladeCut<1) bladeCut=1; else lowFx=true; }
   requestAnimationFrame(frame);          // booked first, so one bad frame can never stop the game
   try{
-    update(dt); updateNight(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic();
+    update(dt); updateNight(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
     drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); drawWorld(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawHud(); drawStick();
   }catch(err){
