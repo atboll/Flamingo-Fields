@@ -1127,6 +1127,27 @@ function platShape(){
     ctx.globalAlpha=a*clamp((c[0]-350)/600,0,1); ctx.drawImage(cloudArt[c[2]%n], x-w/2, y-h/2, w, h); }
   ctx.globalAlpha=a;
 }
+// The cloud deck: the higher the kids climb, the more cloud closes over the field beneath them, until near the top
+// there is almost nothing of the field left to see. A haze thickens from the horizon inward and cloud after cloud fills in below.
+function drawDeck(){
+  if(level!==1 || skyA<0.02) return;
+  const cover=skyA*clamp((lead.y-(CEILING+100))/2600,0,1); if(cover<=0.01) return;
+  const g=ctx.createLinearGradient(0,horizon-6,0,H), c='216,188,208';
+  g.addColorStop(0,'rgba('+c+',0)'); g.addColorStop(0.03,'rgba('+c+','+cover+')'); g.addColorStop(0.3,'rgba('+c+','+cover*(0.55+0.4*cover)+')'); g.addColorStop(1,'rgba('+c+','+cover*cover*0.9+')');
+  ctx.fillStyle=g; ctx.fillRect(0,horizon-6,W,H-horizon+6);
+  const CS=1500, tanH=(W/2)/focal, FAR=10000, list=[], n=cloudArt.length; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+  for(const d of [100,FAR]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+CS), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
+  for(let j=Math.floor(z0/CS);j<=Math.ceil(z1/CS);j++) for(let i=Math.floor(x0/CS);i<=Math.ceil(x1/CS);i++){
+    const r=h2(i*3+1,j*5+2), show=clamp((cover*1.15-r)/0.14,0,1); if(show<=0) continue;
+    const alt=CEILING+150+h2(i+9,j-4)*2300; if(alt>camY-220) continue;                       // only what lies below the kids
+    const p=proj((i+h2(i,j+77))*CS+time*6, (j+h2(i+55,j))*CS); if(p[1]<120||p[1]>FAR||Math.abs(p[0])>p[1]*tanH+2200) continue;
+    list.push([p[1],p[0],alt,0.8+h2(i-7,j+3)*0.9,show,((i*7+j*13)%n+n)%n]); }
+  list.sort((a,b)=>b[0]-a[0]);
+  for(const q of list){ const sc=focal/q[0], w=3000*q[3]*sc, h=w*0.375, x=W/2+q[1]*sc, y=horizon+(camY-q[2])*sc; if(x<-w||x>W+w||y<-h||y>H+h) continue;
+    ctx.globalAlpha=q[4]*clamp((FAR-q[0])/2500,0,1)*clamp((q[0]-120)/500,0,1)*0.95; ctx.drawImage(cloudArt[q[5]], x-w/2, y-h/2, w, h); }
+  ctx.globalAlpha=1;
+  if(camY<=PLAT-PLAT_THICK/2) for(const fn of REDO) fn();        // the kids and their flock fly above it
+}
 function drawPlatform(after){
   if(level!==1 || skyA<0.02 || (camY>PLAT-PLAT_THICK/2)!==after) return;   // from below it hangs in the sky behind everything; from above it covers the field
   ctx.globalAlpha=skyA; platShape(); ctx.globalAlpha=1;
@@ -1268,7 +1289,7 @@ function frame(now){
   try{
     update(dt); updateNight(); updatePath(dt); updateSky(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawSkyClouds(true); drawPlatform(false); drawWorld(); drawPlatform(true); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawSkyClouds(true); drawPlatform(false); drawWorld(); drawDeck(); drawPlatform(true); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
