@@ -49,7 +49,8 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 19:10</span>
+    <button type="button" id="testBeach">Test: fly to the beach</button>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 19:55</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -106,7 +107,13 @@ function ground(x,z){
   const a=x*0.0019+0.5, b=z*0.0023+1.1, c=(x*0.8+z*0.6)*0.0041, sa=Math.sin(a), sb=Math.sin(b), cc=Math.cos(c);
   gSlopeX=90*0.0019*Math.cos(a)*sb+30*0.8*0.0041*cc; gSlopeZ=90*0.0023*sa*Math.cos(b)+30*0.6*0.0041*cc;
   const g=90*sa*sb+30*Math.sin(c);
-  if(coast){ const f=clamp((SHORE-coastAlong(x,z))/3000,0,1); if(f<1){ gSlopeX*=f; gSlopeZ*=f; return g*f; } }   // the land runs down level to the water
+  if(coast){ const cs=coastAlong(x,z);
+    if(cs>SHORE){   // the sea: a slow swell rolling in toward the shore, with a shorter chop over it
+      const lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, a1=cs*0.0105+time*1.0+Math.sin(lat*0.0019)*1.6, a2=cs*0.024+time*1.6+lat*0.0037, f=clamp((cs-SHORE)/500,0.12,1);
+      const sl=(11*0.0105*Math.cos(a1)+4.5*0.024*Math.cos(a2))*f; gSlopeX=SUNDX*sl; gSlopeZ=SUNDZ*sl; return (11*Math.sin(a1)+4.5*Math.sin(a2))*f; }
+    if(cs>0){       // the beach: the field's hills carry on as dunes in long ridges along the shore, and level out only at the water's edge
+      const lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, f=clamp((SHORE-cs)/650,0,1), r=clamp(cs/1800,0,1), d1=cs*0.0048+Math.sin(lat*0.0027)*2.1, amp=46*(0.55+0.45*Math.sin(lat*0.0016+1.3))*r;
+      gSlopeX=(gSlopeX+SUNDX*amp*0.0048*Math.cos(d1))*f; gSlopeZ=(gSlopeZ+SUNDZ*amp*0.0048*Math.cos(d1))*f; return (g+amp*Math.sin(d1))*f; } }
   return g;
 }
 function windR(){ return WIND_X*rgtX+WIND_Z*rgtZ; }
@@ -238,7 +245,7 @@ cv.addEventListener('pointerup',endStick); cv.addEventListener('pointercancel',e
 function hop(){
   if(lead.fly) return;
   if(lead.y===0){ lead.vy=240; pal.hopAt=time+0.16; }
-  else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
+  else if(!arrived && (feathers>=NEED||freeFly())){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
 }
 let flyStart=0, spaceAt=0;
 function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
@@ -487,11 +494,8 @@ const groves=[]; { const r=rng(31); for(let i=0;i<11;i++) groves.push({th:(i+r()
 function drawSea(under){
   if(level!==1 || sea<=0.001) return;
   const gap=seaGap(), q=H/650, y0=horizon+4, hS=seaTop(), A=clamp(sea*10,0,1); let dc=SUN_B-camYaw; dc=Math.atan2(Math.sin(dc),Math.cos(dc)); if(Math.abs(dc)>1.45+gap) return;
-  const g=ctx.createLinearGradient(0,y0-hS,0,y0+2); g.addColorStop(0,seaCol([212,236,226])); g.addColorStop(0.1,seaCol([106,180,186])); g.addColorStop(1,seaCol(SEA_DEEP)); ctx.fillStyle=g;
+  const g=ctx.createLinearGradient(0,y0-hS,0,y0+2); g.addColorStop(0,seaCol([206,234,226])); g.addColorStop(0.14,seaCol([84,160,182])); g.addColorStop(1,seaCol(SEA_DEEP)); ctx.fillStyle=g;
   for(let x=0;x<W;x+=6){ const ad=Math.abs(Math.atan((x+3-W/2)/focal)-dc), a=under?clamp((gap+0.16-ad)/0.04,0,1):clamp((gap-ad)/0.07,0,1); if(a<=0) continue; ctx.globalAlpha=a*A; ctx.fillRect(x,y0-hS,6,hS+2); }
-  if(!under && sunI>0.01){ ctx.fillStyle='#fffbe8'; const n=Math.max(4,Math.round(hS/(2.6*q)));
-    for(let i=0;i<n;i++){ const u=(i+0.5)/n, wv=(5+u*52)*q*(0.55+0.45*Math.sin(time*1.7+i*2.3)), ox=Math.sin(time*0.9+i*1.9)*9*u*q;
-      ctx.globalAlpha=A*sunI*(0.3+0.6*u)*clamp(gap/0.06,0,1); ctx.fillRect(sunX-wv/2+ox, y0-hS+u*hS, wv, Math.max(1,1.5*q)); } }
   ctx.globalAlpha=1;
 }
 function drawTreeline(){
@@ -659,21 +663,22 @@ const REDO=[];   // the kids and their flock, kept so they can be painted again 
 // By night the sea goes much darker than the moonlit sand beside it, so the shore still reads.
 function seaCol(c){ const n=night; return 'rgb('+(c[0]*(1-0.72*n)|0)+','+(c[1]*(1-0.66*n)|0)+','+(c[2]*(1-0.5*n)|0)+')'; }
 const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
-const SAND_FAR=[252,232,160], SAND_NEAR=[240,200,104], SAND_WET=[176,142,92], SEA_SHALLOW=[104,190,192], SEA_DEEP=[47,127,150];
-function coastStrip(dF,dN,fp,np,NX,v){
+const SAND_FAR=[252,232,160], SAND_NEAR=[240,200,104], SAND_WET=[176,142,92], SEA_SHALLOW=[158,226,208], SEA_MID=[72,178,192], SEA_DEEP=[30,108,152];
+function coastStrip(dF,dN,fp,np,NX,v,k){
   const s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ;
   const SA=(i,d)=>s0+d*(sf+((i*W/NX-W/2)/focal)*sr);
   if(Math.max(SA(0,dF),SA(NX,dF),SA(0,dN),SA(NX,dN))<=0) return;
   const sh=SHORE+Math.sin(time*0.45)*45; let foam=null;
   for(let i=0;i<NX;i++){
     const a=SA(i,dF), b=SA(i+1,dF), c=SA(i,dN), d=SA(i+1,dN), mx=Math.max(a,b,c,d); if(mx<=0) continue;
-    const x0=i*W/NX-0.5, x1=(i+1)*W/NX+0.5, yf0=fp[i]-0.5, yf1=fp[i+1]-0.5, yn0=Math.max(np[i],fp[i])+1, yn1=Math.max(np[i+1],fp[i+1])+1, mid=(a+b+c+d)/4;
+    const x0=Math.floor(i*W/NX), x1=Math.floor((i+1)*W/NX), yf0=fp[i]-0.5, yf1=fp[i+1]-0.5, yn0=Math.max(np[i],fp[i])+1, yn1=Math.max(np[i+1],fp[i+1])+1, mid=(a+b+c+d)/4;
     if(Math.min(a,b,c,d)<sh){   // sand, wet and dark close to the water
-      const wet=clamp(1-(sh-mid)/380,0,1), col=mix(mixA(SAND_FAR,SAND_NEAR,v),SAND_WET,wet*0.65);
+      const wet=clamp(1-(sh-mid)/380,0,1), kk=clamp(1+k*2.2*clamp(v*10,0,1),0.74,1.16), c0=mixA(mixA(SAND_FAR,SAND_NEAR,v),SAND_WET,wet*0.65), col='rgb('+Math.min(255,c0[0]*kk|0)+','+Math.min(255,c0[1]*kk|0)+','+Math.min(255,c0[2]*kk|0)+')';   // dunes catch the light on one side
       ctx.globalAlpha=clamp(mid/SAND_RAMP,0,1); ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x0,yf0); ctx.lineTo(x1,yf1); ctx.lineTo(x1,yn1); ctx.lineTo(x0,yn0); ctx.fill(); ctx.globalAlpha=1; }
     if(mx>sh){                  // water: the part of this piece of ground that lies past the waterline, cut along it exactly
       const P=[[x0,yf0,a],[x1,yf1,b],[x1,yn1,d],[x0,yn0,c]]; let n=0, cx0=0, cy0=0, cuts=0;
-      ctx.fillStyle=seaCol(mixA(SEA_SHALLOW,SEA_DEEP,clamp(Math.max((mid-sh)/2200,1-v*6),0,1))); ctx.beginPath();
+      { const off=mid-sh, c1=mixA(mixA(SEA_SHALLOW,SEA_MID,clamp(off/1300,0,1)),SEA_DEEP,clamp(Math.max((off-900)/5200,1-v*5),0,1)), kw=clamp(1+k*3.4*clamp(v*9,0,1),0.8,1.28);   // pale in the shallows, deepening out to sea, with light on the faces of the swell
+        ctx.fillStyle=seaCol([Math.min(255,c1[0]*kw),Math.min(255,c1[1]*kw),Math.min(255,c1[2]*kw)]); } ctx.beginPath();
       for(let e=0;e<4;e++){ const p=P[e], q=P[(e+1)&3], pin=p[2]>=sh, qin=q[2]>=sh;
         if(pin){ if(n++) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }
         if(pin!==qin){ const t=(sh-p[2])/(q[2]-p[2]), X=p[0]+(q[0]-p[0])*t, Y=p[1]+(q[1]-p[1])*t; if(n++) ctx.lineTo(X,Y); else ctx.moveTo(X,Y);
@@ -690,23 +695,71 @@ function coastFar(){
     ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1); ctx.fillStyle=sv>SHORE?seaCol(SEA_DEEP):mix(SAND_FAR,SAND_FAR,0); ctx.fillRect(i*W/NC-0.5,horizon,W/NC+1,hgt); }
   ctx.globalAlpha=1;
 }
-// Light on the water: a broken path of glints from the horizon toward the kids, under the moon or the low sun.
-function drawSeaLight(){
-  if(!coast || level!==1 || sunI<=0.01 || sunX<-50 || sunX>W+50) return;
-  const s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ, k=sf+((sunX-W/2)/focal)*sr, q=H/650;
-  let yEnd; if(s0>=SHORE) yEnd=H; else { if(k<=0.02) return; const d=(SHORE-s0)/k; if(d>60000) return; yEnd=Math.min(H,horizon+camY*focal/d); }
-  const y0=horizon+3, span=yEnd-y0; if(span<4) return;
-  const n=Math.min(70,Math.max(6,Math.round(span/(5*q)))); ctx.fillStyle='#ffffff';
-  for(let i=0;i<n;i++){ const u=(i+h2(i,91))/n, y=y0+u*u*span, wv=(10+u*150)*q*(0.35+0.65*Math.abs(Math.sin(time*1.3+i*2.1))), ox=Math.sin(time*0.7+i*1.7)*(6+60*u)*q;
-    ctx.globalAlpha=sunI*(0.5-0.3*u)*(0.5+0.5*Math.sin(time*2.1+i*3.3)); ctx.fillRect(sunX-wv/2+ox, y, wv, Math.max(1,(1.2+2.2*u)*q)); }
-  ctx.globalAlpha=1;
-  for(const fn of REDO) fn();                                   // the kids and their flock stand in front of it
+// Light on the water, under the moon or the low sun: hundreds of small broken lines of white, fine and crowded at the horizon,
+// longer and looser toward the kids, each winking on and off. Painted over the finished frame so the night does not dull it,
+// and checked against the kids and flamingos standing in front.
+const GL=[];
+function seaGlints(){
+  GL.length=0; if(level!==1 || sea<=0.02 || sunI<=0.01 || sunX<-80 || sunX>W+80) return;
+  const q=H/650, yTop=horizon+4-seaTop(); let yEnd=horizon+4;
+  if(coast){ const s0=coastAlong(camPx,camPz), k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
+    if(s0>=SHORE) yEnd=H; else if(k>0.02){ const d=(SHORE-s0)/k; if(d<60000) yEnd=Math.min(H,horizon+camY*focal/d); } }
+  const span=yEnd-yTop; if(span<3) return;
+  const N=Math.min(560,Math.round(80+span*2)), A=sunI*clamp(seaGap()/0.06,0,1);
+  for(let i=0;i<N;i++){ const r=h2(i,91), u=r*r, tw=Math.sin(time*(0.8+2.4*h2(i,99))+i*1.31); if(tw<=0.1) continue;
+    const wd=(10+u*250)*q, x=sunX+(h2(i,93)+h2(i,95)-1)*wd+Math.sin(time*0.5+i)*3*u*q, len=(2.5+h2(i,97)*(7+64*u))*q, a=tw*tw*(1-0.5*u)*A; if(a<0.06) continue;
+    GL.push(x-len/2, yTop+u*span+Math.sin(time*0.7+i*0.9)*1.6*u*q, len, Math.max(1,(0.9+1.5*u)*q), a); }
 }
-function updateCoast(){
+function drawGlints(){
+  if(!GL.length) return;
+  ctx.globalCompositeOperation='source-over'; ctx.fillStyle=night>0.5?'#eaf1ff':'#fff7dc';
+  for(let i=0;i<GL.length;i+=5){ if(glowHidden(GL[i]+GL[i+2]/2,GL[i+1],1e9)) continue; ctx.globalAlpha=GL[i+4]*(0.9-0.25*night); ctx.fillRect(GL[i],GL[i+1],GL[i+2],GL[i+3]); }
+  ctx.globalAlpha=1;
+}
+/* ---------- the flamingos of the shore ---------- */
+// They are here before the kids arrive, standing, feeding and wandering along the water. The kids' own flock walks off to join them
+// when LEVEL 2 shows, and any wild flock that comes in over the beach lands and stays.
+const shore=[];
+function shorePos(lat,cs){ return [coastX+SUNDX*cs+SUNDZ*lat, coastZ+SUNDZ*cs-SUNDX*lat]; }
+function shoreBird(x,z,hx,hz,y,homeLat,homeCs,id){ return {x,z,y,vy:0,open:y>6?1:0,hx,hz,ph:h2(id*5+2,9)*6.28,id,wp:h2(id,3)*6,sp:0,turn:0,beach:true,homeLat,homeCs,tx:x,tz:z,wait:h2(id,7)*7,feed:0,eats:h2(id,11)<0.6,n:0,pace:30}; }
+function updateShore(dt){
+  for(const b of shore){
+    if(b.y>0){   // gliding in to its place on the sand
+      const hp=shorePos(b.homeLat,b.homeCs), dx=hp[0]-b.x, dz=hp[1]-b.z, d=Math.hypot(dx,dz)||1, sp=Math.min(250,50+d*0.55), e=Math.min(1,dt*3);
+      b.x+=dx/d*sp*dt; b.z+=dz/d*sp*dt; b.hx+=(dx/d-b.hx)*e; b.hz+=(dz/d-b.hz)*e; { const m=Math.hypot(b.hx,b.hz)||1; b.hx/=m; b.hz/=m; }
+      b.y=Math.max(0,b.y-Math.max(34,b.y*0.55)*dt*(d<700?1:0.3)); b.open=b.y<28?Math.max(0,b.open-dt/0.8):1; b.sp=sp; b.tx=hp[0]; b.tz=hp[1]; continue; }
+    b.open=Math.max(0,b.open-dt/0.8);
+    const dx=b.tx-b.x, dz=b.tz-b.z, d=Math.hypot(dx,dz);
+    if(d>6){ const v=b.pace, e=Math.min(1,dt*4); b.x+=dx/d*v*dt; b.z+=dz/d*v*dt; b.hx+=(dx/d-b.hx)*e; b.hz+=(dz/d-b.hz)*e; { const m=Math.hypot(b.hx,b.hz)||1; b.hx/=m; b.hz/=m; }
+      b.sp=v; b.wp+=dt*(2+v*0.035); b.feed=Math.max(0,b.feed-dt*1.6); }
+    else { b.sp=0; b.pace=30; b.wait-=dt; b.feed=clamp(b.feed+(b.eats?dt:-dt)*0.9,0,1);
+      if(b.wait<=0){ const n=++b.n, p=shorePos(b.homeLat+(h2(b.id,n*3+1)-0.5)*700, clamp(b.homeCs+(h2(b.id+9,n*5+2)-0.5)*420,SHORE-950,SHORE+32)); b.tx=p[0]; b.tz=p[1]; b.wait=4+h2(b.id+3,n)*9; b.eats=h2(b.id+5,n)<0.6; } }
+  }
+}
+function drawBirdTiny(m,X,Y,s){   // a flamingo far down the beach: a pink body on a thread of leg, with the neck up or down at the sand
+  const dir=(m.hx*rgtX+m.hz*rgtZ)>=0?1:-1, by=Y-40*s, f=m.feed||0;
+  ctx.strokeStyle='#e98da0'; ctx.lineWidth=Math.max(1,1.4*s); ctx.beginPath(); ctx.moveTo(X,Y); ctx.lineTo(X,by); ctx.stroke();
+  ctx.strokeStyle='#f4a0b3'; ctx.lineWidth=Math.max(1,3*s); ctx.beginPath(); ctx.moveTo(X+dir*8*s,by); ctx.lineTo(X+dir*(13+9*f)*s, by-(32-58*f)*s); ctx.stroke();
+  ctx.fillStyle='#ef8aa3'; ctx.beginPath(); ctx.ellipse(X,by,Math.max(1.5,10*s),Math.max(1,5.5*s),0,0,7); ctx.fill();
+}
+function updateCoast(dt){
   if(level!==1) return;
-  if(!coast && sea>=1){ coastX=lead.x+SUNDX*5000; coastZ=lead.z+SUNDZ*5000; coast=true; }   // the sand begins a little way on from where the mountains finished parting
+  if(!coast && sea>=1){ coastX=lead.x+SUNDX*5000; coastZ=lead.z+SUNDZ*5000; coast=true;   // the sand begins a little way on from where the mountains finished parting
+    shore.length=0;
+    for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*7000, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
+      shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),0,lat,cs,100+i)); } }
   if(!coast) return;
   for(const k of kids){ const lim=SHORE+(k.fly?9000:45), cs=coastAlong(k.x,k.z); if(cs>lim){ k.x-=SUNDX*(cs-lim); k.z-=SUNDZ*(cs-lim); } }   // ankle-deep on foot; on the wing the kids are turned gently back long before this
+  updateShore(dt);
+  // the kids' own flock, a few moments after LEVEL 2 shows: they walk off down the beach and are flamingos of the shore from then on
+  if(arrived && mates.length && time-landT>3.2){ const l0=(lead.x-coastX)*SUNDZ-(lead.z-coastZ)*SUNDX;
+    mates.forEach((m,i)=>{ const b=shoreBird(m.x,m.z,m.hx,m.hz,m.y,l0+(i-2)*230+(h2(i,221)-0.5)*160,SHORE-120-h2(i,223)*380,300+i); b.ph=m.ph; b.wp=m.wp; b.pace=46; b.wait=6+i; const p=shorePos(b.homeLat,b.homeCs); b.tx=p[0]; b.tz=p[1]; shore.push(b); });
+    mates.length=0; }
+  // a wild flock coming in over the beach lands there
+  if(flock && shore.length<58 && coastAlong(flock.x,flock.z)>SHORE-1500){ const n=BIRDS.length-(flock.gave?1:0);
+    for(let i=0;i<n;i++){ const o=BIRDS[i], bx=flock.x+o[0]*flock.dz+o[1]*flock.dx, bz=flock.z-o[0]*flock.dx+o[1]*flock.dz, id=400+shore.length;
+      shore.push(shoreBird(bx,bz,flock.dx,flock.dz,Math.max(60,flock.y-ground(bx,bz)),(bx-coastX)*SUNDZ-(bz-coastZ)*SUNDX+(h2(id,3)-0.5)*500,SHORE-70-h2(id,5)*520,id)); }
+    flock=null; nextFlock=time+50; }
   if(!arrived && lead.y===0 && !lead.fly && coastAlong(lead.x,lead.z)>SAND_RAMP*0.8){ arrived=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; }   // the first landing on the beach: level 2, and the day begins to break
 }
 function moonSetup(){ FRONT.length=0; REDO.length=0; moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0; }
@@ -721,14 +774,16 @@ function drawWorld(){
   if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
   for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
+  if(coast){ const th=(W/2)/focal; for(const m of shore){ const p=proj(m.x,m.z); if(p[1]>60 && p[1]<12000 && Math.abs(p[0])<p[1]*th+160) kd.push({m, cx:p[0], dz:p[1]}); } }
   if(pathA>0.01){ const al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
     for(let j=Math.floor((al-1100)/ROAD_STEP), j1=Math.floor((al+ROAD_END)/ROAD_STEP); j<=j1; j++){ const q=trailFeather(j,al); if(!q) continue; const p=proj(q.x,q.z); if(p[1]>60 && Math.abs(p[0])<p[1]*(W/2)/focal+300) kd.push({f:q, cx:p[0], dz:p[1]}); } }
   kd.sort((a,b)=>b.dz-a.dz);
   let ki=0;
   const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].dz>=depth){ const e=kd[ki++]; if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
+      if(m.beach && m.y<=6 && m.open<=0.03 && s<0.09){ drawBirdTiny(m,X,horizon+(camY-g)*s,s); continue; }
       if(m.y>6||m.open>0.03) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
       const dr=(m.y>6||m.open>0.03) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s) : ()=>drawBirdWalk(m, X, horizon+(camY-g)*s, s);
-      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); REDO.push(dr); }
+      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); if(!m.beach) REDO.push(dr); }
     else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
       const fade=clamp((s-focal/FLOCK_GONE)/0.03,0,1); if(fade<=0.01) continue;
       const dr=()=>{ ctx.globalAlpha=fade;
@@ -797,7 +852,7 @@ function drawWorld(){
       for(let i=1;i<=NX;i++) ctx.lineTo(i*W/NX,farP[i]-0.5);
       for(let i=NX;i>=0;i--) ctx.lineTo(i*W/NX,Math.max(nearP[i],farP[i])+1);
       ctx.fill();
-      if(coast) coastStrip(dn+sp, dn, farP, nearP, NX, clamp(CAM_H*hk*focal/dz/(H-horizon),0,1));
+      if(coast) coastStrip(dn+sp, dn, farP, nearP, NX, clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), farP[NX+1]);
       farP=nearP;
       const paths=bins[bn]; if(!paths) continue;
       const hz=Math.pow(clamp((dz/hk-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
@@ -942,7 +997,7 @@ function drawBirdFar(i,sx,sy,s){   // a far-off bird: a pink stroke for the body
     ctx.strokeStyle='#e9879f'; ctx.beginPath(); ctx.moveTo(m[0],m[1]); ctx.lineTo(t[0],t[1]); ctx.stroke(); }
 }
 function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs striding through the grass, wings folded, neck up (stretched forward at a run)
-  const cfx=m.hx*rgtX+m.hz*rgtZ, cfz=m.hx*fwdX+m.hz*fwdZ, S=Math.max(s,0.17)*1.08, ce=Math.cos(0.14), se=Math.sin(0.14), DARK='#2a1e24';
+  const cfx=m.hx*rgtX+m.hz*rgtZ, cfz=m.hx*fwdX+m.hz*fwdZ, S=(m.beach?s:Math.max(s,0.17))*1.08, ce=Math.cos(0.14), se=Math.sin(0.14), DARK='#2a1e24';
   const P=(lat,fwd,up)=>{ const d=-lat*cfx+fwd*cfz, k=S*(1-0.0065*d); return [sx+(lat*cfz+fwd*cfx)*k, sy-(up*ce+d*se)*k]; };
   const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
   const dot=(p,r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(0.7,r*S),0,7); ctx.fill(); };
@@ -968,9 +1023,10 @@ function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs stri
   const body=()=>{ ln([P(0,-10,38+bob),P(0,9,41+bob)],'#ef8aa3',11); ln([P(0,-8,35.4+bob),P(0,6,37.6+bob)],'#dc6a89',3.6); ln([P(0,-7,41.5+bob),P(0,7,44+bob)],'#fab8c6',3.8); };
   const neck=()=>{
     const st=Math.pow(run,1.2), nod=Math.sin(wp*2)*1.6*mv*(1-st), L=(a,b)=>a+(b-a)*st;
-    const n1=P(0,9,42+bob), n2=P(0,L(14,17)+nod*0.3,L(53,49)+bob*0.6), n3=P(0,L(10,24)+nod*0.6,L(63,55)+bob*0.3), n4=P(0,L(13,30)+nod,L(72,59));
+    const F=m.feed||0, M=(a,b)=>a+(b-a)*F, dab=F*Math.sin(time*3+m.ph)*1.6;                    // feeding: the neck swings down and the bill dabbles at the sand
+    const n1=P(0,9,42+bob), n2=P(0,M(L(14,17)+nod*0.3,18),M(L(53,49)+bob*0.6,40)), n3=P(0,M(L(10,24)+nod*0.6,25),M(L(63,55)+bob*0.3,25)), n4=P(0,M(L(13,30)+nod,24+dab),M(L(72,59),12));
     ln([n1,n2,n3,n4],'#f4a0b3',3.6); ln([n2,n3,n4],'#fbc0cc',1.5);
-    const hf=L(15,33)+nod, hu=L(75,60), h=P(0,hf,hu), hk=1-0.0065*hf*cfz;
+    const hf=M(L(15,33)+nod,25+dab), hu=M(L(75,60),8), h=P(0,hf,hu), hk=1-0.0065*hf*cfz;
     const bill=()=>{ ln([h,P(0,hf+5,hu-1.6)],'#f7dcd0',2.7*hk); ln([P(0,hf+5,hu-1.6),P(0,hf+7.6,hu-3.4),P(0,hf+7,hu-5.6)],DARK,2.3*hk); };
     if(cfz>0.15){ if(cfz<0.72) bill(); dot(h,3.4*hk,'#f29ab0'); }
     else { dot(h,3.2*hk,'#f6a6b8'); for(const o of [-1.7,1.7]){ const e=P(o,hf+1,hu+0.7); dot(e,1*hk,'#fff3c8'); dot(e,0.5*hk,DARK); } bill(); }
@@ -1018,6 +1074,7 @@ function flamingoIcon(u,body,leg,bill){   // a small standing flamingo, drawn ar
   ctx.fillStyle=bill; ctx.beginPath(); ctx.moveTo(u*0.76,-u*1.32); ctx.lineTo(u*1.08,-u*1.06); ctx.lineTo(u*0.74,-u*1.1); ctx.closePath(); ctx.fill();
 }
 function drawHud(){
+  if(arrived) return;                                         // on the beach there is nothing left to count
   const q=clamp(Math.min(W/1100,H/560),0.62,1.15), gap=24*q, y=W<500?50:Math.max(16,24*q), x0=W/2-(NEED-1)*gap/2;   // tucked against the top edge, smaller on a phone
   const free=freeFly(), have=free?NEED:lead.fly?Math.ceil(flightLeft/FLY_TIME*NEED):feathers, ready=!lead.fly&&(feathers>=NEED||free), lit=ready||lead.fly;
   for(let i=0;i<NEED;i++){
@@ -1399,6 +1456,9 @@ function nightGrade(){
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=0.97; });
+  document.getElementById('testBeach').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=1;
+    setTimeout(()=>{ if(!coast||arrived) return; const d=3600-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
+      camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
 }
@@ -1411,9 +1471,9 @@ function frame(now){
   if(slow>1.2){ slow=0; if(dprCap>1){ dprCap=1; resize(); } else if(bladeCut<1) bladeCut=1; else lowFx=true; }
   requestAnimationFrame(frame);          // booked first, so one bad frame can never stop the game
   try{
-    update(dt); updateNight(); updatePath(dt); updateSky(dt); updateCoast(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound(); updateOceanSound();
+    update(dt); updateNight(); updatePath(dt); updateSky(dt); updateCoast(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound(); updateOceanSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); coastFar(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawSeaLight(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); coastFar(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); seaGlints(); drawGlints(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
