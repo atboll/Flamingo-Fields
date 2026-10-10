@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:55</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 19:10</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -100,7 +100,7 @@ const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);
 // The coast: once the mountains have parted, the field ahead ends in sand and then in the sea. It is a straight shore across the
 // way to the moon, fixed in the world from that moment. coastAlong() is how far a point lies past the start of the sand.
 const SAND_RAMP=2500, SHORE=7000;
-let coast=false, coastX=0, coastZ=0;
+let arrived=false, coast=false, coastX=0, coastZ=0;
 function coastAlong(x,z){ return (x-coastX)*SUNDX+(z-coastZ)*SUNDZ; }
 function ground(x,z){
   const a=x*0.0019+0.5, b=z*0.0023+1.1, c=(x*0.8+z*0.6)*0.0041, sa=Math.sin(a), sb=Math.sin(b), cc=Math.cos(c);
@@ -269,6 +269,8 @@ function update(dt){
 
   const idle=!(ix||iz);
   if(lead.fly && idle){ ix=headX; iz=headZ; }            // keep gliding forward with no key held
+  if(coast && lead.fly){ const over=clamp((coastAlong(lead.x,lead.z)-SHORE-1000)/2200,0,1);   // out over the water the kids are eased round toward the land, never stopped dead
+    if(over>0){ ix-=SUNDX*over*2.2; iz-=SUNDZ*over*2.2; const mm=Math.hypot(ix,iz)||1; ix/=mm; iz/=mm; } }
   if(skyOpen){                                               // the way up flies itself: along the road, toward the moon, easing back to its middle
     const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, c=clamp(-lat/1500,-0.5,0.5); ix=SUNDX+SUNDZ*c; iz=SUNDZ-SUNDX*c; sprint=false;
     lead.alt=Math.min(SKY_TOP,lead.alt+CLIMB*clamp(ascT/3,0.15,1)*dt); }
@@ -657,7 +659,7 @@ const REDO=[];   // the kids and their flock, kept so they can be painted again 
 // By night the sea goes much darker than the moonlit sand beside it, so the shore still reads.
 function seaCol(c){ const n=night; return 'rgb('+(c[0]*(1-0.72*n)|0)+','+(c[1]*(1-0.66*n)|0)+','+(c[2]*(1-0.5*n)|0)+')'; }
 const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
-const SAND_FAR=[246,231,194], SAND_NEAR=[226,196,148], SAND_WET=[158,138,118], SEA_SHALLOW=[104,190,192], SEA_DEEP=[47,127,150];
+const SAND_FAR=[252,232,160], SAND_NEAR=[240,200,104], SAND_WET=[176,142,92], SEA_SHALLOW=[104,190,192], SEA_DEEP=[47,127,150];
 function coastStrip(dF,dN,fp,np,NX,v){
   const s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ;
   const SA=(i,d)=>s0+d*(sf+((i*W/NX-W/2)/focal)*sr);
@@ -704,7 +706,8 @@ function updateCoast(){
   if(level!==1) return;
   if(!coast && sea>=1){ coastX=lead.x+SUNDX*5000; coastZ=lead.z+SUNDZ*5000; coast=true; }   // the sand begins a little way on from where the mountains finished parting
   if(!coast) return;
-  for(const k of kids){ const lim=SHORE+(k.fly?2600:45), cs=coastAlong(k.x,k.z); if(cs>lim){ k.x-=SUNDX*(cs-lim); k.z-=SUNDZ*(cs-lim); } }   // ankle-deep on foot, a short way out on the wing
+  for(const k of kids){ const lim=SHORE+(k.fly?9000:45), cs=coastAlong(k.x,k.z); if(cs>lim){ k.x-=SUNDX*(cs-lim); k.z-=SUNDZ*(cs-lim); } }   // ankle-deep on foot; on the wing the kids are turned gently back long before this
+  if(!arrived && lead.y===0 && !lead.fly && coastAlong(lead.x,lead.z)>SAND_RAMP*0.8){ arrived=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; }   // the first landing on the beach: level 2, and the day begins to break
 }
 function moonSetup(){ FRONT.length=0; REDO.length=0; moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0; }
 function drawWorld(){
@@ -759,7 +762,8 @@ function drawWorld(){
       const r=h2(i,j+bi*7919), r2=h2(i+31,j-bi*131);
       const x=(i+(r-0.5)*0.9)*sp, z=(j+(r2-0.5)*0.9)*sp;
       rx=x-camPx; rz=z-camPz; dz=rx*fwdX+rz*fwdZ; if(dz<b.a||dz>=b.b||dz<dMin) continue; cx=rx*rgtX+rz*rgtZ;
-      let gH=1; if(coast){ const cs=coastAlong(x,z); if(cs>0){ const gf=1-cs/SAND_RAMP; if(gf<=0 || h2(i+5,j+9+bi)>gf*gf) continue; gH=0.35+0.65*gf; } }   // grass thins and shortens into the sand
+      let gH=1; if(coast){ const cs=coastAlong(x,z); if(cs>0){ const gf=1-cs/SAND_RAMP; if(gf<=0){ if(cs>SHORE-500 || h2(Math.floor(x/80)+3,Math.floor(z/80)-8)>0.075) continue; gH=0.5+0.5*h2(Math.floor(x/80)-5,Math.floor(z/80)+2); }   // out on the sand, only scattered clumps of dune grass
+        else { if(h2(i+5,j+9+bi)>gf*gf) continue; gH=0.35+0.65*gf; } } }   // grass thins and shortens into the sand
       const s=focal/dz, bx=W/2+cx*s, by=horizon+(camY-ground(x,z))*s, lit=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ);
       // rolling gusts: a slow wide swell plus a faster ripple, both travelling downwind
       const gust=clamp(0.5+0.36*Math.sin(x*0.0028+z*0.0042-time*1.5+Math.sin(z*0.0016+time*0.25)*2.2)+0.18*Math.sin(x*0.011-z*0.007-time*2.6),0,1);
@@ -1274,7 +1278,7 @@ function drawFog(){
   ctx.globalAlpha=a; ctx.fillStyle='#d8bcd0'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
 }
 function drawLevelSign(){
-  const t=time-landT-1.5; if(!landed2 || t<0 || t>7) return;
+  const t=time-landT-1.5; if(!(landed2||arrived) || t<0 || t>7) return;
   const a=clamp(t/1.5,0,1)*clamp((7-t)/2,0,1), q=clamp(Math.min(W/1100,H/560),0.55,1.2);
   ctx.save(); ctx.globalAlpha=a; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='600 '+Math.round(72*q)+'px "Klee One","Trebuchet MS",sans-serif';
   try{ ctx.letterSpacing=Math.round(14*q)+'px'; }catch(e){}
