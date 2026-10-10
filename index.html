@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 01:15 box</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 01:40 box</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -194,9 +194,9 @@ function ground(x,z){
   if(coast){ const cs=coastAlong(x,z), g0x=gSlopeX, g0z=gSlopeZ;
     if(BOX){ if(cs<=0) return g;   // the desert: great dunes in long ridges across the way to the box, levelling out where it stands
       const al=(x-coastX)*SUNDX+(z-coastZ)*SUNDZ, lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, r=clamp(cs/2200,0,1), f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0);
-      const d1=al*0.0015+Math.sin(lat*0.0011)*1.8, d2=lat*0.0013+al*0.0005+1.7, c1=Math.cos(d1), c2=Math.cos(d2), k0=1-0.65*r;
-      const da=A*(230*0.0015*c1+90*0.0005*c2), dl=A*(230*c1*1.8*0.0011*Math.cos(lat*0.0011)+90*0.0013*c2);
-      gSlopeX=g0x*k0+da*SUNDX+dl*SUNDZ; gSlopeZ=g0z*k0+da*SUNDZ-dl*SUNDX; return coastMix(g,g0x,g0z,g*k0+A*(230*Math.sin(d1)+90*Math.sin(d2))); }
+      const d1=al*0.0012+Math.sin(lat*0.0008)*1.6, d2=lat*0.0009+al*0.0004+1.7, c1=Math.cos(d1), c2=Math.cos(d2), k0=1-0.65*r;
+      const da=A*(210*0.0012*c1+70*0.0004*c2), dl=A*(210*c1*1.6*0.0008*Math.cos(lat*0.0008)+70*0.0009*c2);
+      gSlopeX=g0x*k0+da*SUNDX+dl*SUNDZ; gSlopeZ=g0z*k0+da*SUNDZ-dl*SUNDX; return coastMix(g,g0x,g0z,g*k0+A*(210*Math.sin(d1)+70*Math.sin(d2))); }
     if(cs>SHORE){   // the sea: a slow swell rolling in toward the shore, with a shorter chop over it
       const lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, a1=cs*0.0105+time*1.0+Math.sin(lat*0.0019)*1.6, a2=cs*0.024+time*1.6+lat*0.0037, f=clamp((cs-SHORE)/500,0.12,1);
       const sl=(11*0.0105*Math.cos(a1)+4.5*0.024*Math.cos(a2))*f; gSlopeX=SUNDX*sl; gSlopeZ=SUNDZ*sl; return coastMix(g,g0x,g0z,(11*Math.sin(a1)+4.5*Math.sin(a2))*f); }
@@ -815,6 +815,7 @@ function seaCol(c){ const n=night; return 'rgb('+(c[0]*(1-0.72*n)|0)+','+(c[1]*(
 const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 const SAND_FAR=[252,232,160], SAND_NEAR=[240,200,104], SAND_WET=[176,142,92], SEA_SHALLOW=[158,226,208], SEA_MID=[72,178,192], SEA_DEEP=[30,108,152];
 const coastMask=new Float32Array(64); let coastMaskT=-1;
+const DUNE_CL=97; let dlRowD=-1, dlRowT=-1, dlRowA=null, duneCv=null, duneCx=null, duneIm=null;
 let csRowD=-1, csRowT=-1, csRowA=null, waterPat=null, blotPat=null, waterPatT=-1;
 // The part of a four-cornered piece of ground where the coast value is at least lv, added to a path. Returns the cut line, if it was cut.
 function quadCut(path,P,lv){
@@ -858,9 +859,16 @@ function coastStrip(dF,dN,fp,np,NX,v,k){
   const kk=clamp(1+k*2.2*clamp(v*10,0,1),0.74,1.16), c0=mixA(SAND_FAR,SAND_NEAR,v), sand='rgb('+Math.min(255,c0[0]*kk|0)+','+Math.min(255,c0[1]*kk|0)+','+Math.min(255,c0[2]*kk|0)+')';
   const kw=clamp(1+k*3.4*clamp(v*9,0,1),0.8,1.28), farT=clamp(1-v*5,0,1), seaC=SEA_LV.map(o=>{ const c1=mixA(mixA(SEA_SHALLOW,SEA_MID,clamp(o/1300,0,1)),SEA_DEEP,clamp(Math.max((o-900)/3500,farT),0,1)); const hzF=0.55*farT*(1-nk), c2=mixA(c1,HAZE,hzF), nn=1-hzF*0.8; return seaColN([Math.min(255,c2[0]*kw),Math.min(255,c2[1]*kw),Math.min(255,c2[2]*kw)],nn); });
   let foam=null, wp=null, sandG=null;
-  if(BOX && fp.L && np.L){   // dunes: each slope takes the light or lies in shadow by how it faces the moon
-    sandG=ctx.createLinearGradient(0,0,W,0); const sh0=[c0[0]*0.5,c0[1]*0.47,c0[2]*0.62], li=[Math.min(255,c0[0]*1.06),Math.min(255,c0[1]*1.06),Math.min(255,c0[2]*1.04)];
-    for(let i=0;i<=NX;i++){ const t0=clamp(0.5+(fp.L[i]+np.L[i])*0.5*7,0,1), t=t0*t0*(3-2*t0); sandG.addColorStop(i/NX,'rgb('+(sh0[0]+(li[0]-sh0[0])*t|0)+','+(sh0[1]+(li[1]-sh0[1])*t|0)+','+(sh0[2]+(li[2]-sh0[2])*t|0)+')'); } }
+  if(BOX){   // dunes: every slope takes the light or lies in shade by how it faces the moon. The light is worked out finely along the
+    // far and near edge of the strip and blended between them, so it holds still on the sand as the eye moves over it.
+    const CL=DUNE_CL, lrow=d=>{ const r=new Float32Array(CL); for(let i=0;i<CL;i++){ const cx=(i*W/(CL-1)-W/2)*d/focal; ground(camPx+rgtX*cx+fwdX*d, camPz+rgtZ*cx+fwdZ*d); r[i]=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ); } return r; };
+    const LF=(dlRowD===dF && dlRowT===time)?dlRowA:lrow(dF), LN=lrow(dN); dlRowD=dN; dlRowT=time; dlRowA=LN;
+    if(!duneCv){ duneCv=document.createElement('canvas'); duneCv.width=CL; duneCv.height=2; duneCx=duneCv.getContext('2d'); duneIm=duneCx.createImageData(CL,2); }
+    const px=duneIm.data, sh0=[c0[0]*0.56,c0[1]*0.52,c0[2]*0.64], li=[Math.min(255,c0[0]*1.05),Math.min(255,c0[1]*1.05),Math.min(255,c0[2]*1.03)], ck=clamp(1-(dF-dN-350)/2600,0.2,1);
+    for(let r=0;r<2;r++){ const Lr=r?LN:LF; for(let i=0;i<CL;i++){ const t0=clamp(0.5+Lr[i]*3.6*ck,0,1), t=t0*t0*(3-2*t0), o=(r*CL+i)*4; px[o]=sh0[0]+(li[0]-sh0[0])*t; px[o+1]=sh0[1]+(li[1]-sh0[1])*t; px[o+2]=sh0[2]+(li[2]-sh0[2])*t; px[o+3]=255; } }
+    duneCx.putImageData(duneIm,0,0);
+    let y0=1e9, y1=-1e9; for(let i=0;i<=NX;i++){ if(fp[i]<y0) y0=fp[i]; const yn=Math.max(np[i],fp[i]); if(yn>y1) y1=yn; }
+    const sy=Math.max(1,y1-y0), sx=W/(CL-1); sandG=ctx.createPattern(duneCv,'repeat'); try{ sandG.setTransform(new DOMMatrix([sx,0,0,sy,-0.5*sx,y0-0.5*sy])); }catch(e){ sandG=null; } }
   for(let i=0;i<NX;i++){
     const a=AF[i], b=AF[i+1], c=AN[i], d=AN[i+1], mx=Math.max(a,b,c,d), CA=coastA*coastMask[i]; if(mx<=0 || CA<=0.004) continue;
     const mn=Math.min(a,b,c,d), x0=Math.floor(i*W/NX), x1=Math.floor((i+1)*W/NX), yn0=Math.max(np[i],fp[i])+1, yn1=Math.max(np[i+1],fp[i+1])+1;
@@ -1088,7 +1096,7 @@ function drawWorld(){
       if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); REDO.push(dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
   const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
   // the ground line across the screen at one depth; the last slot holds how much that line faces the sun
-  const NX=22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2), L=new Float32Array(NX+1); let lit=0;
+  const NX=(BOX&&coast)?36:22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2), L=new Float32Array(NX+1); let lit=0;
     for(let i=0;i<=NX;i++){ const cx=(i*W/NX-W/2)/s, h=ground(camPx+rgtX*cx+fwdX*d, camPz+rgtZ*cx+fwdZ*d); ys[i]=horizon+(camY-h)*s; const lv=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ); L[i]=lv; lit+=lv; } ys.L=L;
     ys[NX+1]=lit/(NX+1); return ys; };
   ctx.lineCap='round';
