@@ -231,7 +231,7 @@ function hop(){
   else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
 }
 let flyStart=0, spaceAt=0;
-function land(){ if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
+function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
 
 /* ---------- update ---------- */
 function update(dt){
@@ -248,7 +248,7 @@ function update(dt){
   }
   // In the air, up and down mean rise and descend, and the height stays where it is left. A full flock lifts the ceiling.
   if(lead.fly){ const top=freeFly()?(skyOpen?SKY_TOP:CEILING):FEATHER_TOP;
-    if(iz>0.3){ if(lead.alt<top) lead.alt=Math.min(top,lead.alt+380*iz*dt); } else if(iz<-0.3) lead.alt+=460*iz*dt;
+    if(skyOpen){} else if(iz>0.3){ if(lead.alt<top) lead.alt=Math.min(top,lead.alt+380*iz*dt); } else if(iz<-0.3) lead.alt+=460*iz*dt;
     if(lead.alt>top) lead.alt=Math.max(top,lead.alt-330*dt);   // off the road the sky closes, and the kids sink back under it
     lead.alt=Math.max(110,lead.alt); iz=0; }
   // Steering is always read against where the camera looks now, so holding left or right keeps the kids turning as the camera follows them round.
@@ -259,9 +259,13 @@ function update(dt){
 
   const idle=!(ix||iz);
   if(lead.fly && idle){ ix=headX; iz=headZ; }            // keep gliding forward with no key held
+  if(skyOpen){                                               // the way up flies itself: along the road, toward the moon, easing back to its middle
+    const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, c=clamp(-lat/1500,-0.5,0.5); ix=SUNDX+SUNDZ*c; iz=SUNDZ-SUNDX*c; sprint=false;
+    lead.alt=Math.min(SKY_TOP,lead.alt+CLIMB*clamp(ascT/3,0.15,1)*dt); }
+  const idle2=idle&&!skyOpen;
   let top = lead.fly?(sprint&&freeFly()?FAST:430):sprint?340:210;
   // slower uphill, faster downhill
-  if(lead.fly && flock && flock.joined && idle){              // with the flock and hands off: settle into the gap behind the leader
+  if(lead.fly && flock && flock.joined && idle2){              // with the flock and hands off: settle into the gap behind the leader
     const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-lead.x)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-lead.z)*1.2, m=Math.hypot(vx,vz)||1;
     ix=vx/m; iz=vz/m; top=Math.min(540,m);
   }
@@ -1088,82 +1092,65 @@ let pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas
 /* ---------- the way up: stay on the road after it answers and the sky opens ---------- */
 // The ceiling lifts while the kids keep to the road. Above it real clouds drift past, and the road climbs to a great flat cloud.
 // Rise or sink into that cloud and the kids come out on top of it: level 2, a field of cloud with no way back down.
-const PLAT=5600, PLAT_R=5000, PLAT_THICK=220, SKY_TOP=PLAT+500, CLOUD_LO=2650;
-let skyT=0, skyOpen=false, skyA=0, platAl=0, fogT=0, landed2=false, landT=-99;
-function platInside(){ const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl; return clamp((PLAT_R-Math.hypot(lead.x-cx,lead.z-cz))/700,0,1); }
-function platFog(){ return level===1 ? skyA*platInside()*clamp(1.25-Math.abs(camY-(PLAT-PLAT_THICK/2))/240,0,1) : 0; }
+const SKY_TOP=5600, CLIMB=230, CLOUD_LO=2650, FOG_LO=4950;
+let skyT=0, skyOpen=false, skyA=0, ascT=0, fogT=0, landed2=false, landT=-99;
+function ascFog(){ return level===1 && skyOpen ? clamp((lead.y-FOG_LO)/420,0,1) : 0; }
 function updateSky(dt){
-  fogT=Math.max(0,fogT-dt/1.6);
+  fogT=Math.max(0,fogT-dt/1.8);
   if(level===2){ skyOpen=false; skyT=0; skyA=0;
     if(!landed2){ dayOffset-=dt;                                // the night waits for the kids to land
       if(lead.y===0 && !lead.fly){ landed2=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; } }   // then the sun starts to rise
     return; }
-  const on=pathOn && lead.fly && freeFly(), was=skyOpen;
-  skyT=clamp(skyT+(on?dt:-dt*3),0,10);
-  if(skyT>=10) skyOpen=true; else if(skyT<=0) skyOpen=false;
+  const on=pathOn && lead.fly && freeFly();
+  if(!skyOpen){ skyT=clamp(skyT+(on?dt:-dt*3),0,10); if(skyT>=10){ skyOpen=true; ascT=0; } }   // ten seconds true to the road, and the flock carries the kids up
   if(!lead.fly || !freeFly()){ skyOpen=false; skyT=0; }
-  if(skyOpen && !was && skyA<0.05) platAl=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ+9000;   // the great cloud waits up the road
-  skyA+=((skyOpen||lead.y>CEILING+250?1:0)-skyA)*(1-Math.exp(-dt*0.7));
-  if(skyOpen || lead.y>CEILING+250) dayOffset-=dt;             // the night waits while the kids climb
-  if(platFog()>0.97) enterLevel2();
+  if(skyOpen){ ascT+=dt; dayOffset-=dt; }                       // the night waits while the kids climb
+  skyA+=((skyOpen?1:0)-skyA)*(1-Math.exp(-dt*0.7));
+  if(ascFog()>0.985) enterLevel2();
 }
 function enterLevel2(){
   level=2; fogT=1; skyOpen=false; skyT=0; skyA=0; pathA=0; pathAlign=0; flock=null; got.clear();
-  for(const k of kids){ k.y=Math.max(90,k.y-PLAT); k.vy=0; } lead.alt=CRUISE;
-  for(const m of mates){ m.y=Math.max(70,m.y-PLAT); m.vy=0; }
-  camY=Math.max(ground(lead.x,lead.z)+CAM_H+60, camY-PLAT);
+  for(const k of kids){ k.y=110; k.vy=0; } lead.alt=CRUISE;
+  for(const m of mates){ m.y=120; m.vy=0; }
+  camY=ground(lead.x,lead.z)+CAM_H+90;
 }
-// The great cloud seen from the field's sky: a wide flat slab, pale on top, dusky underneath, with a billowing rim.
-function discPath(h){
-  const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl, N=48, pts=[], out=[], NEAR=60;
-  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2, r=PLAT_R*(1+0.05*Math.sin(a*5+1)+0.04*Math.sin(a*9)); pts.push(proj(cx+Math.cos(a)*r, cz+Math.sin(a)*r)); }
-  for(let i=0;i<N;i++){ const p=pts[i], q=pts[(i+1)%N], pi=p[1]>=NEAR, qi=q[1]>=NEAR;       // clip against the plane just in front of the camera
-    if(pi) out.push(p); if(pi!==qi){ const t=(NEAR-p[1])/(q[1]-p[1]); out.push([p[0]+(q[0]-p[0])*t,NEAR]); } }
-  if(out.length<3) return null;
-  const P=new Path2D(); out.forEach((p,i)=>{ const sc=focal/p[1], X=W/2+p[0]*sc, Y=horizon+(camY-h)*sc; if(i) P.lineTo(X,Y); else P.moveTo(X,Y); }); P.closePath(); return P;
+// Cloud below and cloud above. Below, the higher the kids climb the more cloud closes over the field, until none of it is left.
+// Above, a ceiling of cloud gathers as soon as the climb begins, and the kids rise into it.
+function cloudLayer(above){
+  const CS=1700, tanH=(W/2)/focal, FAR=15000, list=[], n=cloudArt.length; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
+  const cover=above ? skyA : skyA*clamp((lead.y-(CEILING-300))/2100,0,1); if(cover<=0.01) return;
+  for(const d of [100,FAR]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+CS*2), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
+  for(let j=Math.floor(z0/CS);j<=Math.ceil(z1/CS);j++) for(let i=Math.floor(x0/CS);i<=Math.ceil(x1/CS);i++) for(let m=0;m<2;m++){
+    const r=h2(i*3+1+m*5,j*5+2), show=clamp((cover*1.25-r)/0.14,0,1); if(show<=0) continue;
+    const alt=above ? SKY_TOP-350+h2(i+9,j-4+m)*500 : CEILING+h2(i+9,j-4+m)*2300;
+    if(above ? alt<camY+160 : alt>camY-220) continue;
+    const p=proj((i+h2(i,j+77+m))*CS+time*6, (j+h2(i+55+m,j))*CS); if(p[1]<120||p[1]>FAR||Math.abs(p[0])>p[1]*tanH+2600) continue;
+    list.push([p[1],p[0],alt,0.9+h2(i-7,j+3+m)*0.9,show,((i*7+j*13+m)%n+n)%n]); }
+  list.sort((a,b)=>b[0]-a[0]);
+  for(const q of list){ const sc=focal/q[0], w=3600*q[3]*sc, h=w*0.375, x=W/2+q[1]*sc, y=horizon+(camY-q[2])*sc; if(x<-w||x>W+w||y<-h||y>H+h) continue;
+    ctx.globalAlpha=q[4]*clamp((q[0]-120)/500,0,1)*0.95; ctx.drawImage(cloudArt[q[5]], x-w/2, y-h/2, w, h); }
+  ctx.globalAlpha=1;
 }
-function platShape(){
-  const top=discPath(PLAT), bot=discPath(PLAT-PLAT_THICK), below=camY<PLAT-PLAT_THICK/2, a=ctx.globalAlpha;
-  if(below){ if(top){ ctx.fillStyle='#d8bcd0'; ctx.fill(top); } if(bot){ ctx.fillStyle='#a892b6'; ctx.fill(bot); } }
-  else { if(bot){ ctx.fillStyle='#d8bcd0'; ctx.fill(bot); } if(top){ ctx.fillStyle='#f6d4e2'; ctx.fill(top); } }
-  const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl, n=cloudArt.length, rim=[];
-  for(let i=0;i<22;i++){ const an=i/22*Math.PI*2+0.1, p=proj(cx+Math.cos(an)*PLAT_R*0.98, cz+Math.sin(an)*PLAT_R*0.98); if(p[1]>350) rim.push([p[1],p[0],i]); }
-  rim.sort((u,v)=>v[0]-u[0]);
-  for(const c of rim){ const sc=focal/c[0], w=3000*sc, h=w*0.375, x=W/2+c[1]*sc, y=horizon+(camY-(PLAT-PLAT_THICK*0.4))*sc; if(x<-w||x>W+w||y<-h||y>H+h) continue;
-    ctx.globalAlpha=a*clamp((c[0]-350)/600,0,1); ctx.drawImage(cloudArt[c[2]%n], x-w/2, y-h/2, w, h); }
-  ctx.globalAlpha=a;
+function fogNow(){ return Math.max(ascFog(), fogT>0?fogT*fogT*(3-2*fogT):0); }
+function ceilNear(){ return level===1 ? skyA*clamp((lead.y-2600)/2400,0,1) : 0; }
+function drawCeiling(){
+  if(level!==1 || skyA<0.02) return;
+  cloudLayer(true);                                              // the moon dims behind it and glows through
 }
-// The cloud deck: the higher the kids climb, the more cloud closes over the field beneath them, until near the top
-// there is almost nothing of the field left to see. A haze thickens from the horizon inward and cloud after cloud fills in below.
 function drawDeck(){
   if(level!==1 || skyA<0.02) return;
-  const cover=skyA*clamp((lead.y-(CEILING+100))/2600,0,1); if(cover<=0.01) return;
-  const g=ctx.createLinearGradient(0,horizon-6,0,H), c='216,188,208';
-  g.addColorStop(0,'rgba('+c+',0)'); g.addColorStop(0.03,'rgba('+c+','+cover+')'); g.addColorStop(0.3,'rgba('+c+','+cover*(0.55+0.4*cover)+')'); g.addColorStop(1,'rgba('+c+','+cover*cover*0.9+')');
-  ctx.fillStyle=g; ctx.fillRect(0,horizon-6,W,H-horizon+6);
-  const CS=1500, tanH=(W/2)/focal, FAR=10000, list=[], n=cloudArt.length; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
-  for(const d of [100,FAR]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+CS), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
-  for(let j=Math.floor(z0/CS);j<=Math.ceil(z1/CS);j++) for(let i=Math.floor(x0/CS);i<=Math.ceil(x1/CS);i++){
-    const r=h2(i*3+1,j*5+2), show=clamp((cover*1.15-r)/0.14,0,1); if(show<=0) continue;
-    const alt=CEILING+150+h2(i+9,j-4)*2300; if(alt>camY-220) continue;                       // only what lies below the kids
-    const p=proj((i+h2(i,j+77))*CS+time*6, (j+h2(i+55,j))*CS); if(p[1]<120||p[1]>FAR||Math.abs(p[0])>p[1]*tanH+2200) continue;
-    list.push([p[1],p[0],alt,0.8+h2(i-7,j+3)*0.9,show,((i*7+j*13)%n+n)%n]); }
-  list.sort((a,b)=>b[0]-a[0]);
-  for(const q of list){ const sc=focal/q[0], w=3000*q[3]*sc, h=w*0.375, x=W/2+q[1]*sc, y=horizon+(camY-q[2])*sc; if(x<-w||x>W+w||y<-h||y>H+h) continue;
-    ctx.globalAlpha=q[4]*clamp((FAR-q[0])/2500,0,1)*clamp((q[0]-120)/500,0,1)*0.95; ctx.drawImage(cloudArt[q[5]], x-w/2, y-h/2, w, h); }
-  ctx.globalAlpha=1;
-  if(camY<=PLAT-PLAT_THICK/2) for(const fn of REDO) fn();        // the kids and their flock fly above it
-}
-function drawPlatform(after){
-  if(level!==1 || skyA<0.02 || (camY>PLAT-PLAT_THICK/2)!==after) return;   // from below it hangs in the sky behind everything; from above it covers the field
-  ctx.globalAlpha=skyA; platShape(); ctx.globalAlpha=1;
-  if(after) for(const fn of REDO) fn();
-  FRONT.push(()=>{ const a=ctx.globalAlpha; ctx.globalAlpha=skyA; platShape(); ctx.globalAlpha=a; });   // it passes in front of the moon
+  const cover=skyA*clamp((lead.y-(CEILING-300))/2100,0,1), near=ceilNear(); if(cover<=0.01 && near<=0.01) return;
+  // one veil over the whole view, with no edge anywhere: thick at the top as the ceiling nears, closing over the field from the horizon inward
+  const g=ctx.createLinearGradient(0,0,0,H), c='212,186,208', k=clamp(cover*1.3,0,1), fh=clamp(horizon/H,0.05,0.9), aH=Math.max(k,near*near*0.85);
+  g.addColorStop(0,'rgba('+c+','+near+')'); g.addColorStop(fh,'rgba('+c+','+aH+')'); g.addColorStop(fh+(1-fh)*0.35,'rgba('+c+','+k*(0.5+0.5*cover)+')'); g.addColorStop(1,'rgba('+c+','+cover*k+')');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  cloudLayer(false);
+  for(const fn of REDO) fn();                                    // the kids and their flock fly in front of it
 }
 // Inside the cloud there is only cloud, in the colours of the night: this is what hides the step from one world to the next.
 function drawFog(){
-  const a=Math.max(platFog(), fogT>0?fogT*fogT*(3-2*fogT):0); if(a<=0.004) return;
-  ctx.globalAlpha=a; ctx.fillStyle='#e6c8da'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+  const a=fogNow(); if(a<=0.004) return;
+  ctx.globalAlpha=a; ctx.fillStyle='#d8bcd0'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
 }
 function drawLevelSign(){
   const t=time-landT-1.5; if(!landed2 || t<0 || t>7) return;
@@ -1210,10 +1197,10 @@ function updatePath(dt){
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
 const ROAD_STEP=480, ROAD_HALF=1900, ROAD_RISE=13000, ROAD_END=42000;
 function trailFeather(j,al){
-  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hg0=0.355*u*u/(u+2500), hgt=hg0+(lead.y-30+(PLAT+40-(lead.y-30))*clamp(ahead/Math.max(600,platAl-PLAT_R+500-al),0,1)-hg0)*skyA;   // once the sky is open the road lifts from where the kids are, up to the edge of the great cloud        // the rise settles onto the line of sight to the moon
+  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hg0=0.355*u*u/(u+2500), hgt=hg0+(lead.y-30+Math.max(ahead,-1100)*0.5-hg0)*skyA;   // once the climb begins the road lifts from where the kids are and leads on up
   let a=clamp(pathA*3,0,1)*clamp(1-(ahead-33000)/9000,0,1)*clamp((ahead+1100)/300,0,1);
   if(j&1) a*=clamp((4500-ahead)/800,0,1); else if(j&2) a*=clamp((9500-ahead)/1500,0,1);                           // the road thins with distance
-  a*=1-skyA*clamp((t-(platAl-PLAT_R+1500))/900,0,1);                                                              // and it ends there
+  a*=1-skyA*clamp((lead.y-30+ahead*0.5-(SKY_TOP-500))/500,0,1);                                                   // and is lost in the cloud above
   if(a<=0.01) return null;
   const e0=clamp(pathA*1.7-clamp(ahead/30000,0,1)*0.7,0,1), e=e0*e0*(3-2*e0);                                     // nearest feathers fall into place first
   const side=(h2(j,5)-0.5)*2, wob=side*ROAD_HALF+(h2(j,17)-0.5)*500+Math.sin(time*0.6+j*1.7)*18*e+side*1700*(1-e);
@@ -1233,7 +1220,7 @@ function nightGrade(){
   const sa=clamp((n-0.45)/0.55,0,1);
   for(let i=0;i<NSTARS.length;i+=4){ if(NSTARS[i+1]>RIDGE[Math.min(511,(NSTARS[i]+40)>>3)]-3 || behindCloud(NSTARS[i],NSTARS[i+1])) continue;
     ctx.fillStyle='rgba(215,228,255,'+0.75*NSTARS[i+3]*sa+')'; ctx.beginPath(); ctx.arc(NSTARS[i],NSTARS[i+1],NSTARS[i+2]*0.75,0,7); ctx.fill(); }
-  const mx=clamp(sunX,-400,W+400), my=horizon*0.36, q=H/650, ma=clamp((n-0.3)/0.7,0,1);
+  const mx=clamp(sunX,-400,W+400), my=horizon*0.36, q=H/650, ma=clamp((n-0.3)/0.7,0,1)*(1-fogNow())*(1-0.8*ceilNear());   // cloud between the kids and the moon dims it
   let g=ctx.createRadialGradient(mx,my,0,mx,my,Math.max(W,H)*0.75); g.addColorStop(0,'rgba(150,180,255,'+0.42*ma+')'); g.addColorStop(0.12,'rgba(110,145,235,'+0.14*ma+')'); g.addColorStop(1,'rgba(90,120,220,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   // moonlight lying across the field below the moon
@@ -1295,7 +1282,7 @@ function frame(now){
   try{
     update(dt); updateNight(); updatePath(dt); updateSky(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawSkyClouds(true); drawPlatform(false); drawWorld(); drawDeck(); drawPlatform(true); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
