@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:05</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:20</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -152,7 +152,7 @@ const BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
 // walking through the grass beside the kids and taking to the air when they do.
 const MATES_MAX=5, PASS_NEEDED=8, mates=[];
 const freeFly=()=>arrived||mates.length>=MATES_MAX;   // having brought the flock to the beach, the kids keep their wings for now
-const CRUISE=260, CEILING=2400, FAST=800;   // full-flock flight: cruising height, how high Space can take you, and Shift speed   // with a full flock the kids fly whenever they like, for as long as they like
+const CRUISE=260, CEILING=2400, FAST=800;   // full-flock flight: cruising height, how high Space can take you, and flying speed   // with a full flock the kids fly whenever they like, for as long as they like
 let mateMsgT=-99;
 function addMate(x,z,y,hx,hz){
   mates.push({x,z,y,open:y>6?1:0,vx:hx*200,vz:hz*200,vy:0,hx,hz,ph:h2(mates.length*5+2,9)*6.28,id:50+mates.length,wp:0,sp:0});
@@ -164,7 +164,7 @@ function updateMates(dt){
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
     const tight=1-0.35*pathAlign, back=((air?80:85)+row*(air?60:52))*tight, lat=(side*((air?75:58)+row*(air?55:26))+wob)*tight;
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
-    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1000:400,d*2.2), e=1-Math.exp(-dt*3.5);
+    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1400:400,d*2.2), e=1-Math.exp(-dt*3.5);
     m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
     m.x+=m.vx*dt; m.z+=m.vz*dt;
     const sp=m.sp=Math.hypot(m.vx,m.vz);
@@ -225,6 +225,31 @@ function updateFlock(dt){
     f.unseen=(f.s>FLOCK_NEAR && gone)?(f.unseen||0)+dt:0;
     if(f.unseen>2){ flock=null; nextFlock=Math.max(nextFlock,time+3); } }
 }
+// Blue feathers hang in the air in short strings. Flying through one gives a burst of speed; the next one tops the time back up.
+const BC=2600, BOOST=0.4, BOOST_TIME=4, gotBlue=new Map();
+let boostT=0, boostAt=-9;
+function blues(px,pz,R,out){
+  if(level===2) return out;
+  for(let cj=Math.floor((pz-R)/BC);cj<=Math.floor((pz+R)/BC);cj++) for(let ci=Math.floor((px-R)/BC);ci<=Math.floor((px+R)/BC);ci++){
+    if(h2(ci*7+3,cj*5+11)>0.34) continue;
+    const x0=(ci+0.2+0.6*h2(ci,cj+71))*BC, z0=(cj+0.2+0.6*h2(ci+13,cj))*BC, an=h2(ci+9,cj-4)*6.283, n=3+(h2(ci-2,cj+5)<0.5?1:0), hi=h2(ci+31,cj+17);
+    const a0=hi<0.7?190+hi/0.7*380:700+(hi-0.7)/0.3*900, sl=(h2(ci+5,cj+41)-0.5)*70;   // most within reach of a feather flight, some up where only a full flock goes
+    if(coast && coastAlong(x0,z0)>-600) continue;
+    for(let i=0;i<n;i++){ const key=((ci+32768)*65536+(cj+32768))*4+i, g=gotBlue.get(key); if(g!==undefined && time-g<45) continue;
+      out.push({x:x0+Math.sin(an)*i*270, z:z0+Math.cos(an)*i*270, h:a0+i*sl, ph:h2(ci+i,cj-i), blue:true, a:g===undefined?1:clamp((time-g-45)/2,0,1), key}); } }
+  if(pathA>0.3){   // and down the middle of the feather road, for those who keep to it
+    const al=(px-pathPx)*SUNDX+(pz-pathPz)*SUNDZ;
+    for(let j=Math.max(1,Math.floor((al-R)/3400)-1), j1=Math.floor((al+R)/3400); j<=j1; j++){ const t=j*3400+h2(j,51)*1200, lat=(h2(j,53)-0.5)*500, a0=240+h2(j,57)*260;
+      for(let i=0;i<4;i++){ const tt=t+i*270, x=pathPx+SUNDX*tt+SUNDZ*lat, z=pathPz+SUNDZ*tt-SUNDX*lat, key=-(j*4+i+1); if(gotBlue.has(key)) continue;
+        if(coast && coastAlong(x,z)>300) continue;
+        out.push({x,z,h:a0+i*22,ph:h2(j,i+61),blue:true,a:clamp(pathA*1.5,0,1),key}); } } }
+  return out;
+}
+function updateBlue(){
+  if(!lead.fly) return;
+  for(const f of blues(lead.x,lead.z,300,[])){
+    if(Math.hypot(f.x-lead.x,f.z-lead.z)<115 && Math.abs(lead.y+35-(62+f.h))<110){ gotBlue.set(f.key,time); boostT=BOOST_TIME; boostAt=time; chime(19); setTimeout(()=>chime(24),70); setTimeout(()=>chime(31),140); } }
+}
 function featherAt(ci,cj){
   if(level===2) return null;
   if(coast && coastAlong((ci+0.5)*FC,(cj+0.5)*FC)>400) return null;     // none on the beach
@@ -265,7 +290,7 @@ function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLe
 /* ---------- update ---------- */
 function update(dt){
   time+=dt;
-  let ix=0, iz=0, sprint=keys.has('shift');
+  let ix=0, iz=0, sprint=false;
   if(keys.has('a')||keys.has('arrowleft')) ix-=1;
   if(keys.has('d')||keys.has('arrowright')) ix+=1;
   if(keys.has('w')||keys.has('arrowup')) iz+=1;
@@ -273,7 +298,7 @@ function update(dt){
   let m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   if(stick){
     const dx=stick.x-stick.x0, dy=stick.y-stick.y0, d=Math.hypot(dx,dy);
-    if(d>10){ const q=Math.min(1,d/70); ix=dx/d*q; iz=-dy/d*q; if(d>95) sprint=true; }
+    if(d>10){ const q=Math.min(1,d/70); ix=dx/d*q; iz=-dy/d*q; }
   }
   // In the air, up and down mean rise and descend, and the height stays where it is left. A full flock lifts the ceiling.
   if(lead.fly){ const top=freeFly()?(skyOpen?SKY_TOP:CEILING):FEATHER_TOP;
@@ -294,7 +319,8 @@ function update(dt){
     const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, c=clamp(-lat/1500,-0.5,0.5); ix=SUNDX+SUNDZ*c; iz=SUNDZ-SUNDX*c; sprint=false;
     lead.alt=Math.min(SKY_TOP,lead.alt+CLIMB*clamp(ascT/3,0.15,1)*dt); }
   const idle2=idle&&!skyOpen;
-  let top = lead.fly?(sprint&&freeFly()?FAST:430):340;   // on the ground there is one speed: running
+  boostT=Math.max(0,boostT-dt);
+  let top = lead.fly?(freeFly()?FAST:430)*(1+BOOST*clamp(boostT/0.9,0,1)):340;   // on the ground there is one speed: running
   // slower uphill, faster downhill
   if(lead.fly && flock && flock.joined && idle2){              // with the flock and hands off: settle into the gap behind the leader
     const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-lead.x)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-lead.z)*1.2, m=Math.hypot(vx,vz)||1;
@@ -303,7 +329,7 @@ function update(dt){
   if(!lead.fly){ ground(lead.x,lead.z); top*=clamp(1-(gSlopeX*ix+gSlopeZ*iz)*1.5,0.7,1.3); }
   const ease = 1-Math.exp(-dt*(lead.fly?1.7:7));
   lead.vx += (ix*top-lead.vx)*ease; lead.vz += (iz*top-lead.vz)*ease;
-  lead.sprint += (((sprint||!lead.fly)&&(ix||iz)?1:0)-lead.sprint)*(1-Math.exp(-dt*6));
+  lead.sprint += (((freeFly()||!lead.fly)&&(ix||iz)?1:0)-lead.sprint)*(1-Math.exp(-dt*6));
   const ls=Math.hypot(lead.vx,lead.vz);
   if(ls>25){ const e2=1-Math.exp(-dt*5); headX+=(lead.vx/ls-headX)*e2; headZ+=(lead.vz/ls-headZ)*e2; const hm=Math.hypot(headX,headZ)||1; headX/=hm; headZ/=hm; }
 
@@ -319,7 +345,7 @@ function update(dt){
     if(!pal.fly && time>=pal.flyAt){ pal.fly=true; pal.glide=false; }
     if(flightLeft<=0){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } }   // time's up: glide back down
   }
-  updateFlock(dt); updateMates(dt);
+  updateBlue(); updateFlock(dt); updateMates(dt);
   if(pal.hopAt>0 && time>=pal.hopAt){ pal.hopAt=-1; if(pal.y===0) pal.vy=225; }
 
   for(const k of kids){
@@ -548,6 +574,12 @@ const KBOIL=[0,1,2].map(f=>{ const r=rng(77+f*13), off=new Int32Array(KBW*KBH), 
     tone[i]=fbm((x+y*0.5)/34,y/20,900+f*7)+(r()-0.5)*0.2; }
   return {off,tone}; });
 function drawKid(k,sx,sy,s){
+  if(boostT>0 && k.fly){   // a burst of speed: pale streaks of wind stream back past the kid
+    const a=clamp(boostT/0.9,0,1), cy=sy-(k.y+44)*s; ctx.save(); ctx.lineCap='round';
+    for(let i=0;i<7;i++){ const ph=(time*1.9+h2(i,k===lead?91:97))%1, an=Math.PI/2+(h2(i,93)-0.5)*2.3, r0=(26+ph*95)*s, r1=r0+(26+40*h2(i,95))*s;
+      ctx.strokeStyle='rgba(205,236,255,'+(0.9*a*Math.sin(ph*Math.PI)).toFixed(3)+')'; ctx.lineWidth=Math.max(1.4,3.4*s*(1-ph*0.5));
+      ctx.beginPath(); ctx.moveTo(sx+Math.cos(an)*r0*1.25,cy+Math.sin(an)*r0*0.8); ctx.lineTo(sx+Math.cos(an)*r1*1.25,cy+Math.sin(an)*r1*0.8); ctx.stroke(); }
+    ctx.restore(); }
   const L=LOOKS[k===lead?'lead':'pal'], run=Math.min(1,k.run), sun=sunX>=sx?1:-1;
   paintKid(kctx,k,sx);
   const src=kctx.getImageData(0,0,KBW,KBH).data, out=kimg.data, B=KBOIL[k===lead?0:1], off=B.off, tone=B.tone;
@@ -898,6 +930,7 @@ function drawWorld(){
     for(let cj=Math.floor(z0/FC);cj<=Math.floor(z1/FC);cj++) for(let ci=Math.floor(x0/FC);ci<=Math.floor(x1/FC);ci++){
       const cp=proj((ci+0.5)*FC,(cj+0.5)*FC); if(cp[1]<-80||cp[1]>2760||Math.abs(cp[0])>Math.max(0,cp[1])*th+240) continue;
       const f=featherAt(ci,cj); if(!f) continue; const p=proj(f.x,f.z); if(p[1]<80||p[1]>2600||Math.abs(p[0])>p[1]*th+80) continue; kd.push({f, cx:p[0], dz:p[1]}); } }
+  { const th=(W/2)/focal; for(const q of blues(camPx+fwdX*2600,camPz+fwdZ*2600,3200,[])){ const p=proj(q.x,q.z); if(p[1]>60 && p[1]<5600 && Math.abs(p[0])<p[1]*th+200){ q.a*=clamp((5600-p[1])/1200,0,1); kd.push({f:q, cx:p[0], dz:p[1]}); } } }
   if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
   for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
@@ -1208,10 +1241,11 @@ function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs stri
 function featherShape(c,size){ c.beginPath(); c.moveTo(0,-size); c.quadraticCurveTo(size*0.62,-size*0.15,size*0.06,size*0.72); c.quadraticCurveTo(-size*0.6,-size*0.05,0,-size); }
 function drawFeather(f,sx,sy,s){
   // floats just above the grass tips so it can be spotted from far off
-  const fa=f.trail?f.a:1-pathA; if(fa<=0.01) return;
+  const fa=f.blue?f.a:f.trail?f.a:1-pathA; if(fa<=0.01) return;
+  const blue=f.blue?1:0;
   if(f.trail && 11*s<2.6){ const yy=sy-(62+(f.h||0))*s; FARDOTS.push(sx,yy,fa,focal/s); return; }   // drawn after the night grade as plain points of light
   ctx.save(); ctx.globalAlpha=fa;
-  const big=f.big?1:0, y=sy-(62+(f.h||0)+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*s, size=Math.max(3.4,11*s)*(1+big*1.9), tw=0.75+0.25*Math.sin(time*5+f.ph*40);
+  const big=f.big?1:0, y=sy-(62+(f.h||0)+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*s, size=Math.max(blue?4.2:3.4,(11+blue*7)*s)*(1+big*1.9), tw=0.75+0.25*Math.sin(time*5+f.ph*40);
   if(big){                                                    // the great feather: a wide golden halo and slow turning rays
     const R=size*5, g2=ctx.createRadialGradient(sx,y,0,sx,y,R); g2.addColorStop(0,'rgba(255,236,170,'+0.55*tw+')'); g2.addColorStop(0.4,'rgba(255,200,190,.22)'); g2.addColorStop(1,'rgba(255,200,190,0)');
     ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(sx,y,R,0,7); ctx.fill();
@@ -1219,12 +1253,12 @@ function drawFeather(f,sx,sy,s){
     for(let j=0;j<8;j++){ const an=time*0.5+j*Math.PI/4; ctx.moveTo(sx+Math.cos(an)*size*1.5,y+Math.sin(an)*size*1.5); ctx.lineTo(sx+Math.cos(an)*size*(2.3+0.5*Math.sin(time*3+j)),y+Math.sin(an)*size*(2.3+0.5*Math.sin(time*3+j))); }
     ctx.stroke();
   }
-  const g=ctx.createRadialGradient(sx,y,0,sx,y,size*2.8); g.addColorStop(0,'rgba(255,226,232,'+0.65*tw+')'); g.addColorStop(1,'rgba(255,226,232,0)');
-  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,y,size*2.8,0,7); ctx.fill();
+  const gc=blue?'rgba(170,225,255,':'rgba(255,226,232,', g=ctx.createRadialGradient(sx,y,0,sx,y,size*(2.8+blue)); g.addColorStop(0,gc+(0.65+0.2*blue)*tw+')'); g.addColorStop(1,gc+'0)');
+  ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,y,size*(2.8+blue),0,7); ctx.fill();
   if(night>0.05 && fa>0.5) GLOWS.push(sx,y,size*(big?3.2:2.6),focal/s);
   ctx.save(); ctx.translate(sx,y); ctx.rotate(0.6+Math.sin(time*1.6+f.ph*9)*0.5);
-  featherShape(ctx,size); ctx.fillStyle='#f8a6b9'; ctx.fill();
-  ctx.save(); featherShape(ctx,size); ctx.clip(); ctx.fillStyle='#ffd3dc'; ctx.fillRect(-size,-size*0.1,size*2,size); ctx.fillStyle='#2a1e24'; ctx.fillRect(-size,-size*1.05,size*2,size*0.36); ctx.restore();   // pale base, black tip
+  featherShape(ctx,size); ctx.fillStyle=blue?'#6fc4f5':'#f8a6b9'; ctx.fill();
+  ctx.save(); featherShape(ctx,size); ctx.clip(); ctx.fillStyle=blue?'#e2f5ff':'#ffd3dc'; ctx.fillRect(-size,-size*0.1,size*2,size); ctx.fillStyle=blue?'#23508c':'#2a1e24'; ctx.fillRect(-size,-size*1.05,size*2,size*0.36); ctx.restore();   // pale base, black tip
   ctx.strokeStyle='rgba(186,146,88,.85)'; ctx.lineWidth=Math.max(0.6,size*0.09); ctx.beginPath(); ctx.moveTo(0,-size*0.8); ctx.lineTo(size*0.08,size*1.15); ctx.stroke();
   ctx.restore();
   ctx.restore();
@@ -1289,7 +1323,7 @@ function drawHud(){
   }
   if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<9){
     ctx.save(); ctx.globalAlpha=clamp(9-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag up to rise · down to descend · drag far to fly fast · tap to land':'W / ↑ to rise · S / ↓ to descend · Shift to fly fast · Space to land',W/2,y+78*q); ctx.restore();
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag up to rise · down to descend · tap to land · blue feathers give speed':'W / ↑ to rise · S / ↓ to descend · Space to land · blue feathers give speed',W/2,y+78*q); ctx.restore();
   }
   if(ready){
     ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
@@ -1635,7 +1669,7 @@ function nightGrade(){
     setTimeout(()=>{ if(!coast||arrived) return; coastA=1; sea=1; const d=SHORE*0.5-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
       camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });
   // back to the very beginning: no flamingos, no feathers, daylight, the mountains closed and no beach
-  document.getElementById('testReset').addEventListener('click',()=>{ clear(); feathers=0; got.clear(); flock=null; flockN=0; nextFlock=time+FLOCK_FIRST;
+  document.getElementById('testReset').addEventListener('click',()=>{ clear(); feathers=0; got.clear(); gotBlue.clear(); boostT=0; flock=null; flockN=0; nextFlock=time+FLOCK_FIRST;
     nightOn=false; dayOffset=-time; sea=0; coast=false; coastA=0; arrived=false; shore.length=0; pathA=0; pathAlign=0; skyT=0; skyOpen=false; level=1; landed2=false; landT=-99;
     for(const k of kids){ k.fly=false; k.glide=false; k.y=0; k.vy=0; } nb.textContent='Test: go to dusk'; label(); cv.focus(); });
   const nb=document.getElementById('testNight');

@@ -23,7 +23,7 @@ then open http://localhost:8000.
 | Fly (10 feathers, or a full flock) | Space twice | Tap twice |
 | Rise while flying (higher with a full flock) | W or up arrow | Drag up |
 | Descend while flying | S or down arrow | Drag down |
-| Fly fast (full flock only) | Hold Shift | Drag far |
+| Burst of speed | Fly through a floating blue feather | Same |
 | Land (full flock only) | Space | Tap |
 
 ## Testing
