@@ -48,7 +48,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testOne">Test: +1 flamingo</button>
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 17:05</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 17:30</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -421,19 +421,30 @@ function drawGround(){
 /* ---------- distant ranges: layers of rounded blue-green hills beyond the field, paler the farther they are ---------- */
 // Each range is a ridge line around the whole compass, built from a few sine waves so it joins up with itself.
 const RANGES=[
-  {base:20,amp:56,rise:15,col:[88,150,164], ks:[6,10,15,25],ph:[2.1,0.4,3.3,5.0]},
-  {base:10,amp:42,rise:8, col:[58,126,126], ks:[7,11,17,29],ph:[4.4,2.8,0.9,1.3]},
-  {base:2, amp:30,rise:3, col:[54,114,88],  ks:[9,14,19,31],ph:[1.2,5.1,2.6,3.9]}];
+  {base:20,amp:56,rise:15,col:[88,150,164], ks:[6,10,15,25],ph:[2.1,0.4,3.3,5.0],pk:0.15},
+  {base:10,amp:42,rise:8, col:[58,126,126], ks:[7,11,17,29],ph:[4.4,2.8,0.9,1.3],pk:0.19},
+  {base:2, amp:30,rise:3, col:[54,114,88],  ks:[9,14,19,31],ph:[1.2,5.1,2.6,3.9],pk:0.24}];
+// Under the moon (and the setting sun) the ranges dip between two peaks. Flying the feather road slowly slides the mountains
+// apart from that dip, and a sea shows on the horizon between them. `sea` runs 0..1; it holds if the road is left and closes at dawn.
+let sea=0;
+function seaGap(){ return 0.5*sea*sea*(3-2*sea); }
+function seaTop(){ return (6+40*sea*sea*(3-2*sea))*H/650; }
+function fromMoon(th){ const d=th-SUN_B; return Math.atan2(Math.sin(d),Math.cos(d)); }
 function drawMountains(){
   const q=H/650, up=clamp((camY-CAM_H)/550,-0.2,1), y0=horizon+4, sunSide=sunX>=W/2?1:-1;   // climbing lets the farther ranges show over the nearer ones
   RIDGE.fill(y0);
   if(level===2) return;                                       // nothing stands above a sea of cloud
+  const gap=seaGap(); drawSea(true);
+  if(gap>0.002){ const st=y0-seaTop(); for(let x=-40;x<=W+48;x+=8){ if(Math.abs(fromMoon(camYaw+Math.atan((x-W/2)/focal)))<gap) RIDGE[Math.min(511,(x+40)>>3)]=st; } }   // no stars in the water
   for(const R of RANGES){
     const p=new Path2D(); p.moveTo(-40,y0);
     for(let x=-40;x<=W+48;x+=8){
-      const th=camYaw+Math.atan((x-W/2)/focal);
+      const d=fromMoon(camYaw+Math.atan((x-W/2)/focal)), ad=Math.abs(d), src=ad<=gap?0:(ad-gap)*Math.PI/(Math.PI-gap), th=SUN_B+(d<0?-src:src);   // the land as it lay before it parted
       const n=0.45*Math.sin(R.ks[0]*th+R.ph[0])+0.3*Math.sin(R.ks[1]*th+R.ph[1])+0.17*Math.sin(R.ks[2]*th+R.ph[2])+0.08*Math.sin(R.ks[3]*th+R.ph[3]);
-      const yy=y0-(R.base+R.amp*Math.pow(0.5+0.5*n,1.6)*1.3+R.rise*up)*q, ri=Math.min(511,(x+40)>>3); if(yy<RIDGE[ri]) RIDGE[ri]=yy;
+      const w=Math.exp(-(src/0.36)*(src/0.36)), pe=(src-R.pk)/0.08, des=0.2+1.0*Math.exp(-pe*pe);                                              // the two peaks and the dip between them
+      let v=Math.pow(0.5+0.5*n,1.6); v+=(des-v)*w;
+      const edge=clamp((ad-gap)/0.06+(1-Math.min(1,gap/0.05)),0,1), es=edge*edge*(3-2*edge);                                                   // the flanks run down into the water
+      const yy=y0-(R.base+R.amp*v*1.3+R.rise*up)*q*es, ri=Math.min(511,(x+40)>>3); if(yy<RIDGE[ri]) RIDGE[ri]=yy;
       p.lineTo(x, yy);
     }
     p.lineTo(W+48,y0); p.closePath();
@@ -460,12 +471,24 @@ function paintGrove(seed){
 }
 const groveArt=[11,23,37,51].map(paintGrove);
 const groves=[]; { const r=rng(31); for(let i=0;i<11;i++) groves.push({th:(i+r()*0.8)/11*Math.PI*2, k:0.55+r()*0.95, art:i%4}); }
+// The sea between the parted mountains: a band of water on the horizon, with the light of the moon or the low sun lying on it.
+// It is painted twice: once behind the mountains, so their flanks stand in it, and once over the horizon haze, clear in the open middle.
+function drawSea(under){
+  if(level!==1 || sea<=0.001) return;
+  const gap=seaGap(), q=H/650, y0=horizon+4, hS=seaTop(), A=clamp(sea*10,0,1); let dc=SUN_B-camYaw; dc=Math.atan2(Math.sin(dc),Math.cos(dc)); if(Math.abs(dc)>1.45+gap) return;
+  const g=ctx.createLinearGradient(0,y0-hS,0,y0+2); g.addColorStop(0,'#d4ece2'); g.addColorStop(0.1,'#6ab4ba'); g.addColorStop(1,'#2f7f96'); ctx.fillStyle=g;
+  for(let x=0;x<W;x+=6){ const ad=Math.abs(Math.atan((x+3-W/2)/focal)-dc), a=under?clamp((gap+0.16-ad)/0.04,0,1):clamp((gap-ad)/0.07,0,1); if(a<=0) continue; ctx.globalAlpha=a*A; ctx.fillRect(x,y0-hS,6,hS+2); }
+  if(!under && sunI>0.01){ ctx.fillStyle='#fffbe8'; const n=Math.max(4,Math.round(hS/(2.6*q)));
+    for(let i=0;i<n;i++){ const u=(i+0.5)/n, wv=(5+u*52)*q*(0.55+0.45*Math.sin(time*1.7+i*2.3)), ox=Math.sin(time*0.9+i*1.9)*9*u*q;
+      ctx.globalAlpha=A*sunI*(0.3+0.6*u)*clamp(gap/0.06,0,1); ctx.fillRect(sunX-wv/2+ox, y0-hS+u*hS, wv, Math.max(1,1.5*q)); } }
+  ctx.globalAlpha=1;
+}
 function drawTreeline(){
   if(level===2) return;
-  const q=H/650;
+  const q=H/650, gap=seaGap();
   ctx.globalAlpha=0.92;
   for(const gv of groves){
-    const w=200*gv.k*q, h=56*gv.k*q, x=bearingX(gv.th); if(x===null||x<-w||x>W+w) continue;
+    const d=fromMoon(gv.th), w=200*gv.k*q, h=56*gv.k*q, x=bearingX(SUN_B+(d<0?-1:1)*(Math.abs(d)*(Math.PI-gap)/Math.PI+gap)); if(x===null||x<-w||x>W+w) continue;   // the groves slide apart with the mountains
     ctx.drawImage(groveArt[gv.art], x-w/2, horizon+4-h, w, h);
   }
   ctx.globalAlpha=1;
@@ -1184,6 +1207,7 @@ function updatePath(dt){
   // the path answers when the kids travel along it toward the moon
   const on=pathOn=pathA>0.3 && Math.abs(lat)<ROAD_HALF+350 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
   pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
+  if(level===1){ if(on && lead.fly) sea=Math.min(1,sea+dt/SEA_TIME); if(night<0.5) sea=Math.max(0,sea-dt/25); }   // the journey: the mountains part while the road is flown, and close again by day
   // a sound answers too, as a hint: once each time the kids fly onto the road and turn along it
   if(actx && master){
     if(!hintEl && pathA>0){ hintEl=new Audio('path.mp3'); hintEl.preload='auto';
@@ -1196,6 +1220,7 @@ function updatePath(dt){
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
 // runs on toward the moon, away into the horizon. Feathers on the road are not collected; fly through and they scatter.
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
+const SEA_TIME=90;   // seconds of flying the road for the mountains to part fully
 const ROAD_STEP=130, ROAD_HALF=600, ROAD_RISE=13000, ROAD_END=70000;
 function trailFeather(j,al){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=0, hgt=WAY_UP?(lead.y-30+Math.max(ahead,-1100)*0.5)*skyA:0;   // the road lies over the field all the way to the horizon
@@ -1286,7 +1311,7 @@ function frame(now){
   try{
     update(dt); updateNight(); updatePath(dt); updateSky(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
