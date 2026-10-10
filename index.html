@@ -1062,13 +1062,13 @@ function updatePath(dt){
   if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lead.x+SUNDZ*sd*700; pathPz=lead.z-SUNDX*sd*700; }
   pathA=clamp(pathA+(ok?dt/21:-dt/3),0,1);     // the gathering is slow
   // the path answers when the kids travel along it toward the moon
-  const on=pathA>0.3 && Math.abs(lat)<300 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
+  const on=pathA>0.3 && Math.abs(lat)<520 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
   pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
 }
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
 // runs on toward the moon. Far ahead it lifts and curves up into the sky, and that rise always stays the same distance away,
 // so it can be seen but not yet reached. Feathers on the road are not collected; fly through and they scatter.
-const ROAD_STEP=70, ROAD_HALF=175, ROAD_RISE=13000, ROAD_END=28000;
+const ROAD_STEP=210, ROAD_HALF=520, ROAD_RISE=13000, ROAD_END=28000;
 function trailFeather(j,al){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hgt=0.355*u*u/(u+2500);        // the rise settles onto the line of sight to the moon
   let a=clamp(pathA*3,0,1)*clamp(1-(ahead-22000)/6000,0,1)*clamp((ahead+1100)/300,0,1);
