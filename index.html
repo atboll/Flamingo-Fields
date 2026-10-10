@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 22:00</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 22:35</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -100,7 +100,7 @@ let gSlopeX=0, gSlopeZ=0, camY=CAM_H;
 const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);
 // The coast: once the mountains have parted, the field ahead ends in sand and then in the sea. It is a straight shore across the
 // way to the moon, fixed in the world from that moment. coastAlong() is how far a point lies past the start of the sand.
-const SAND_RAMP=2500, SHORE=7000;
+const SAND_RAMP=2000, SHORE=5000;
 let arrived=false, coast=false, coastX=0, coastZ=0;
 // The shore is not ruled straight: it wanders in long bays and small coves. The curve is folded into coastAlong itself, growing from
 // nothing where the sand begins to its full swing at the water, so sand, sea, waves and everything that lives there follow the same line.
@@ -794,7 +794,7 @@ function drawBirdTiny(m,X,Y,s){   // a flamingo far down the beach: a pink body 
 }
 function updateCoast(dt){
   if(level!==1) return;
-  if(!coast && sea>=1){ coastX=lead.x+SUNDX*5000; coastZ=lead.z+SUNDZ*5000; coast=true;   // the sand begins a little way on from where the mountains finished parting
+  if(!coast && sea>=1){ coastX=lead.x+SUNDX*2500; coastZ=lead.z+SUNDZ*2500; coast=true;   // the sand begins a little way on from where the mountains finished parting
     shore.length=0;
     for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*7000, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
       shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),0,lat,cs,100+i)); } }
@@ -1331,7 +1331,7 @@ function runLoop(o){
 // The sea (six-second crossfade) is heard from a little before the sand and is fullest on the shore.
 // The flamingos by the sea belong to the shore itself, and the flock's own calls are blended in with them there.
 let ocean=null, seaBirds=null;
-function beachNear(){ return coast&&level===1 ? clamp((coastAlong(lead.x,lead.z)-3200)/3000,0,1) : 0; }
+function beachNear(){ return coast&&level===1 ? clamp((coastAlong(lead.x,lead.z)-(SHORE-3800))/3000,0,1) : 0; }
 function updateOceanSound(){
   if(!actx || !master || !coast) return;
   if(!ocean){ ocean=streamLoop('ocean.mp3',6); seaBirds=streamLoop('flamingos_sea.mp3',4); }
@@ -1468,7 +1468,7 @@ function updatePath(dt){
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
 // runs on toward the moon, away into the horizon. Feathers on the road are not collected; fly through and they scatter.
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
-const SEA_TIME=90;   // seconds of flying the road for the mountains to part fully
+const SEA_TIME=45;   // seconds of flying the road for the mountains to part fully
 const ROAD_STEP=130, ROAD_HALF=600, ROAD_RISE=13000, ROAD_END=70000;
 function trailFeather(j,al){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=0, hgt=WAY_UP?(lead.y-30+Math.max(ahead,-1100)*0.5)*skyA:0;   // the road lies over the field all the way to the horizon
@@ -1553,7 +1553,7 @@ function nightGrade(){
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=0.97; });
   document.getElementById('testBeach').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=1;
-    setTimeout(()=>{ if(!coast||arrived) return; const d=3600-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
+    setTimeout(()=>{ if(!coast||arrived) return; const d=SHORE*0.5-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
       camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
