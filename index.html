@@ -55,7 +55,8 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
 (function(){
 "use strict";
 const cv = document.getElementById('field');
-const ctx = cv.getContext('2d');
+let ctx = cv.getContext('2d');
+const mainCtx = ctx;
 const hint = document.getElementById('hint');
 const touchy = matchMedia('(pointer: coarse)').matches;
 document.getElementById('hintText').innerHTML = touchy
@@ -599,8 +600,13 @@ function groundColor(v,k){
   const a=GSTOPS[i-1], b=GSTOPS[i], t=clamp((v-a[0])/(b[0]-a[0]),0,1);
   return 'rgb('+((a[1][0]+(b[1][0]-a[1][0])*t)*k|0)+','+((a[1][1]+(b[1][1]-a[1][1])*t)*k|0)+','+((a[1][2]+(b[1][2]-a[1][2])*t)*k|0)+')';
 }
+// Whatever flies across the moon's disc is noted here and painted again over the moon, so the moon stays behind it.
+const FRONT=[]; let moonX=0, moonY=0, moonR=0;
+function front(X,Y,rx,ry,fn){ if(moonR>0 && Math.abs(X-moonX)<rx+moonR && Math.abs(Y-moonY)<ry+moonR) FRONT.push(fn); }
+const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d'), fcv2=document.createElement('canvas'), fctx2=fcv2.getContext('2d');
 function drawWorld(){
-  OCC.length=0;
+  OCC.length=0; FRONT.length=0;
+  moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0;
   const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
   { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [80,2600]) for(const sg of [-1,1]){ const cx=sg*(d*th+80), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
@@ -616,14 +622,16 @@ function drawWorld(){
   let ki=0;
   const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].dz>=depth){ const e=kd[ki++]; if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
       if(m.y>6||m.open>0.03) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
-      if(m.y>6||m.open>0.03) drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s); else drawBirdWalk(m, X, horizon+(camY-g)*s, s); }
+      const dr=(m.y>6||m.open>0.03) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s) : ()=>drawBirdWalk(m, X, horizon+(camY-g)*s, s);
+      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); }
     else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
       const fade=clamp((s-focal/FLOCK_GONE)/0.03,0,1); if(fade<=0.01) continue;
-      ctx.globalAlpha=fade;
-      if(s<0.13) drawBirdFar(e.b,X,Y,s); else drawBird({hx:flock.dx,hz:flock.dz,ph:BIRD_PH[e.b],id:e.b,y:flock.y,tiny:true}, X, Y, s);
-      ctx.globalAlpha=1; }
+      const dr=()=>{ ctx.globalAlpha=fade;
+        if(s<0.13) drawBirdFar(e.b,X,Y,s); else drawBird({hx:flock.dx,hz:flock.dz,ph:BIRD_PH[e.b],id:e.b,y:flock.y,tiny:true}, X, Y, s);
+        ctx.globalAlpha=1; };
+      dr(); front(X,Y,130*s,90*s,dr); }
     else if(e.dz>60){ const s=focal/e.dz, o=e.k||e.f, sy=horizon+(camY-ground(o.x,o.z))*s; if(e.k){ const fl=e.k.flyT||0; OCC.push(W/2+e.cx*s, sy-(e.k.y+44)*s, (22+16*fl)*s*1.15, (48-12*fl)*s*1.15, e.dz); }
-      if(e.k) drawKid(e.k, W/2+e.cx*s, sy, s); else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
+      if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
   const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
   // the ground line across the screen at one depth; the last slot holds how much that line faces the sun
   const NX=22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2); let lit=0;
@@ -1122,6 +1130,20 @@ function nightGrade(){
     ctx.fillStyle='rgba(200,210,238,.5)'; for(const c of [[-9,-6,8],[9,6,10],[4,-14,5],[-13,10,6],[14,-9,4]]){ ctx.beginPath(); ctx.arc(mx+c[0]*q,my+c[1]*q,c[2]*q,0,7); ctx.fill(); } 
     // the moon is far beyond the clouds: paint the clouds again over the disc so they pass in front of it
     ctx.save(); ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip(); ctx.globalAlpha=Math.min(1,ma*1.4)*0.8; drawClouds(clouds,0,0.7,0.74,nightClouds()); ctx.restore();   // slightly see-through, so the cloud looks lit from behind
+    if(FRONT.length){   // the kids and birds crossing the disc, painted again in night colours in front of the moon
+      const R=moonR, x0=Math.floor(moonX-R), y0=Math.floor(moonY-R), sz=Math.ceil(R*2*DPR)+2;
+      if(fcv.width!==sz){ fcv.width=fcv.height=fcv2.width=fcv2.height=sz; }
+      fctx.setTransform(1,0,0,1,0,0); fctx.clearRect(0,0,sz,sz); fctx.setTransform(DPR,0,0,DPR,-x0*DPR,-y0*DPR);
+      ctx=fctx; ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
+      try{ for(const fn of FRONT) fn(); } finally { ctx=mainCtx; }
+      fctx2.globalCompositeOperation='copy'; fctx2.drawImage(fcv,0,0);
+      fctx.setTransform(1,0,0,1,0,0); fctx.globalCompositeOperation='multiply'; fctx.fillStyle=c; fctx.fillRect(0,0,sz,sz);
+      fctx.globalCompositeOperation='screen'; fctx.fillStyle='rgba(4,8,30,'+n+')'; fctx.fillRect(0,0,sz,sz);
+      fctx.fillStyle='rgba(150,180,255,'+0.22*ma+')'; fctx.fillRect(0,0,sz,sz);
+      fctx.globalCompositeOperation='destination-in'; fctx.drawImage(fcv2,0,0); fctx.globalCompositeOperation='source-over';
+      ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip();
+      ctx.drawImage(fcv,x0,y0,sz/DPR,sz/DPR); ctx.restore();
+    }
     ctx.globalAlpha=1; }
   ctx.globalCompositeOperation='source-over';
 }
