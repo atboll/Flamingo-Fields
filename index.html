@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:40</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:55</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -485,7 +485,7 @@ const groves=[]; { const r=rng(31); for(let i=0;i<11;i++) groves.push({th:(i+r()
 function drawSea(under){
   if(level!==1 || sea<=0.001) return;
   const gap=seaGap(), q=H/650, y0=horizon+4, hS=seaTop(), A=clamp(sea*10,0,1); let dc=SUN_B-camYaw; dc=Math.atan2(Math.sin(dc),Math.cos(dc)); if(Math.abs(dc)>1.45+gap) return;
-  const g=ctx.createLinearGradient(0,y0-hS,0,y0+2); g.addColorStop(0,'#d4ece2'); g.addColorStop(0.1,'#6ab4ba'); g.addColorStop(1,'#2f7f96'); ctx.fillStyle=g;
+  const g=ctx.createLinearGradient(0,y0-hS,0,y0+2); g.addColorStop(0,seaCol([212,236,226])); g.addColorStop(0.1,seaCol([106,180,186])); g.addColorStop(1,seaCol(SEA_DEEP)); ctx.fillStyle=g;
   for(let x=0;x<W;x+=6){ const ad=Math.abs(Math.atan((x+3-W/2)/focal)-dc), a=under?clamp((gap+0.16-ad)/0.04,0,1):clamp((gap-ad)/0.07,0,1); if(a<=0) continue; ctx.globalAlpha=a*A; ctx.fillRect(x,y0-hS,6,hS+2); }
   if(!under && sunI>0.01){ ctx.fillStyle='#fffbe8'; const n=Math.max(4,Math.round(hS/(2.6*q)));
     for(let i=0;i<n;i++){ const u=(i+0.5)/n, wv=(5+u*52)*q*(0.55+0.45*Math.sin(time*1.7+i*2.3)), ox=Math.sin(time*0.9+i*1.9)*9*u*q;
@@ -654,6 +654,8 @@ const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d'), fcv2=docu
 const REDO=[];   // the kids and their flock, kept so they can be painted again over the great cloud when they fly above it
 // Sand and sea, painted over each strip of ground as it is laid. Sand fades in over the grass; the waterline is cut exactly where it
 // crosses the strip, so it slides smoothly toward the kids instead of jumping from row to row. Foam marks the edge.
+// By night the sea goes much darker than the moonlit sand beside it, so the shore still reads.
+function seaCol(c){ const n=night; return 'rgb('+(c[0]*(1-0.72*n)|0)+','+(c[1]*(1-0.66*n)|0)+','+(c[2]*(1-0.5*n)|0)+')'; }
 const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 const SAND_FAR=[246,231,194], SAND_NEAR=[226,196,148], SAND_WET=[158,138,118], SEA_SHALLOW=[104,190,192], SEA_DEEP=[47,127,150];
 function coastStrip(dF,dN,fp,np,NX,v){
@@ -669,7 +671,7 @@ function coastStrip(dF,dN,fp,np,NX,v){
       ctx.globalAlpha=clamp(mid/SAND_RAMP,0,1); ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x0,yf0); ctx.lineTo(x1,yf1); ctx.lineTo(x1,yn1); ctx.lineTo(x0,yn0); ctx.fill(); ctx.globalAlpha=1; }
     if(mx>sh){                  // water: the part of this piece of ground that lies past the waterline, cut along it exactly
       const P=[[x0,yf0,a],[x1,yf1,b],[x1,yn1,d],[x0,yn0,c]]; let n=0, cx0=0, cy0=0, cuts=0;
-      ctx.fillStyle=mix(SEA_SHALLOW,SEA_DEEP,clamp(Math.max((mid-sh)/2200,1-v*6),0,1)); ctx.beginPath();
+      ctx.fillStyle=seaCol(mixA(SEA_SHALLOW,SEA_DEEP,clamp(Math.max((mid-sh)/2200,1-v*6),0,1))); ctx.beginPath();
       for(let e=0;e<4;e++){ const p=P[e], q=P[(e+1)&3], pin=p[2]>=sh, qin=q[2]>=sh;
         if(pin){ if(n++) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }
         if(pin!==qin){ const t=(sh-p[2])/(q[2]-p[2]), X=p[0]+(q[0]-p[0])*t, Y=p[1]+(q[1]-p[1])*t; if(n++) ctx.lineTo(X,Y); else ctx.moveTo(X,Y);
@@ -683,8 +685,20 @@ function coastFar(){
   if(!coast || level!==1) return;
   const D=60800, s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ, NC=44, hgt=Math.max(3,(camY+140)*focal/D+3);
   for(let i=0;i<NC;i++){ const sv=s0+D*(sf+(((i+0.5)*W/NC-W/2)/focal)*sr); if(sv<=0) continue;
-    ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1); ctx.fillStyle=sv>SHORE?mix(SEA_DEEP,SEA_DEEP,0):mix(SAND_FAR,SAND_FAR,0); ctx.fillRect(i*W/NC-0.5,horizon,W/NC+1,hgt); }
+    ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1); ctx.fillStyle=sv>SHORE?seaCol(SEA_DEEP):mix(SAND_FAR,SAND_FAR,0); ctx.fillRect(i*W/NC-0.5,horizon,W/NC+1,hgt); }
   ctx.globalAlpha=1;
+}
+// Light on the water: a broken path of glints from the horizon toward the kids, under the moon or the low sun.
+function drawSeaLight(){
+  if(!coast || level!==1 || sunI<=0.01 || sunX<-50 || sunX>W+50) return;
+  const s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ, k=sf+((sunX-W/2)/focal)*sr, q=H/650;
+  let yEnd; if(s0>=SHORE) yEnd=H; else { if(k<=0.02) return; const d=(SHORE-s0)/k; if(d>60000) return; yEnd=Math.min(H,horizon+camY*focal/d); }
+  const y0=horizon+3, span=yEnd-y0; if(span<4) return;
+  const n=Math.min(70,Math.max(6,Math.round(span/(5*q)))); ctx.fillStyle='#ffffff';
+  for(let i=0;i<n;i++){ const u=(i+h2(i,91))/n, y=y0+u*u*span, wv=(10+u*150)*q*(0.35+0.65*Math.abs(Math.sin(time*1.3+i*2.1))), ox=Math.sin(time*0.7+i*1.7)*(6+60*u)*q;
+    ctx.globalAlpha=sunI*(0.5-0.3*u)*(0.5+0.5*Math.sin(time*2.1+i*3.3)); ctx.fillRect(sunX-wv/2+ox, y, wv, Math.max(1,(1.2+2.2*u)*q)); }
+  ctx.globalAlpha=1;
+  for(const fn of REDO) fn();                                   // the kids and their flock stand in front of it
 }
 function updateCoast(){
   if(level!==1) return;
@@ -1395,7 +1409,7 @@ function frame(now){
   try{
     update(dt); updateNight(); updatePath(dt); updateSky(dt); updateCoast(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound(); updateOceanSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); coastFar(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); coastFar(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawSeaLight(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
