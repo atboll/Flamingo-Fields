@@ -162,6 +162,7 @@ function spawnFlock(){
   flock={x:px-dx*FLOCK_FAR, z:pz-dz*FLOCK_FAR, dx, dz, y:430, t:0, s:-FLOCK_FAR, joined:false, sp:560, withKids:0, done:false};
 }
 function updateFlock(dt){
+  if(level===2){ flock=null; return; }
   if(!flock){ if(time>=nextFlock){ spawnFlock(); nextFlock=time+FLOCK_EVERY; } return; }
   const f=flock; f.t+=dt;
   if(night>0.5){   // when night comes, a flock already in the air swings round toward the moon
@@ -197,6 +198,7 @@ function updateFlock(dt){
     if(f.unseen>2){ flock=null; nextFlock=Math.max(nextFlock,time+15); } }
 }
 function featherAt(ci,cj){
+  if(level===2) return null;
   if(got.has((ci+32768)*65536+(cj+32768))) return null;
   if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
   // a rare great feather: about one cell in eight hundred, worth a whole flight on its own
@@ -246,7 +248,7 @@ function update(dt){
   }
   // In the air, up and down mean rise and descend, and the height stays where it is left. A full flock lifts the ceiling.
   if(lead.fly){ const top=freeFly()?(skyOpen?SKY_TOP:CEILING):FEATHER_TOP;
-    if(iz>0.3) lead.alt+=380*iz*dt; else if(iz<-0.3) lead.alt+=460*iz*dt;
+    if(iz>0.3){ if(lead.alt<top) lead.alt=Math.min(top,lead.alt+380*iz*dt); } else if(iz<-0.3) lead.alt+=460*iz*dt;
     if(lead.alt>top) lead.alt=Math.max(top,lead.alt-330*dt);   // off the road the sky closes, and the kids sink back under it
     lead.alt=Math.max(110,lead.alt); iz=0; }
   // Steering is always read against where the camera looks now, so holding left or right keeps the kids turning as the camera follows them round.
@@ -403,7 +405,8 @@ const FAR=3800;
 
 function drawGround(){
   const g=ctx.createLinearGradient(0,horizon,0,H);
-  g.addColorStop(0,'#f2dd98'); g.addColorStop(0.1,'#dcb24a'); g.addColorStop(0.45,'#a8721c'); g.addColorStop(1,'#6e430c');
+  if(level===2){ g.addColorStop(0,'#faeaee'); g.addColorStop(0.1,'#f6d4e2'); g.addColorStop(0.45,'#eab6d2'); g.addColorStop(1,'#d098c6'); }
+  else { g.addColorStop(0,'#f2dd98'); g.addColorStop(0.1,'#dcb24a'); g.addColorStop(0.45,'#a8721c'); g.addColorStop(1,'#6e430c'); }
   ctx.fillStyle=g; ctx.fillRect(0,horizon,W,H-horizon);
   const hz=ctx.createLinearGradient(0,horizon-H*0.05,0,horizon+H*0.05);
   hz.addColorStop(0,'rgba(250,228,165,0)'); hz.addColorStop(0.5,'rgba(250,228,165,.8)'); hz.addColorStop(1,'rgba(250,228,165,0)');
@@ -419,6 +422,7 @@ const RANGES=[
 function drawMountains(){
   const q=H/650, up=clamp((camY-CAM_H)/550,-0.2,1), y0=horizon+4, sunSide=sunX>=W/2?1:-1;   // climbing lets the farther ranges show over the nearer ones
   RIDGE.fill(y0);
+  if(level===2) return;                                       // nothing stands above a sea of cloud
   for(const R of RANGES){
     const p=new Path2D(); p.moveTo(-40,y0);
     for(let x=-40;x<=W+48;x+=8){
@@ -452,6 +456,7 @@ function paintGrove(seed){
 const groveArt=[11,23,37,51].map(paintGrove);
 const groves=[]; { const r=rng(31); for(let i=0;i<11;i++) groves.push({th:(i+r()*0.8)/11*Math.PI*2, k:0.55+r()*0.95, art:i%4}); }
 function drawTreeline(){
+  if(level===2) return;
   const q=H/650;
   ctx.globalAlpha=0.92;
   for(const gv of groves){
@@ -595,19 +600,24 @@ function paintKid(ctx,k,sx){
   ctx.restore();
 }
 
+// level 2 is a field of cloud: candyfloss pinks in place of the golds
+const GSTOPS2=[[0,[250,234,238]],[0.1,[246,212,226]],[0.45,[234,182,210]],[1,[208,152,198]]], HAZE2=[250,232,238], DEEP2=[196,140,190];
+const BLADE2=[[214,160,202],[230,184,214],[242,204,226],[250,224,236],[255,244,248]];
+let level=1;
 const GSTOPS=[[0,[242,221,152]],[0.1,[220,178,74]],[0.45,[168,114,28]],[1,[110,67,12]]];
 function groundColor(v,k){
-  let i=1; while(i<GSTOPS.length-1 && v>GSTOPS[i][0]) i++;
-  const a=GSTOPS[i-1], b=GSTOPS[i], t=clamp((v-a[0])/(b[0]-a[0]),0,1);
+  const G=level===2?GSTOPS2:GSTOPS; let i=1; while(i<G.length-1 && v>G[i][0]) i++;
+  const a=G[i-1], b=G[i], t=clamp((v-a[0])/(b[0]-a[0]),0,1);
   return 'rgb('+((a[1][0]+(b[1][0]-a[1][0])*t)*k|0)+','+((a[1][1]+(b[1][1]-a[1][1])*t)*k|0)+','+((a[1][2]+(b[1][2]-a[1][2])*t)*k|0)+')';
 }
 // Whatever flies across the moon's disc is noted here and painted again over the moon, so the moon stays behind it.
 const FRONT=[]; let moonX=0, moonY=0, moonR=0;
 function front(X,Y,rx,ry,fn){ if(moonR>0 && Math.abs(X-moonX)<rx+moonR && Math.abs(Y-moonY)<ry+moonR) FRONT.push(fn); }
 const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d'), fcv2=document.createElement('canvas'), fctx2=fcv2.getContext('2d');
+const REDO=[];   // the kids and their flock, kept so they can be painted again over the great cloud when they fly above it
+function moonSetup(){ FRONT.length=0; REDO.length=0; moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0; }
 function drawWorld(){
-  OCC.length=0; FRONT.length=0;
-  moonX=clamp(sunX,-400,W+400); moonY=horizon*0.36; moonR=(night>0.3 && sunI>0.01)?34*H/650:0;
+  OCC.length=0;
   const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
   { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [80,2600]) for(const sg of [-1,1]){ const cx=sg*(d*th+80), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
@@ -624,7 +634,7 @@ function drawWorld(){
   const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].dz>=depth){ const e=kd[ki++]; if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
       if(m.y>6||m.open>0.03) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
       const dr=(m.y>6||m.open>0.03) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s) : ()=>drawBirdWalk(m, X, horizon+(camY-g)*s, s);
-      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); }
+      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); REDO.push(dr); }
     else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
       const fade=clamp((s-focal/FLOCK_GONE)/0.03,0,1); if(fade<=0.01) continue;
       const dr=()=>{ ctx.globalAlpha=fade;
@@ -632,7 +642,7 @@ function drawWorld(){
         ctx.globalAlpha=1; };
       dr(); front(X,Y,130*s,90*s,dr); }
     else if(e.dz>60){ const s=focal/e.dz, o=e.k||e.f, sy=horizon+(camY-ground(o.x,o.z))*s; if(e.k){ const fl=e.k.flyT||0; OCC.push(W/2+e.cx*s, sy-(e.k.y+44)*s, (22+16*fl)*s*1.15, (48-12*fl)*s*1.15, e.dz); }
-      if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
+      if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); REDO.push(dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
   const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
   // the ground line across the screen at one depth; the last slot holds how much that line faces the sun
   const NX=22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2); let lit=0;
@@ -667,7 +677,7 @@ function drawWorld(){
       const paths=bins[bn]||(bins[bn]=[new Path2D(),new Path2D(),new Path2D(),new Path2D(),new Path2D()]);
       for(let n=0;n<nb;n++){
         const rr=h2(i*7+n,j*3+n*13+bi*977);
-        const h=(24+rr*24)*s*squash, ox=(n-(nb-1)/2)*sp*(0.34+0.16*bladeCut)*s;
+        const h=(24+rr*24)*s*squash*(level===2?0.55:1), ox=(n-(nb-1)/2)*sp*(0.34+0.16*bladeCut)*s;
         const sway=(bend+((rr*7.31)%1-0.5)*(0.45+0.75*windF)+Math.sin(time*4.5+rr*40)*(0.07+0.1*windF)*calm)*h;
         const p=paths[clamp(Math.floor(rr*2.2+gust*2.9+lit*6),0,4)];   // sunlit slopes run lighter, shaded ones darker
         const xb=bx+ox, tx=xb+sway, ty=by-h, qx=xb+sway*0.18, qy=by-h*0.82;
@@ -690,7 +700,7 @@ function drawWorld(){
       const hz=Math.pow(clamp((dz/hk-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
       ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
       for(let c=0;c<5;c++){
-        const col = near>0 ? mix(BLADE[c],DEEP,near) : mix(BLADE[c],HAZE,hz);
+        const BL=level===2?BLADE2:BLADE, col = near>0 ? mix(BL[c],level===2?DEEP2:DEEP,near) : mix(BL[c],level===2?HAZE2:HAZE,hz);
         if(b.fill){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
       }
     }
@@ -985,7 +995,7 @@ function scheduleField(){
 function startSound(){
   if(actx){ if(actx.state==='suspended'&&!document.hidden) actx.resume(); return; }
   const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
-  actx=new AC(); master=actx.createGain(); master.gain.value=soundOn?0.85:0; muffle=actx.createBiquadFilter(); muffle.type='lowpass'; muffle.frequency.value=20000; master.connect(muffle); muffle.connect(actx.destination);
+  actx=new AC(); master=actx.createGain(); master.gain.value=soundOn?0.85:0; master.connect(actx.destination);
   fetch('field.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
     .then(buf=>{ fieldBuf=buf; scheduleField(); setInterval(scheduleField,2000); })
     .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; });
@@ -1070,17 +1080,70 @@ document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document
 // It lies in a fixed place in the world, starting a little to one side of where the kids were when it formed.
 let pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas=false, hintT=-99;
 /* ---------- the way up: stay on the road after it answers and the sky opens ---------- */
-// The ceiling lifts while the kids keep to the road. Above it real clouds drift past, then one great cloud swallows everything.
-const SKY_TOP=5600, CLOUD_LO=2650, CLOUD_IN=4300, CLOUD_FULL=5100;
-let skyT=0, skyOpen=false, skyA=0, muffle=null;
+// The ceiling lifts while the kids keep to the road. Above it real clouds drift past, and the road climbs to a great flat cloud.
+// Rise or sink into that cloud and the kids come out on top of it: level 2, a field of cloud with no way back down.
+const PLAT=5600, PLAT_R=5000, PLAT_THICK=220, SKY_TOP=PLAT+500, CLOUD_LO=2650;
+let skyT=0, skyOpen=false, skyA=0, platAl=0, fogT=0, landed2=false, landT=-99;
+function platInside(){ const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl; return clamp((PLAT_R-Math.hypot(lead.x-cx,lead.z-cz))/700,0,1); }
+function platFog(){ return level===1 ? skyA*platInside()*clamp(1.25-Math.abs(camY-(PLAT-PLAT_THICK/2))/240,0,1) : 0; }
 function updateSky(dt){
-  const on=pathOn && lead.fly && freeFly();
+  fogT=Math.max(0,fogT-dt/1.6);
+  if(level===2){ skyOpen=false; skyT=0; skyA=0;
+    if(!landed2){ dayOffset-=dt;                                // the night waits for the kids to land
+      if(lead.y===0 && !lead.fly){ landed2=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; } }   // then the sun starts to rise
+    return; }
+  const on=pathOn && lead.fly && freeFly(), was=skyOpen;
   skyT=clamp(skyT+(on?dt:-dt*3),0,10);
   if(skyT>=10) skyOpen=true; else if(skyT<=0) skyOpen=false;
   if(!lead.fly || !freeFly()){ skyOpen=false; skyT=0; }
-  skyA+=((skyOpen?1:0)-skyA)*(1-Math.exp(-dt*0.7));
-  if(skyOpen) dayOffset-=dt;                                   // the night waits while the kids climb
-  if(muffle) muffle.frequency.value=20000*Math.pow(0.035,clamp((lead.y-CLOUD_IN)/(CLOUD_FULL-CLOUD_IN),0,1));   // sound goes soft inside the cloud
+  if(skyOpen && !was && skyA<0.05) platAl=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ+9000;   // the great cloud waits up the road
+  skyA+=((skyOpen||lead.y>CEILING+250?1:0)-skyA)*(1-Math.exp(-dt*0.7));
+  if(skyOpen || lead.y>CEILING+250) dayOffset-=dt;             // the night waits while the kids climb
+  if(platFog()>0.97) enterLevel2();
+}
+function enterLevel2(){
+  level=2; fogT=1; skyOpen=false; skyT=0; skyA=0; pathA=0; pathAlign=0; flock=null; got.clear();
+  for(const k of kids){ k.y=Math.max(90,k.y-PLAT); k.vy=0; } lead.alt=CRUISE;
+  for(const m of mates){ m.y=Math.max(70,m.y-PLAT); m.vy=0; }
+  camY=Math.max(ground(lead.x,lead.z)+CAM_H+60, camY-PLAT);
+}
+// The great cloud seen from the field's sky: a wide flat slab, pale on top, dusky underneath, with a billowing rim.
+function discPath(h){
+  const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl, N=48, pts=[], out=[], NEAR=60;
+  for(let i=0;i<N;i++){ const a=i/N*Math.PI*2, r=PLAT_R*(1+0.05*Math.sin(a*5+1)+0.04*Math.sin(a*9)); pts.push(proj(cx+Math.cos(a)*r, cz+Math.sin(a)*r)); }
+  for(let i=0;i<N;i++){ const p=pts[i], q=pts[(i+1)%N], pi=p[1]>=NEAR, qi=q[1]>=NEAR;       // clip against the plane just in front of the camera
+    if(pi) out.push(p); if(pi!==qi){ const t=(NEAR-p[1])/(q[1]-p[1]); out.push([p[0]+(q[0]-p[0])*t,NEAR]); } }
+  if(out.length<3) return null;
+  const P=new Path2D(); out.forEach((p,i)=>{ const sc=focal/p[1], X=W/2+p[0]*sc, Y=horizon+(camY-h)*sc; if(i) P.lineTo(X,Y); else P.moveTo(X,Y); }); P.closePath(); return P;
+}
+function platShape(){
+  const top=discPath(PLAT), bot=discPath(PLAT-PLAT_THICK), below=camY<PLAT-PLAT_THICK/2, a=ctx.globalAlpha;
+  if(below){ if(top){ ctx.fillStyle='#d8bcd0'; ctx.fill(top); } if(bot){ ctx.fillStyle='#a892b6'; ctx.fill(bot); } }
+  else { if(bot){ ctx.fillStyle='#d8bcd0'; ctx.fill(bot); } if(top){ ctx.fillStyle='#f6d4e2'; ctx.fill(top); } }
+  const cx=pathPx+SUNDX*platAl, cz=pathPz+SUNDZ*platAl, n=cloudArt.length, rim=[];
+  for(let i=0;i<22;i++){ const an=i/22*Math.PI*2+0.1, p=proj(cx+Math.cos(an)*PLAT_R*0.98, cz+Math.sin(an)*PLAT_R*0.98); if(p[1]>350) rim.push([p[1],p[0],i]); }
+  rim.sort((u,v)=>v[0]-u[0]);
+  for(const c of rim){ const sc=focal/c[0], w=3000*sc, h=w*0.375, x=W/2+c[1]*sc, y=horizon+(camY-(PLAT-PLAT_THICK*0.4))*sc; if(x<-w||x>W+w||y<-h||y>H+h) continue;
+    ctx.globalAlpha=a*clamp((c[0]-350)/600,0,1); ctx.drawImage(cloudArt[c[2]%n], x-w/2, y-h/2, w, h); }
+  ctx.globalAlpha=a;
+}
+function drawPlatform(after){
+  if(level!==1 || skyA<0.02 || (camY>PLAT-PLAT_THICK/2)!==after) return;   // from below it hangs in the sky behind everything; from above it covers the field
+  ctx.globalAlpha=skyA; platShape(); ctx.globalAlpha=1;
+  if(after) for(const fn of REDO) fn();
+  FRONT.push(()=>{ const a=ctx.globalAlpha; ctx.globalAlpha=skyA; platShape(); ctx.globalAlpha=a; });   // it passes in front of the moon
+}
+// Inside the cloud there is only cloud, in the colours of the night: this is what hides the step from one world to the next.
+function drawFog(){
+  const a=Math.max(platFog(), fogT>0?fogT*fogT*(3-2*fogT):0); if(a<=0.004) return;
+  ctx.globalAlpha=a; ctx.fillStyle='#e6c8da'; ctx.fillRect(0,0,W,H); ctx.globalAlpha=1;
+}
+function drawLevelSign(){
+  const t=time-landT-1.5; if(!landed2 || t<0 || t>7) return;
+  const a=clamp(t/1.5,0,1)*clamp((7-t)/2,0,1), q=clamp(Math.min(W/1100,H/560),0.55,1.2);
+  ctx.save(); ctx.globalAlpha=a; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.font='600 '+Math.round(72*q)+'px "Klee One","Trebuchet MS",sans-serif';
+  try{ ctx.letterSpacing=Math.round(14*q)+'px'; }catch(e){}
+  ctx.shadowColor='rgba(60,30,60,.55)'; ctx.shadowBlur=18; ctx.fillStyle='#fff6f0'; ctx.fillText('LEVEL 2',W/2,H*0.34); ctx.restore();
 }
 // Clouds along the way up, as things in the world: drawn in two passes so the kids fly in front of the far ones and behind the near ones.
 function drawSkyClouds(far){
@@ -1093,25 +1156,13 @@ function drawSkyClouds(far){
   list.sort((a,b)=>b[0]-a[0]);
   for(const c of list){ const s=focal/c[0], w=2600*c[3]*s, h=w*0.375, x=W/2+c[1]*s, y=horizon+(camY-c[2])*s;
     if(x<-w||x>W+w||y<-h||y>H+h) continue;
-    const a=skyA*clamp((11000-c[0])/3000,0,1)*clamp((c[0]-60)/500,0,1)*0.92; if(a<0.01) continue;
+    const a=skyA*(level===1?1:0)*clamp((11000-c[0])/3000,0,1)*clamp((c[0]-60)/500,0,1)*0.92; if(a<0.01) continue;
     ctx.globalAlpha=a; ctx.drawImage(cloudArt[c[4]], x-w/2, y-h/2, w, h); }
   ctx.globalAlpha=1;
 }
-// The great cloud: it hangs overhead first, comes down over the view as the kids rise into it, and then there is nothing but cloud.
-function drawWhite(){
-  const top=clamp((lead.y-(CLOUD_IN-800))/900,0,1), bot=0.92*clamp((lead.y-CLOUD_IN)/(CLOUD_FULL-CLOUD_IN),0,1);   // the kids stay just visible, as shapes in the mist
-  if(top<=0.003) return;
-  const nb=night, col=Math.round(244-66*nb)+','+Math.round(240-46*nb)+','+Math.round(236-8*nb);   // moonlit by night
-  const g=ctx.createLinearGradient(0,0,0,H); g.addColorStop(0,'rgba('+col+','+top+')'); g.addColorStop(0.55,'rgba('+col+','+(bot+(top-bot)*0.35)+')'); g.addColorStop(1,'rgba('+col+','+bot+')');
-  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
-  const art=cloudArt, n=art.length; ctx.globalCompositeOperation='screen';      // paler wisps streaming past inside it
-  for(let i=0;i<7;i++){ const w=W*(0.9+h2(i,61)*0.9), h=w*0.375, sp=0.10+h2(i,67)*0.12, u=((time*sp+h2(i,71))%1+1)%1;
-    ctx.globalAlpha=top*0.22*Math.sin(u*Math.PI); ctx.drawImage(art[i%n], (h2(i,73)-0.5)*W*1.2+W/2-w/2+Math.sin(time*0.2+i)*30, u*(H+h)-h, w, h); }
-  ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over';
-}
 function updatePath(dt){
   const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
-  const ok=night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
+  const ok=level===1 && night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
   if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lead.x+SUNDZ*sd*700; pathPz=lead.z-SUNDX*sd*700; }
   pathA=clamp(pathA+(ok?dt/21:-dt/3),0,1);     // the gathering is slow
   // the path answers when the kids travel along it toward the moon
@@ -1132,9 +1183,10 @@ function updatePath(dt){
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
 const ROAD_STEP=480, ROAD_HALF=1900, ROAD_RISE=13000, ROAD_END=42000;
 function trailFeather(j,al){
-  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hg0=0.355*u*u/(u+2500), hgt=hg0+(Math.max(hg0,lead.y-30+Math.max(ahead,-1100)*0.355)-hg0)*skyA;   // once the sky is open the road lifts from where the kids are, straight for the moon        // the rise settles onto the line of sight to the moon
+  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hg0=0.355*u*u/(u+2500), hgt=hg0+(lead.y-30+(PLAT+40-(lead.y-30))*clamp(ahead/Math.max(600,platAl-PLAT_R+500-al),0,1)-hg0)*skyA;   // once the sky is open the road lifts from where the kids are, up to the edge of the great cloud        // the rise settles onto the line of sight to the moon
   let a=clamp(pathA*3,0,1)*clamp(1-(ahead-33000)/9000,0,1)*clamp((ahead+1100)/300,0,1);
   if(j&1) a*=clamp((4500-ahead)/800,0,1); else if(j&2) a*=clamp((9500-ahead)/1500,0,1);                           // the road thins with distance
+  a*=1-skyA*clamp((t-(platAl-PLAT_R+1500))/900,0,1);                                                              // and it ends there
   if(a<=0.01) return null;
   const e0=clamp(pathA*1.7-clamp(ahead/30000,0,1)*0.7,0,1), e=e0*e0*(3-2*e0);                                     // nearest feathers fall into place first
   const side=(h2(j,5)-0.5)*2, wob=side*ROAD_HALF+(h2(j,17)-0.5)*500+Math.sin(time*0.6+j*1.7)*18*e+side*1700*(1-e);
@@ -1216,7 +1268,7 @@ function frame(now){
   try{
     update(dt); updateNight(); updatePath(dt); updateSky(dt); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
-    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); drawSkyClouds(true); drawWorld(); drawSkyClouds(false); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawWhite(); drawHud(); drawStick();
+    drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); drawTreeline(); moonSetup(); drawSkyClouds(true); drawPlatform(false); drawWorld(); drawPlatform(true); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){
     if(!frame.warned){ frame.warned=true; console.error('Flamingo Fields frame error:',err); }
     ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.shadowBlur=0;
