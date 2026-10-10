@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:35</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:40</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1068,12 +1068,14 @@ function chime(n){
 const OVERLAP=4, soundBtn=document.getElementById('sound');
 let actx=null, master=null, fieldBuf=null, nextAt=0, soundOn=true, runGain=null, runSrc=null, palGain=null, palSrc=null;
 const fadeOut=new Float32Array(48).map((_,i)=>Math.cos(i/47*Math.PI/2));
+let fieldGain=null;   // the field's own level, so it can sit back when the sea comes up
 function scheduleField(){
   if(!fieldBuf) return;
   while(nextAt<actx.currentTime+12){
     const t=Math.max(nextAt,actx.currentTime+0.05), dur=fieldBuf.duration, src=actx.createBufferSource(), g=actx.createGain();
     src.buffer=fieldBuf; g.gain.setValueAtTime(1,t); g.gain.setValueCurveAtTime(fadeOut,t+dur-OVERLAP,OVERLAP);
-    src.connect(g); g.connect(master); src.start(t);
+    if(!fieldGain){ fieldGain=actx.createGain(); fieldGain.connect(master); }
+    src.connect(g); g.connect(fieldGain); src.start(t);
     nextAt=t+dur-OVERLAP;
   }
 }
@@ -1170,6 +1172,7 @@ function updateOceanSound(){
   runLoop(ocean); runLoop(seaBirds);
   const t=actx.currentTime, v=clamp((coastAlong(lead.x,lead.z)+2000)/(SHORE+2000),0,1);
   ocean.out.gain.setTargetAtTime(Math.pow(v,1.5)*0.9,t,0.5);
+  if(fieldGain) fieldGain.gain.setTargetAtTime(1-0.4*Math.pow(v,1.5),t,0.5);   // the field falls to 60% as the sea rises to full
   seaBirds.out.gain.setTargetAtTime(beachNear()*0.8,t,0.6);
 }
 function updateRunSound(){
