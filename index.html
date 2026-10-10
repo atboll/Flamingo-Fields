@@ -978,7 +978,7 @@ function nightGrade(){
   if(sunI>0.01 && ma>0.01){ ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=sunI*ma; ctx.fillStyle='rgb(236,242,255)'; ctx.beginPath(); ctx.arc(mx,my,30*q,0,7); ctx.fill();
     ctx.fillStyle='rgba(200,210,238,.5)'; for(const c of [[-9,-6,8],[9,6,10],[4,-14,5],[-13,10,6],[14,-9,4]]){ ctx.beginPath(); ctx.arc(mx+c[0]*q,my+c[1]*q,c[2]*q,0,7); ctx.fill(); } 
     // the moon is far beyond the clouds: paint the clouds again over the disc so they pass in front of it
-    ctx.save(); ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip(); ctx.globalAlpha=Math.min(1,ma*1.4)*0.8; drawClouds(clouds,0,0.7,0.74,nightClouds());   // slightly see-through, so the cloud looks lit from behind ctx.restore();
+    ctx.save(); ctx.beginPath(); ctx.arc(mx,my,31*q,0,7); ctx.clip(); ctx.globalAlpha=Math.min(1,ma*1.4)*0.8; drawClouds(clouds,0,0.7,0.74,nightClouds()); ctx.restore();   // slightly see-through, so the cloud looks lit from behind
     ctx.globalAlpha=1; }
   ctx.globalCompositeOperation='source-over';
 }
