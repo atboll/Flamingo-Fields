@@ -655,7 +655,7 @@ function drawWorld(){
   const hiF=clamp((camY-ground(focX,focZ)-120)/200,0,1);
   const dMin=Math.max(0,(camY-130)*focal/(H-horizon+60));       // nearest ground still on screen
   for(let bi=BANDS.length-1;bi>=0;bi--){
-    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi>=6&&camY<600)?0:(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
+    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=level===2?1:(bi>=6&&camY<600)?0:(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
     if(b.b<dMin) continue;                                     // this whole band lies under the bottom edge of the view
     // world-grid cells under this depth slice of the view
     let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
@@ -675,6 +675,12 @@ function drawWorld(){
       if(bi===0){ for(const k of kids){ const ddx=x-k.x, ddz=z-k.z, d=Math.hypot(ddx,ddz); if(d<50 && k.y<30){ const p=1-d/50; bend+=((ddx*rgtX+ddz*rgtZ)>=0?1:-1)*p*0.9; squash*=1-0.3*p; } } }
       const bn=Math.min(nbin-1,Math.floor((dz-b.a)/sp));
       const paths=bins[bn]||(bins[bn]=[new Path2D(),new Path2D(),new Path2D(),new Path2D(),new Path2D()]);
+      if(level===2){   // cloud, not grass: each cell is a soft rounded lump with a paler crown, slowly swelling and settling
+        const rr=h2(i*7,j*3+bi*977), cap=26+rr*12+Math.max(0,dz-500)*0.06, rw=Math.min(sp*(0.55+0.5*rr),cap)*(1+0.08*Math.sin(time*0.27+rr*17)), r=rw*s;
+        const cy=by-r*0.15+Math.sin(time*0.35+rr*40)*r*0.12, c=clamp(Math.floor(rr*2.4+lit*6+0.6),0,3);
+        let p=paths[c]; p.moveTo(bx+r*1.35,cy); p.ellipse(bx,cy,r*1.35,r*0.85,0,0,6.2832);
+        p=paths[c+1]; const hx=bx-r*0.3, hy=cy-r*0.32; p.moveTo(hx+r*0.8,hy); p.ellipse(hx,hy,r*0.8,r*0.5,0,0,6.2832);
+        continue; }
       for(let n=0;n<nb;n++){
         const rr=h2(i*7+n,j*3+n*13+bi*977);
         const h=(24+rr*24)*s*squash*(level===2?0.55:1), ox=(n-(nb-1)/2)*sp*(0.34+0.16*bladeCut)*s;
@@ -701,7 +707,7 @@ function drawWorld(){
       ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
       for(let c=0;c<5;c++){
         const BL=level===2?BLADE2:BLADE, col = near>0 ? mix(BL[c],level===2?DEEP2:DEEP,near) : mix(BL[c],level===2?HAZE2:HAZE,hz);
-        if(b.fill){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
+        if(b.fill||level===2){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
       }
     }
   }
