@@ -48,6 +48,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testOne">Test: +1 flamingo</button>
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
+    <button type="button" id="testL2">Test: level 2 (unfinished)</button>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1092,6 +1093,7 @@ let pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas
 /* ---------- the way up: stay on the road after it answers and the sky opens ---------- */
 // The ceiling lifts while the kids keep to the road. Above it real clouds drift past, and the road climbs to a great flat cloud.
 // Rise or sink into that cloud and the kids come out on top of it: level 2, a field of cloud with no way back down.
+const WAY_UP=false;   // the climb to level 2 is switched off for now: the road only shows a way, and nothing happens at its end
 const SKY_TOP=5600, CLIMB=230, CLOUD_LO=2650, FOG_LO=4950;
 let skyT=0, skyOpen=false, skyA=0, ascT=0, fogT=0, landed2=false, landT=-99;
 function ascFog(){ return level===1 && skyOpen ? clamp((lead.y-FOG_LO)/420,0,1) : 0; }
@@ -1102,7 +1104,7 @@ function updateSky(dt){
       if(lead.y===0 && !lead.fly){ landed2=true; landT=time; dayOffset=EVENING+DUSK+NIGHT_LEN-time; } }   // then the sun starts to rise
     return; }
   const on=pathOn && lead.fly && freeFly();
-  if(!skyOpen){ skyT=clamp(skyT+(on?dt:-dt*3),0,10); if(skyT>=10){ skyOpen=true; ascT=0; } }   // ten seconds true to the road, and the flock carries the kids up
+  if(!skyOpen){ skyT=clamp(skyT+(on?dt:-dt*3),0,10); if(WAY_UP && skyT>=10){ skyOpen=true; ascT=0; } }   // ten seconds true to the road, and the flock carries the kids up
   if(!lead.fly || !freeFly()){ skyOpen=false; skyT=0; }
   if(skyOpen){ ascT+=dt; dayOffset-=dt; }                       // the night waits while the kids climb
   skyA+=((skyOpen?1:0)-skyA)*(1-Math.exp(-dt*0.7));
@@ -1192,12 +1194,11 @@ function updatePath(dt){
   }
 }
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
-// runs on toward the moon. Far ahead it lifts and curves up into the sky, and that rise always stays the same distance away,
-// so it can be seen but not yet reached. Feathers on the road are not collected; fly through and they scatter.
+// runs on toward the moon, away into the horizon. Feathers on the road are not collected; fly through and they scatter.
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
 const ROAD_STEP=480, ROAD_HALF=1900, ROAD_RISE=13000, ROAD_END=42000;
 function trailFeather(j,al){
-  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hg0=0.355*u*u/(u+2500), hgt=hg0+(lead.y-30+Math.max(ahead,-1100)*0.5-hg0)*skyA;   // once the climb begins the road lifts from where the kids are and leads on up
+  const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=0, hgt=WAY_UP?(lead.y-30+Math.max(ahead,-1100)*0.5)*skyA:0;   // the road lies over the field all the way to the horizon
   let a=clamp(pathA*3,0,1)*clamp(1-(ahead-33000)/9000,0,1)*clamp((ahead+1100)/300,0,1);
   if(j&1) a*=clamp((4500-ahead)/800,0,1); else if(j&2) a*=clamp((9500-ahead)/1500,0,1);                           // the road thins with distance
   a*=1-skyA*clamp((lead.y-30+ahead*0.5-(SKY_TOP-500))/500,0,1);                                                   // and is lost in the cloud above
@@ -1268,6 +1269,7 @@ function nightGrade(){
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
+  document.getElementById('testL2').addEventListener('click',()=>{ if(level===1){ give(MATES_MAX); label(); enterLevel2(); if(!lead.fly){ for(const k of kids) k.y=0; } } cv.focus(); });
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
 }
