@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:10</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 18:25</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1144,6 +1144,26 @@ function updateFastSound(){
   const on=(lead.fly&&freeFly())?clamp((Math.hypot(lead.vx,lead.vz)-450)/(FAST-450),0,1):0;
   fastGain.gain.setTargetAtTime(on*1.8,t,on>0?0.25:0.5);
 }
+// The sea: streamed, not held in memory, and looped by two players that hand over to each other with a six-second crossfade.
+// It is heard from a little before the sand and is at its fullest on the shore.
+const OCEAN_X=6; let ocean=null;
+function updateOceanSound(){
+  if(!actx || !master || !coast) return;
+  if(!ocean){
+    const out=actx.createGain(); out.gain.value=0; out.connect(master);
+    const mk=()=>{ const el=new Audio('ocean.mp3'); el.preload='auto'; const g=actx.createGain(); g.gain.value=0; try{ actx.createMediaElementSource(el).connect(g); g.connect(out); }catch(e){} return {el,g}; };
+    ocean={p:[mk(),mk()],cur:0,out,started:false,xing:false};
+  }
+  const o=ocean, t=actx.currentTime, c=o.p[o.cur], d=c.el.duration;
+  if(!o.started){ o.started=true; c.g.gain.setValueAtTime(1,t); const pr=c.el.play(); if(pr&&pr.catch) pr.catch(()=>{ o.started=false; }); }
+  if(d>OCEAN_X*2 && !o.xing && c.el.currentTime>d-OCEAN_X-0.1){ o.xing=true; const n=o.p[1-o.cur];
+    try{ n.el.currentTime=0; }catch(e){}
+    try{ n.g.gain.cancelScheduledValues(t); n.g.gain.setValueCurveAtTime(fastIn,t,OCEAN_X); c.g.gain.cancelScheduledValues(t); c.g.gain.setValueCurveAtTime(fadeOut,t,OCEAN_X); }catch(e){ n.g.gain.value=1; }
+    const pr=n.el.play(); if(pr&&pr.catch) pr.catch(()=>{});
+    setTimeout(()=>{ o.cur=1-o.cur; o.xing=false; },OCEAN_X*1000+300); }
+  const v=clamp((coastAlong(lead.x,lead.z)+2000)/(SHORE+2000),0,1);
+  o.out.gain.setTargetAtTime(Math.pow(v,1.5)*0.9,t,0.5);
+}
 function updateRunSound(){
   if(!runGain) return;
   const on=lead.y===0 ? clamp((lead.run-0.25)/0.5,0,1) : 0, t=actx.currentTime;
@@ -1362,7 +1382,7 @@ function frame(now){
   if(slow>1.2){ slow=0; if(dprCap>1){ dprCap=1; resize(); } else if(bladeCut<1) bladeCut=1; else lowFx=true; }
   requestAnimationFrame(frame);          // booked first, so one bad frame can never stop the game
   try{
-    update(dt); updateNight(); updatePath(dt); updateSky(dt); updateCoast(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound();
+    update(dt); updateNight(); updatePath(dt); updateSky(dt); updateCoast(); placeSun(); updateRunSound(); updateFlamSound(); updateMusic(); updateFastSound(); updateOceanSound();
     ctx.setTransform(DPR,0,0,DPR,0,0);
     drawSky(); drawClouds(clouds,0,0.7,0.74); drawMountains(); drawGround(); coastFar(); drawSea(false); drawTreeline(); moonSetup(); drawCeiling(); drawSkyClouds(true); drawWorld(); drawDeck(); drawSkyClouds(false); drawFog(); drawSeeds(); drawLight(); nightGrade(); drawFlare(); drawLevelSign(); drawHud(); drawStick();
   }catch(err){

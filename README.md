@@ -49,3 +49,4 @@ Add `#test` to the end of the address to show four test buttons: a full flock on
 - `pad.mp3`: music that plays once when the flock is complete.
 - `fast.mp3`: wind for fast flying, looped.
 - `path.mp3`: the sound that answers when you fly along the feather road.
+- `ocean.mp3`: the sea, looped with a six-second crossfade.
