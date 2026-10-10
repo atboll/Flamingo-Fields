@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 21:25</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 21:40</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -147,7 +147,7 @@ const BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
 // Your own flock: fly a good part of a pass with the wild flamingos and one of them stays with you,
 // walking through the grass beside the kids and taking to the air when they do.
 const MATES_MAX=5, PASS_NEEDED=8, mates=[];
-const freeFly=()=>mates.length>=MATES_MAX;
+const freeFly=()=>arrived||mates.length>=MATES_MAX;   // having brought the flock to the beach, the kids keep their wings for now
 const CRUISE=260, CEILING=2400, FAST=800;   // full-flock flight: cruising height, how high Space can take you, and Shift speed   // with a full flock the kids fly whenever they like, for as long as they like
 let mateMsgT=-99;
 function addMate(x,z,y,hx,hz){
@@ -248,7 +248,7 @@ cv.addEventListener('pointerup',endStick); cv.addEventListener('pointercancel',e
 function hop(){
   if(lead.fly) return;
   if(lead.y===0){ lead.vy=240; pal.hopAt=time+0.16; }
-  else if(!arrived && (feathers>=NEED||freeFly())){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
+  else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
 }
 let flyStart=0, spaceAt=0;
 function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
