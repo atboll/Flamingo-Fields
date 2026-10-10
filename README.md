@@ -22,10 +22,10 @@ then open http://localhost:8000.
 | Sprint | Hold Shift | Drag far |
 | Hop | Space | Tap |
 | Fly (10 feathers, or a full flock) | Space twice | Tap twice |
-| Soar higher while flying | Hold Space | |
-| Descend (full flock only) | S or down arrow | |
+| Rise while flying (higher with a full flock) | W or up arrow | Drag up |
+| Descend while flying | S or down arrow | Drag down |
 | Fly fast (full flock only) | Hold Shift | Drag far |
-| Land (full flock only) | Tap Space | Tap |
+| Land (full flock only) | Space | Tap |
 
 ## Testing
 

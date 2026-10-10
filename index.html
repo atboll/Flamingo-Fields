@@ -213,11 +213,10 @@ addEventListener('keydown',e=>{
   startSound();
   const k=e.key.toLowerCase();
   if(['arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
-  if(k===' ' && !e.repeat){ spaceAt=performance.now(); hop(); }
+  if(k===' ' && !e.repeat){ if(lead.fly && freeFly()) land(); else hop(); }   // Space hops, takes off on the second press, and lands a free flight
   keys.add(k);
 });
-addEventListener('keyup',e=>{ const k=e.key.toLowerCase(); keys.delete(k);
-  if(k===' ' && freeFly() && performance.now()-spaceAt<230) land(); });   // a quick tap lands; holding still soars
+addEventListener('keyup',e=>{ keys.delete(e.key.toLowerCase()); });
 addEventListener('blur',()=>keys.clear());
 cv.addEventListener('pointerdown',e=>{ cv.focus(); startSound(); try{cv.setPointerCapture(e.pointerId);}catch(_){ } stick={id:e.pointerId,x0:e.clientX,y0:e.clientY,x:e.clientX,y:e.clientY,t:performance.now(),far:0}; });
 cv.addEventListener('pointermove',e=>{ if(stick&&e.pointerId===stick.id){ stick.x=e.clientX; stick.y=e.clientY; stick.far=Math.max(stick.far,Math.hypot(stick.x-stick.x0,stick.y-stick.y0)); } });
@@ -239,15 +238,15 @@ function update(dt){
   if(keys.has('d')||keys.has('arrowright')) ix+=1;
   if(keys.has('w')||keys.has('arrowup')) iz+=1;
   if(keys.has('s')||keys.has('arrowdown')) iz-=1;
-  if(lead.fly && freeFly()){                                 // height stays where you leave it
-    if(keys.has(' ')) lead.alt=Math.min(CEILING,lead.alt+380*dt);
-    if(iz<0){ lead.alt=Math.max(110,lead.alt-460*dt); iz=0; }   // "back" means down while flying free
-  }
   let m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   if(stick){
     const dx=stick.x-stick.x0, dy=stick.y-stick.y0, d=Math.hypot(dx,dy);
     if(d>10){ const q=Math.min(1,d/70); ix=dx/d*q; iz=-dy/d*q; if(d>95) sprint=true; }
   }
+  // In the air, up and down mean rise and descend, and the height stays where it is left. A full flock lifts the ceiling.
+  if(lead.fly){ const top=freeFly()?CEILING:FEATHER_TOP;
+    if(iz>0.3) lead.alt+=380*iz*dt; else if(iz<-0.3) lead.alt+=460*iz*dt;
+    lead.alt=clamp(lead.alt,110,top); iz=0; }
   // Steering is always read against where the camera looks now, so holding left or right keeps the kids turning as the camera follows them round.
   // Only a straight "back" keeps the direction it had when first pressed: the kids turn round once and run that way, instead of spinning on the spot.
   { const back=iz<0 && Math.abs(ix)<-iz*0.5; if(back && lastSig!=='back') inputYaw=camYaw; lastSig=back?'back':'';
@@ -298,7 +297,7 @@ function update(dt){
     k.climb=Math.max(rate,(k.climb||0)-70*dt);
     if(k===lead && k.y===0 && k.vy===0 && lead.sprint>0.6 && k.climb>32 && rate<k.climb*0.3){ lead.vy=170+k.climb*1.5; pal.hopAt=time+0.16; k.climb=0; }
     k.flyT=(k.flyT||0)+((k.fly?1:0)-(k.flyT||0))*(1-Math.exp(-dt*5));
-    if(k.fly){ const tgt=(k===lead?(freeFly()?lead.alt:flock&&flock.joined?clamp(flock.y-gh-25,120,720):keys.has(' ')?640:CRUISE):Math.max(lead.y*0.92,lead.y-26))+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
+    if(k.fly){ const tgt=(k===lead?(freeFly()?lead.alt:flock&&flock.joined?clamp(flock.y-gh-25,120,720):lead.alt):Math.max(lead.y*0.92,lead.y-26))+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
     else if(k.y>0||k.vy>0){ k.vy-=(k.glide?240+k.y*1.2:720)*dt; if(k.glide){ const cap=-Math.max(150,k.y*0.7); if(k.vy<cap) k.vy=cap; } k.y+=k.vy*dt; if(k.y<=0){k.y=0;k.vy=0;k.glide=false;} }
     // pick up feathers within reach
     if(k.y<55 && feathers<NEED && pathA<0.05){ const ci=Math.floor(k.x/FC), cj=Math.floor(k.z/FC);
@@ -952,7 +951,7 @@ function drawHud(){
   }
   if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<9){
     ctx.save(); ctx.globalAlpha=clamp(9-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag far to fly fast · tap to land':'Hold Space to climb · S to descend · Shift to fly fast · tap Space to land',W/2,y+78*q); ctx.restore();
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag up to rise · down to descend · drag far to fly fast · tap to land':'W / ↑ to rise · S / ↓ to descend · Shift to fly fast · Space to land',W/2,y+78*q); ctx.restore();
   }
   if(ready){
     ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
@@ -1088,6 +1087,7 @@ function updatePath(dt){
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
 // runs on toward the moon. Far ahead it lifts and curves up into the sky, and that rise always stays the same distance away,
 // so it can be seen but not yet reached. Feathers on the road are not collected; fly through and they scatter.
+const FEATHER_TOP=640;   // how high feathers alone can carry the kids
 const ROAD_STEP=480, ROAD_HALF=1900, ROAD_RISE=13000, ROAD_END=42000;
 function trailFeather(j,al){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=Math.max(0,ahead-ROAD_RISE), hgt=0.355*u*u/(u+2500);        // the rise settles onto the line of sight to the moon
