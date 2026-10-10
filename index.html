@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 20:15</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 20:35</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -695,25 +695,27 @@ function coastFar(){
     ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1); ctx.fillStyle=sv>SHORE?seaCol(SEA_DEEP):mix(SAND_FAR,SAND_FAR,0); ctx.fillRect(i*W/NC-0.5,horizon,W/NC+1,hgt); }
   ctx.globalAlpha=1;
 }
-// Light on the water, under the moon or the low sun: hundreds of small broken lines of white, fine and crowded at the horizon,
-// longer and looser toward the kids, each winking on and off. Painted over the finished frame so the night does not dull it,
-// and checked against the kids and flamingos standing in front.
+// Light on the water, under the moon or the low sun, in the manner of pixel art: row upon row of fine one-pixel dashes, a tight
+// bright column at the horizon that loosens into longer, sparser strokes toward the kids. Each dash holds a moment and then shifts,
+// so the path shimmers in small steps. It is only there close to the sea; from far off the water is left plain.
+// Painted over the finished frame so the night does not dull it, and checked against the kids and flamingos standing in front.
 const GL=[];
 function seaGlints(){
-  GL.length=0; if(level!==1 || sea<=0.02 || sunI<=0.01 || sunX<-80 || sunX>W+80) return;
-  const q=H/650, yTop=horizon+4-seaTop(); let yEnd=horizon+4;
-  if(coast){ const s0=coastAlong(camPx,camPz), k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
-    if(s0>=SHORE) yEnd=H; else if(k>0.02){ const d=(SHORE-s0)/k; if(d<60000) yEnd=Math.min(H,horizon+camY*focal/d); } }
+  GL.length=0; if(level!==1 || !coast || sunI<=0.01 || sunX<-80 || sunX>W+80) return;
+  const s0=coastAlong(camPx,camPz), near=clamp((s0+900)/2400,0,1), A=sunI*near*(night>0.5?clamp(moonUp*4,0,1):1); if(A<=0.02) return;
+  const q=H/650, px=Math.max(1,Math.round(q)), yTop=Math.round(horizon+4-seaTop())+px, k=(fwdX*SUNDX+fwdZ*SUNDZ)+((sunX-W/2)/focal)*(rgtX*SUNDX+rgtZ*SUNDZ);
+  let yEnd=horizon+4; if(s0>=SHORE) yEnd=H; else if(k>0.02){ const d=(SHORE-s0)/k; if(d<60000) yEnd=Math.min(H,horizon+camY*focal/d); }
   const span=yEnd-yTop; if(span<3) return;
-  const N=Math.min(560,Math.round(80+span*2)), A=sunI*clamp(seaGap()/0.06,0,1)*(night>0.5?clamp(moonUp*4,0,1):1);
-  for(let i=0;i<N;i++){ const r=h2(i,91), u=r*r, tw=Math.sin(time*(0.8+2.4*h2(i,99))+i*1.31); if(tw<=0.1) continue;
-    const wd=(10+u*250)*q, x=sunX+(h2(i,93)+h2(i,95)-1)*wd+Math.sin(time*0.5+i)*3*u*q, len=(2.5+h2(i,97)*(7+64*u))*q, a=tw*tw*(1-0.5*u)*A; if(a<0.06) continue;
-    GL.push(x-len/2, yTop+u*span+Math.sin(time*0.7+i*0.9)*1.6*u*q, len, Math.max(1,(0.9+1.5*u)*q), a); }
+  for(let y=yTop, row=0; y<yEnd; row++){ const u=(y-yTop)/span, wd=(5+u*u*230)*q, nd=4+Math.floor(u*5+h2(row,81)*2);
+    for(let j=0;j<nd;j++){ const tq=Math.floor(time*(1.1+1.4*h2(row,j+83))+h2(row*3+j,85)*20); if(h2(row*13+j,tq)>0.7) continue;
+      const off=h2(row*5+j,tq+3)+h2(row*3+j,tq+9)-1, len=px*(1+Math.floor(h2(row+j*7,tq+5)*(2+u*13))), a=(1-0.6*Math.abs(off))*(1-0.4*u)*A; if(a<0.08) continue;
+      GL.push(Math.round(sunX+off*wd-len/2), y, len, px, a); }
+    y+=px*(2+Math.floor(u*3.2)); }
 }
 function drawGlints(){
   if(!GL.length) return;
-  ctx.globalCompositeOperation='source-over'; ctx.fillStyle=night>0.5?'#eaf1ff':'#fff7dc';
-  for(let i=0;i<GL.length;i+=5){ if(glowHidden(GL[i]+GL[i+2]/2,GL[i+1],1e9)) continue; ctx.globalAlpha=GL[i+4]*(0.9-0.25*night); ctx.fillRect(GL[i],GL[i+1],GL[i+2],GL[i+3]); }
+  ctx.globalCompositeOperation='source-over'; ctx.fillStyle=night>0.5?'#f6eed6':'#fff7dc';
+  for(let i=0;i<GL.length;i+=5){ if(glowHidden(GL[i]+GL[i+2]/2,GL[i+1],1e9)) continue; ctx.globalAlpha=GL[i+4]*(0.95-0.2*night); ctx.fillRect(GL[i],GL[i+1],GL[i+2],GL[i+3]); }
   ctx.globalAlpha=1;
 }
 /* ---------- the flamingos of the shore ---------- */
