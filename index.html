@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:20</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:30</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -143,7 +143,7 @@ let feathers=0, flightLeft=0, lastGot=-9, lift=0, camBack=CAM_BACK;
 // while they are with the flock the flight clock stops.
 const FLOCK_EVERY=45, FLOCK_SPEED=230, FLOCK_FIRST=30;
 let flock=null, nextFlock=FLOCK_FIRST, flockN=0;
-const FLOCK_RING=3000, FLOCK_FIX=8000;   // how far to the side a flock's line may pass, and how far off it stops minding where the kids are
+const FLOCK_RING=4500, FLOCK_FIX=8000;   // how far to the side a flock's line may pass, and how far off it stops minding where the kids are
 const FLOCK_GONE=19000;   // farther than this a bird is under two pixels wide and fully faded
 const FLOCK_FAR=24000, FLOCK_NEAR=2700;   // they set out FLOCK_FAR away, too small to see; within FLOCK_NEAR they slow to cruising speed
 const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*80,-r*60]); if(r<=4) BIRDS.push([r*80,-r*60]); }
@@ -183,7 +183,7 @@ function spawnFlock(){
   // Every flock flies for the two big mountains. Its line passes the kids somewhere inside a wide ring: some right overhead,
   // some out at the edge where only a quick run gets under them in time. The lines close in on each other toward the mountains.
   const T=Math.floor(time), u=h2(T,13), side=h2(T,7)<0.5?-1:1;
-  const off=flockN===0 ? side*300*h2(T,11) : side*(u<0.4 ? 200+1000*h2(T,11) : u<0.7 ? 1200+1000*h2(T,11) : 2200+(FLOCK_RING-2200)*h2(T,11));
+  const off=flockN===0 ? side*300*h2(T,11) : side*FLOCK_RING*(u<0.4 ? 0.07+0.33*h2(T,11) : u<0.7 ? 0.4+0.33*h2(T,11) : 0.73+0.27*h2(T,11));
   flockN++;
   const ang=SUN_B-off/FLOCK_RING*0.32+(h2(T,17)-0.5)*0.12, dx=Math.sin(ang), dz=Math.cos(ang), px=lead.x+dz*off, pz=lead.z-dx*off;
   flock={x:px-dx*FLOCK_FAR, z:pz-dz*FLOCK_FAR, dx, dz, y:430, t:0, s:-FLOCK_FAR, joined:false, sp:560, withKids:0, done:false, off, hi:430};
