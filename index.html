@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 22:35</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:10</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -101,22 +101,23 @@ const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);
 // The coast: once the mountains have parted, the field ahead ends in sand and then in the sea. It is a straight shore across the
 // way to the moon, fixed in the world from that moment. coastAlong() is how far a point lies past the start of the sand.
 const SAND_RAMP=2000, SHORE=5000;
-let arrived=false, coast=false, coastX=0, coastZ=0;
+let arrived=false, coast=false, coastA=0, coastX=0, coastZ=0;   // coastA: how far the shore has faded into being, 0..1
 // The shore is not ruled straight: it wanders in long bays and small coves. The curve is folded into coastAlong itself, growing from
 // nothing where the sand begins to its full swing at the water, so sand, sea, waves and everything that lives there follow the same line.
 function shoreCurve(lat){ return 230*Math.sin(lat*0.0019+0.7)+105*Math.sin(lat*0.0051+2.1)+38*Math.sin(lat*0.0127+4.0); }
 function coastAlong(x,z){ const a=(x-coastX)*SUNDX+(z-coastZ)*SUNDZ; if(a<=0) return a; return a-shoreCurve((x-coastX)*SUNDZ-(z-coastZ)*SUNDX)*clamp(a/3000,0,1); }
+function coastMix(g,gx,gz,v){ if(coastA>=1) return v; gSlopeX=gx+(gSlopeX-gx)*coastA; gSlopeZ=gz+(gSlopeZ-gz)*coastA; return g+(v-g)*coastA; }   // the land eases into its new shape as the shore appears
 function ground(x,z){
   const a=x*0.0019+0.5, b=z*0.0023+1.1, c=(x*0.8+z*0.6)*0.0041, sa=Math.sin(a), sb=Math.sin(b), cc=Math.cos(c);
   gSlopeX=90*0.0019*Math.cos(a)*sb+30*0.8*0.0041*cc; gSlopeZ=90*0.0023*sa*Math.cos(b)+30*0.6*0.0041*cc;
   const g=90*sa*sb+30*Math.sin(c);
-  if(coast){ const cs=coastAlong(x,z);
+  if(coast){ const cs=coastAlong(x,z), g0x=gSlopeX, g0z=gSlopeZ;
     if(cs>SHORE){   // the sea: a slow swell rolling in toward the shore, with a shorter chop over it
       const lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, a1=cs*0.0105+time*1.0+Math.sin(lat*0.0019)*1.6, a2=cs*0.024+time*1.6+lat*0.0037, f=clamp((cs-SHORE)/500,0.12,1);
-      const sl=(11*0.0105*Math.cos(a1)+4.5*0.024*Math.cos(a2))*f; gSlopeX=SUNDX*sl; gSlopeZ=SUNDZ*sl; return (11*Math.sin(a1)+4.5*Math.sin(a2))*f; }
+      const sl=(11*0.0105*Math.cos(a1)+4.5*0.024*Math.cos(a2))*f; gSlopeX=SUNDX*sl; gSlopeZ=SUNDZ*sl; return coastMix(g,g0x,g0z,(11*Math.sin(a1)+4.5*Math.sin(a2))*f); }
     if(cs>0){       // the beach: the field's hills carry on as dunes in long ridges along the shore, and level out only at the water's edge
       const lat=(x-coastX)*SUNDZ-(z-coastZ)*SUNDX, f=clamp((SHORE-cs)/650,0,1), r=clamp(cs/1800,0,1), d1=cs*0.0048+Math.sin(lat*0.0027)*2.1, amp=46*(0.55+0.45*Math.sin(lat*0.0016+1.3))*r;
-      gSlopeX=(gSlopeX+SUNDX*amp*0.0048*Math.cos(d1))*f; gSlopeZ=(gSlopeZ+SUNDZ*amp*0.0048*Math.cos(d1))*f; return (g+amp*Math.sin(d1))*f; } }
+      gSlopeX=(gSlopeX+SUNDX*amp*0.0048*Math.cos(d1))*f; gSlopeZ=(gSlopeZ+SUNDZ*amp*0.0048*Math.cos(d1))*f; return coastMix(g,g0x,g0z,(g+amp*Math.sin(d1))*f); } }
   return g;
 }
 function windR(){ return WIND_X*rgtX+WIND_Z*rgtZ; }
@@ -673,7 +674,7 @@ const REDO=[];   // the kids and their flock, kept so they can be painted again 
 function makeWaterPat(){
   const N=128, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), img=g.createImageData(N,N), px=img.data, r=rng(909);
   const tn=(x,y,f,sd)=>{ const u=x/N*f, v=y/N*f, a=vnoise(u,v,sd), b=vnoise(u-f,v,sd), c2=vnoise(u,v-f,sd), d=vnoise(u-f,v-f,sd), tx=x/N, ty=y/N; return (a*(1-tx)+b*tx)*(1-ty)+(c2*(1-tx)+d*tx)*ty; };   // noise that joins up at the tile's edges
-  for(let y=0;y<N;y+=2) for(let x=0;x<N;x+=2){ const m=tn(x,y,5,41)*0.6+tn(x,y,11,43)*0.4, on=r()<clamp((m-0.42)*3.2,0,0.85), al=on?150+r()*105:0;
+  for(let y=0;y<N;y+=2) for(let x=0;x<N;x+=2){ const on=r()<0.17, al=on?120+r()*135:0;   // an even scatter, so the tile cannot be seen repeating
     for(const o of [0,1,N,N+1]){ const i=((y*N+x)+o)*4; px[i]=px[i+1]=px[i+2]=255; px[i+3]=al; } }
   g.putImageData(img,0,0); return ctx.createPattern(c,'repeat');
 }
@@ -683,42 +684,65 @@ function makeWaterPat(){
 function seaCol(c){ const n=night; return 'rgb('+(c[0]*(1-0.72*n)|0)+','+(c[1]*(1-0.66*n)|0)+','+(c[2]*(1-0.5*n)|0)+')'; }
 const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 const SAND_FAR=[252,232,160], SAND_NEAR=[240,200,104], SAND_WET=[176,142,92], SEA_SHALLOW=[158,226,208], SEA_MID=[72,178,192], SEA_DEEP=[30,108,152];
-let csRowD=-1, csRowT=-1, csRowA=null, waterPat=null, waterPatT=-1;
+let csRowD=-1, csRowT=-1, csRowA=null, waterPat=null, blotPat=null, waterPatT=-1;
+// The part of a four-cornered piece of ground where the coast value is at least lv, added to a path. Returns the cut line, if it was cut.
+function quadCut(path,P,lv){
+  let n=0, cx=0, cy=0, cuts=0, seg=null;
+  for(let e=0;e<4;e++){ const p=P[e], q=P[(e+1)&3], pin=p[2]>=lv, qin=q[2]>=lv;
+    if(pin){ if(n++) path.lineTo(p[0],p[1]); else path.moveTo(p[0],p[1]); }
+    if(pin!==qin){ const t=(lv-p[2])/(q[2]-p[2]), X=p[0]+(q[0]-p[0])*t, Y=p[1]+(q[1]-p[1])*t; if(n++) path.lineTo(X,Y); else path.moveTo(X,Y);
+      if(cuts++===0){ cx=X; cy=Y; } else seg=[cx,cy,X,Y]; } }
+  if(n) path.closePath(); return seg;
+}
+const SAND_LV=[0,0.22,0.48,0.78], SAND_AL=[0.3,0.36,0.56,1], WET_LV=[380,250,120], WET_AL=[0.2,0.26,0.34], SEA_LV=[0,110,260,480,800,1250,1900,2900,4400];
 function coastStrip(dF,dN,fp,np,NX,v,k){
-  if(!waterPat) waterPat=makeWaterPat();
+  if(!waterPat){ waterPat=makeWaterPat(); blotPat=makeBlotPat(); }
   const row=d=>{ const r=new Float32Array(NX+1); let m=-1e9; for(let i=0;i<=NX;i++){ const cx=(i*W/NX-W/2)*d/focal, v=coastAlong(camPx+rgtX*cx+fwdX*d, camPz+rgtZ*cx+fwdZ*d); r[i]=v; if(v>m) m=v; } r.max=m; return r; };
   const AF=(csRowD===dF && csRowT===time)?csRowA:row(dF), AN=row(dN); csRowD=dN; csRowT=time; csRowA=AN;   // each strip's near edge is the next one's far edge
   if(AF.max<=0 && AN.max<=0) return;
-  const l0=(camPx-coastX)*SUNDZ-(camPz-coastZ)*SUNDX, lr=rgtX*SUNDZ-rgtZ*SUNDX, lf=fwdX*SUNDZ-fwdZ*SUNDX, dM=(dF+dN)/2;
-  if(waterPat && waterPat.setTransform && waterPatT!==time){ waterPatT=time; try{ waterPat.setTransform(new DOMMatrix().translate(-((camYaw*focal*0.7)%128), (time*5)%128)); }catch(e){} }
-  const sh=SHORE+Math.sin(time*0.45)*45; let foam=null;
+  if(waterPatT!==time){ waterPatT=time; try{ waterPat.setTransform(new DOMMatrix().translate(-((camYaw*focal*0.7)%128), (time*5)%128));
+    blotPat.setTransform(new DOMMatrix().translate(-((camYaw*focal*0.7)%768), (time*9)%768).scale(3)); }catch(e){} }
+  const sh=SHORE+Math.sin(time*0.45)*45, CA=coastA;
+  // this strip's colours: sand shaded by the dunes, and the sea in steps from pale shallows out to deep water
+  const kk=clamp(1+k*2.2*clamp(v*10,0,1),0.74,1.16), c0=mixA(SAND_FAR,SAND_NEAR,v), sand='rgb('+Math.min(255,c0[0]*kk|0)+','+Math.min(255,c0[1]*kk|0)+','+Math.min(255,c0[2]*kk|0)+')';
+  const kw=clamp(1+k*3.4*clamp(v*9,0,1),0.8,1.28), farT=clamp(1-v*5,0,1), seaC=SEA_LV.map(o=>{ const c1=mixA(mixA(SEA_SHALLOW,SEA_MID,clamp(o/1300,0,1)),SEA_DEEP,clamp(Math.max((o-900)/3500,farT),0,1)); return seaCol([Math.min(255,c1[0]*kw),Math.min(255,c1[1]*kw),Math.min(255,c1[2]*kw)]); });
+  let foam=null, wp=null;
   for(let i=0;i<NX;i++){
     const a=AF[i], b=AF[i+1], c=AN[i], d=AN[i+1], mx=Math.max(a,b,c,d); if(mx<=0) continue;
-    const x0=Math.floor(i*W/NX), x1=Math.floor((i+1)*W/NX), yf0=fp[i]-0.5, yf1=fp[i+1]-0.5, yn0=Math.max(np[i],fp[i])+1, yn1=Math.max(np[i+1],fp[i+1])+1, mid=(a+b+c+d)/4;
-    if(Math.min(a,b,c,d)<sh){   // sand, wet and dark close to the water
-      const wet=clamp(1-(sh-mid)/380,0,1), kk=clamp(1+k*2.2*clamp(v*10,0,1),0.74,1.16), c0=mixA(mixA(SAND_FAR,SAND_NEAR,v),SAND_WET,wet*0.65), col='rgb('+Math.min(255,c0[0]*kk|0)+','+Math.min(255,c0[1]*kk|0)+','+Math.min(255,c0[2]*kk|0)+')';   // dunes catch the light on one side
-      ctx.globalAlpha=clamp(mid/SAND_RAMP,0,1); ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(x0,yf0); ctx.lineTo(x1,yf1); ctx.lineTo(x1,yn1); ctx.lineTo(x0,yn0); ctx.fill(); ctx.globalAlpha=1; }
-    if(mx>sh){                  // water: the part of this piece of ground that lies past the waterline, cut along it exactly
-      const P=[[x0,yf0,a],[x1,yf1,b],[x1,yn1,d],[x0,yn0,c]]; let n=0, cx0=0, cy0=0, cuts=0;
-      { const off=mid-sh, c1=mixA(mixA(SEA_SHALLOW,SEA_MID,clamp(off/1300,0,1)),SEA_DEEP,clamp(Math.max((off-900)/5200,1-v*5),0,1)), kw=clamp(1+k*3.4*clamp(v*9,0,1),0.8,1.28);   // pale in the shallows, deepening out to sea, with light on the faces of the swell
-        // and mottled like the clouds: soft pale patches that drift in toward the shore
-        const lt=l0+dM*(lf+(((i+0.5)*W/NX-W/2)/focal)*lr), nz=vnoise(lt/330+time*0.03, mid/210+time*0.11, 9)*0.65+vnoise(lt/120-time*0.05, mid/85+time*0.17, 23)*0.35, pt=clamp((nz-0.5)*2.6,0,0.55)*clamp(v*7,0,1);
-        ctx.fillStyle=seaCol([Math.min(255,(c1[0]+(232-c1[0])*pt)*kw),Math.min(255,(c1[1]+(246-c1[1])*pt)*kw),Math.min(255,(c1[2]+(240-c1[2])*pt)*kw)]); } ctx.beginPath();
-      for(let e=0;e<4;e++){ const p=P[e], q=P[(e+1)&3], pin=p[2]>=sh, qin=q[2]>=sh;
-        if(pin){ if(n++) ctx.lineTo(p[0],p[1]); else ctx.moveTo(p[0],p[1]); }
-        if(pin!==qin){ const t=(sh-p[2])/(q[2]-p[2]), X=p[0]+(q[0]-p[0])*t, Y=p[1]+(q[1]-p[1])*t; if(n++) ctx.lineTo(X,Y); else ctx.moveTo(X,Y);
-          if(cuts++===0){ cx0=X; cy0=Y; } else { if(!foam) foam=new Path2D(); foam.moveTo(cx0,cy0); foam.lineTo(X,Y); } } }
-      ctx.fill();
-      if(v>0.05 && waterPat){ ctx.fillStyle=waterPat; ctx.globalAlpha=(0.34-0.16*night)*clamp(v*6,0,1); ctx.fill(); ctx.globalAlpha=1; } }   // a gritty speckle over it, as on the clouds
+    const mn=Math.min(a,b,c,d), x0=Math.floor(i*W/NX), x1=Math.floor((i+1)*W/NX), yn0=Math.max(np[i],fp[i])+1, yn1=Math.max(np[i+1],fp[i+1])+1;
+    const P=[[x0,fp[i]-0.5,a],[x1,fp[i+1]-0.5,b],[x1,yn1,d],[x0,yn0,c]];
+    if(mn<sh){                                                 // sand: laid in a few sheets along the true line where it begins, so it comes in by contours
+      ctx.fillStyle=sand;
+      if(mn>=SAND_LV[3]*SAND_RAMP){ ctx.globalAlpha=CA; ctx.beginPath(); quadCut(ctx,P,-1e9); ctx.fill(); }
+      else for(let j=0;j<4;j++){ const lv=SAND_LV[j]*SAND_RAMP; if(mx<=lv) break; ctx.globalAlpha=SAND_AL[j]*CA; ctx.beginPath(); quadCut(ctx,P,lv); ctx.fill(); }
+      ctx.fillStyle='rgb(132,104,70)';                           // and darker where the sea has wet it
+      for(let j=0;j<3;j++){ const lv=sh-WET_LV[j]; if(mx<=lv) break; ctx.globalAlpha=WET_AL[j]*CA; ctx.beginPath(); quadCut(ctx,P,lv); ctx.fill(); }
+      ctx.globalAlpha=1; }
+    if(mx>sh){                                                 // water, likewise in contours that follow the shore
+      let j0=0; while(j0<SEA_LV.length-1 && mn>=sh+SEA_LV[j0+1]) j0++;
+      ctx.globalAlpha=CA;
+      for(let j=j0;j<SEA_LV.length;j++){ const lv=sh+SEA_LV[j]; if(mx<=lv) break; ctx.fillStyle=seaC[j]; ctx.beginPath(); const sg=quadCut(ctx,P,lv); ctx.fill();
+        if(j===0 && sg){ if(!foam) foam=new Path2D(); foam.moveTo(sg[0],sg[1]); foam.lineTo(sg[2],sg[3]); } }
+      ctx.globalAlpha=1;
+      if(v>0.05){ if(!wp) wp=new Path2D(); quadCut(wp,P,sh); } }
   }
-  if(foam){ ctx.strokeStyle='rgba(255,255,255,.8)'; ctx.lineWidth=clamp(16*focal/dN,1.2,9); ctx.lineCap='round'; ctx.stroke(foam); }
+  if(wp){ const t=clamp(v*6,0,1)*CA;                              // over the water: soft pale blotches like cloud, and a fine grit
+    ctx.fillStyle=blotPat; ctx.globalAlpha=(0.5-0.2*night)*t; ctx.fill(wp); ctx.fillStyle=waterPat; ctx.globalAlpha=(0.26-0.12*night)*t; ctx.fill(wp); ctx.globalAlpha=1; }
+  if(foam){ ctx.strokeStyle='rgba(255,255,255,'+0.8*CA+')'; ctx.lineWidth=clamp(16*focal/dN,1.2,9); ctx.lineCap='round'; ctx.stroke(foam); }
+}
+// Soft pale blotches for the water, as a tile that joins up with itself.
+function makeBlotPat(){
+  const N=256, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), img=g.createImageData(N,N), px=img.data;
+  const tn=(x,y,f,sd)=>{ const u=x/N*f, v=y/N*f, a=vnoise(u,v,sd), b=vnoise(u-f,v,sd), c2=vnoise(u,v-f,sd), d=vnoise(u-f,v-f,sd), tx=x/N, ty=y/N; return (a*(1-tx)+b*tx)*(1-ty)+(c2*(1-tx)+d*tx)*ty; };
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const m=tn(x,y,4,61)*0.6+tn(x,y,9,63)*0.4, i=(y*N+x)*4; px[i]=232; px[i+1]=246; px[i+2]=240; px[i+3]=clamp((m-0.5)*2.6,0,0.6)*255; }
+  g.putImageData(img,0,0); return ctx.createPattern(c,'repeat');
 }
 // Beyond the farthest strip of ground, the same sand or sea carries on to the horizon.
 function coastFar(){
   if(!coast || level!==1) return;
   const D=60800, s0=coastAlong(camPx,camPz), sr=rgtX*SUNDX+rgtZ*SUNDZ, sf=fwdX*SUNDX+fwdZ*SUNDZ, NC=44, hgt=Math.max(3,(camY+140)*focal/D+3);
   for(let i=0;i<NC;i++){ const sv=s0+D*(sf+(((i+0.5)*W/NC-W/2)/focal)*sr); if(sv<=0) continue;
-    ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1); ctx.fillStyle=sv>SHORE?seaCol(SEA_DEEP):mix(SAND_FAR,SAND_FAR,0); ctx.fillRect(i*W/NC-0.5,horizon,W/NC+1,hgt); }
+    ctx.globalAlpha=clamp(sv/SAND_RAMP,0,1)*coastA; ctx.fillStyle=sv>SHORE?seaCol(SEA_DEEP):mix(SAND_FAR,SAND_FAR,0); { const xa=Math.floor(i*W/NC); ctx.fillRect(xa,horizon,Math.floor((i+1)*W/NC)-xa,hgt); } }
   ctx.globalAlpha=1;
 }
 // Light on the water, under the moon or the low sun, in the manner of pixel art: row upon row of fine one-pixel dashes, a tight
@@ -794,7 +818,10 @@ function drawBirdTiny(m,X,Y,s){   // a flamingo far down the beach: a pink body 
 }
 function updateCoast(dt){
   if(level!==1) return;
-  if(!coast && sea>=1){ coastX=lead.x+SUNDX*2500; coastZ=lead.z+SUNDZ*2500; coast=true;   // the sand begins a little way on from where the mountains finished parting
+  if(coast) coastA=Math.min(1,coastA+dt/8);
+  // The shore is laid down while the mountains are still parting, far ahead, and fades in there: it is first seen small and distant
+  // and comes closer as the kids fly on, instead of springing up in front of them.
+  if(!coast && sea>=0.5){ const far=2500+(1-sea)*SEA_TIME*430; coastX=lead.x+SUNDX*far; coastZ=lead.z+SUNDZ*far; coast=true; coastA=0;
     shore.length=0;
     for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*7000, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
       shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),0,lat,cs,100+i)); } }
@@ -906,7 +933,7 @@ function drawWorld(){
       const r=h2(i,j+bi*7919), r2=h2(i+31,j-bi*131);
       const x=(i+(r-0.5)*0.9)*sp, z=(j+(r2-0.5)*0.9)*sp;
       rx=x-camPx; rz=z-camPz; dz=rx*fwdX+rz*fwdZ; if(dz<b.a||dz>=b.b||dz<dMin) continue; cx=rx*rgtX+rz*rgtZ;
-      let gH=1; if(coast){ const cs=coastAlong(x,z); if(cs>0){ const gf=1-cs/SAND_RAMP; if(gf<=0){ if(cs>SHORE-500 || h2(Math.floor(x/80)+3,Math.floor(z/80)-8)>0.075) continue; gH=0.5+0.5*h2(Math.floor(x/80)-5,Math.floor(z/80)+2); }   // out on the sand, only scattered clumps of dune grass
+      let gH=1; if(coast){ const cs=coastAlong(x,z); if(cs>0 && (coastA>=1 || h2(i+11,j+13)<coastA)){ const gf=1-cs/SAND_RAMP; if(gf<=0){ if(cs>SHORE-500 || h2(Math.floor(x/80)+3,Math.floor(z/80)-8)>0.075) continue; gH=0.5+0.5*h2(Math.floor(x/80)-5,Math.floor(z/80)+2); }   // out on the sand, only scattered clumps of dune grass
         else { if(h2(i+5,j+9+bi)>gf*gf) continue; gH=0.35+0.65*gf; } } }   // grass thins and shortens into the sand
       const s=focal/dz, bx=W/2+cx*s, by=horizon+(camY-ground(x,z))*s, lit=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ);
       // rolling gusts: a slow wide swell plus a faster ripple, both travelling downwind
@@ -1455,7 +1482,9 @@ function updatePath(dt){
   // the path answers when the kids travel along it toward the moon
   const on=pathOn=pathA>0.3 && Math.abs(lat)<ROAD_HALF+350 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
   pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
-  if(level===1){ if(on && lead.fly) sea=Math.min(1,sea+dt/SEA_TIME); }   // the journey: the mountains part while the road is flown, and stay parted
+  if(level===1){ if(on && lead.fly) sea=Math.min(1,sea+dt/SEA_TIME);
+    if(coast) sea=Math.max(sea,clamp(1+(coastAlong(lead.x,lead.z)+2200)/9000,0,1)); }   // however the kids come to the shore, the mountains have finished parting by the time they reach it
+   // the journey: the mountains part while the road is flown, and stay parted
   // a sound answers too, as a hint: once each time the kids fly onto the road and turn along it
   if(actx && master){
     if(!hintEl && pathA>0){ hintEl=new Audio('path.mp3'); hintEl.preload='auto';
@@ -1501,9 +1530,10 @@ function nightGrade(){
   let g=ctx.createRadialGradient(mx,my,0,mx,my,Math.max(W,H)*0.75); g.addColorStop(0,'rgba(150,180,255,'+0.42*ma+')'); g.addColorStop(0.12,'rgba(110,145,235,'+0.14*ma+')'); g.addColorStop(1,'rgba(90,120,220,0)');
   ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
   // moonlight lying across the field below the moon
-  ctx.save(); ctx.translate(mx,horizon); ctx.scale(0.45,1.1); g=ctx.createRadialGradient(0,0,0,0,0,W*0.6); g.addColorStop(0,'rgba(170,200,255,'+0.2*ma+')'); g.addColorStop(1,'rgba(170,200,255,0)');
-  ctx.fillStyle=g; { const FD=70/1.1, n=14; for(let i=0;i<n;i++){ ctx.globalAlpha=(i+0.5)/n; ctx.fillRect(-W*2,i*FD/n,W*4,FD/n+0.5); } ctx.globalAlpha=1; ctx.fillRect(-W*2,FD,W*4,H*2); }   // it fades in below the horizon, so no line is drawn across whoever stands there
-  ctx.restore();
+  // a pool of light that just touches the horizon and is brightest out on the field, so it has no edge anywhere
+  { const ry=(H-horizon)*0.62, rx=W*0.4; ctx.save(); ctx.translate(mx,horizon+ry); ctx.scale(rx/ry,1); g=ctx.createRadialGradient(0,0,0,0,0,ry);
+    g.addColorStop(0,'rgba(170,200,255,'+0.2*ma+')'); g.addColorStop(0.55,'rgba(170,200,255,'+0.11*ma+')'); g.addColorStop(1,'rgba(170,200,255,0)');
+    ctx.fillStyle=g; ctx.fillRect(-ry,-ry,ry*2,ry*2); ctx.restore(); }
   // feathers give off their own light
   for(let i=0;i<GLOWS.length;i+=4){ if(glowHidden(GLOWS[i],GLOWS[i+1],GLOWS[i+3]) || groundHides(GLOWS[i],GLOWS[i+1],GLOWS[i+3])) continue; const R=GLOWS[i+2]; g=ctx.createRadialGradient(GLOWS[i],GLOWS[i+1],0,GLOWS[i],GLOWS[i+1],R);
     g.addColorStop(0,'rgba(255,190,214,'+0.85*n+')'); g.addColorStop(0.25,'rgba(255,150,190,'+0.4*n+')'); g.addColorStop(1,'rgba(255,150,190,0)');
@@ -1553,7 +1583,7 @@ function nightGrade(){
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=0.97; });
   document.getElementById('testBeach').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=1;
-    setTimeout(()=>{ if(!coast||arrived) return; const d=SHORE*0.5-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
+    setTimeout(()=>{ if(!coast||arrived) return; coastA=1; sea=1; const d=SHORE*0.5-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
       camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
