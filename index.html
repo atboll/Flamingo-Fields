@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 22:55</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 10 Oct 23:05</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -66,7 +66,7 @@ const hint = document.getElementById('hint');
 const touchy = matchMedia('(pointer: coarse)').matches;
 document.getElementById('hintText').innerHTML = touchy
   ? 'Drag to run &middot; tap to <b>hop</b> &middot; collect <b>10 feathers</b>, then tap twice to <b>fly</b>'
-  : 'Click the field, then <b>WASD</b> or arrows to run &middot; <b>Shift</b> sprints &middot; <b>Space</b> hops &middot; collect <b>10 feathers</b>, then jump twice to <b>fly</b>';
+  : 'Click the field, then <b>WASD</b> or arrows to run &middot; <b>Space</b> hops &middot; collect <b>10 feathers</b>, then jump twice to <b>fly</b>';
 const calm = matchMedia('(prefers-reduced-motion: reduce)').matches ? 0.4 : 1;
 
 /* ---------- helpers ---------- */
@@ -294,7 +294,7 @@ function update(dt){
     const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, c=clamp(-lat/1500,-0.5,0.5); ix=SUNDX+SUNDZ*c; iz=SUNDZ-SUNDX*c; sprint=false;
     lead.alt=Math.min(SKY_TOP,lead.alt+CLIMB*clamp(ascT/3,0.15,1)*dt); }
   const idle2=idle&&!skyOpen;
-  let top = lead.fly?(sprint&&freeFly()?FAST:430):sprint?340:210;
+  let top = lead.fly?(sprint&&freeFly()?FAST:430):340;   // on the ground there is one speed: running
   // slower uphill, faster downhill
   if(lead.fly && flock && flock.joined && idle2){              // with the flock and hands off: settle into the gap behind the leader
     const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-lead.x)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-lead.z)*1.2, m=Math.hypot(vx,vz)||1;
@@ -303,7 +303,7 @@ function update(dt){
   if(!lead.fly){ ground(lead.x,lead.z); top*=clamp(1-(gSlopeX*ix+gSlopeZ*iz)*1.5,0.7,1.3); }
   const ease = 1-Math.exp(-dt*(lead.fly?1.7:7));
   lead.vx += (ix*top-lead.vx)*ease; lead.vz += (iz*top-lead.vz)*ease;
-  lead.sprint += ((sprint&&(ix||iz)?1:0)-lead.sprint)*(1-Math.exp(-dt*6));
+  lead.sprint += (((sprint||!lead.fly)&&(ix||iz)?1:0)-lead.sprint)*(1-Math.exp(-dt*6));
   const ls=Math.hypot(lead.vx,lead.vz);
   if(ls>25){ const e2=1-Math.exp(-dt*5); headX+=(lead.vx/ls-headX)*e2; headZ+=(lead.vz/ls-headZ)*e2; const hm=Math.hypot(headX,headZ)||1; headX/=hm; headZ/=hm; }
 

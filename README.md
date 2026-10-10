@@ -19,7 +19,6 @@ then open http://localhost:8000.
 | Action | Keyboard | Touch |
 | --- | --- | --- |
 | Run | WASD or arrow keys (click the field first) | Drag |
-| Sprint | Hold Shift | Drag far |
 | Hop | Space | Tap |
 | Fly (10 feathers, or a full flock) | Space twice | Tap twice |
 | Rise while flying (higher with a full flock) | W or up arrow | Drag up |
