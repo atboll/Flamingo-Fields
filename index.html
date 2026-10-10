@@ -48,7 +48,6 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testOne">Test: +1 flamingo</button>
     <button type="button" id="testNight">Test: go to dusk</button>
     <button type="button" id="testRoad">Test: night + feather road</button>
-    <button type="button" id="testL2">Test: level 2 (unfinished)</button>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1269,7 +1268,6 @@ function nightGrade(){
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
-  document.getElementById('testL2').addEventListener('click',()=>{ if(level===1){ give(MATES_MAX); label(); enterLevel2(); if(!lead.fly){ for(const k of kids) k.y=0; } } cv.focus(); });
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
 }

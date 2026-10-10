@@ -29,7 +29,7 @@ then open http://localhost:8000.
 
 ## Testing
 
-Add `#test` to the end of the address to show three test buttons: a full flock on and off, one flamingo at a time, and a jump to dusk. Without `#test` they are hidden.
+Add `#test` to the end of the address to show four test buttons: a full flock on and off, one flamingo at a time, a jump to dusk, and a jump to deep night with a full flock and the feather road. Without `#test` they are hidden.
 
 ## How it works
 
@@ -37,6 +37,7 @@ Add `#test` to the end of the address to show three test buttons: a full flock o
 - A flock of ten flamingos crosses the sky once a minute. Fly with them for 8 seconds and one joins you; the row of small flamingos at the top fills in as you go.
 - With five flamingos your flock is complete: you can fly whenever you like, for as long as you like, much higher than before, and fast.
 - The day turns slowly from golden evening to moonlit night and back, on an eight-minute cycle.
+- At night, with a full flock, the field's feathers gather into two glowing lines that run to the horizon under the moon. A sound answers when you fly along them. The wild flock heads the same way.
 
 ## Files
 
@@ -46,3 +47,4 @@ Add `#test` to the end of the address to show three test buttons: a full flock o
 - `flamingos.mp3`: flock calls.
 - `pad.mp3`: music that plays once when the flock is complete.
 - `fast.mp3`: wind for fast flying, looped.
+- `path.mp3`: the sound that answers when you fly along the feather road.
