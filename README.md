@@ -29,7 +29,7 @@ then open http://localhost:8000.
 
 ## Testing
 
-Add `#test` to the end of the address to show four test buttons: a full flock on and off, one flamingo at a time, a jump to dusk, and a jump to deep night with a full flock and the feather road. Without `#test` they are hidden.
+Add `#test` to the end of the address to show the test buttons: a full flock on and off, one flamingo at a time, a jump to dusk, deep night with the feather road, the mountains almost open, and a flight straight to the beach. A small build stamp sits under them. Without `#test` they are hidden.
 
 ## How it works
 
@@ -38,7 +38,8 @@ Add `#test` to the end of the address to show four test buttons: a full flock on
 - With five flamingos your flock is complete: you can fly whenever you like, for as long as you like, much higher than before, and fast.
 - The day turns slowly from golden evening to moonlit night and back, on an eight-minute cycle.
 - At night, with a full flock, the field's feathers gather into two glowing lines that run to the horizon under the moon. A sound answers when you fly along them. The wild flock heads the same way.
-- Two peaks frame the moon. Fly the feather road toward it and the mountains slowly slide apart, with a sea showing on the horizon between them. They close again at dawn.
+- Two peaks frame the moon, which rises between them at dusk and sets by dawn. Fly the feather road toward it and the mountains slowly slide apart and rise, with a sea showing on the horizon between them. They stay parted.
+- Past the mountains the grass thins into dunes and a beach with a wandering shoreline, waves, boulders, bushes and flamingos feeding at the water. Land there and LEVEL 2 shows, the day breaks, and your flock walks off to join the others. Wild flocks land there too. You keep the ability to fly.
 
 ## Files
 
