@@ -50,7 +50,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 00:05</span>
+    <span style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 00:20</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -126,8 +126,9 @@ function bearingX(th){ let d=th-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); r
 let time=0;
 // Time of day. One full turn takes DAY_LEN seconds: a long golden evening, a minute of dusk, a moonlit night, a minute of dawn.
 const DAY_LEN=480, EVENING=180, DUSK=60, NIGHT_LEN=180;
-let night=0, dayOffset=0;
+let night=0, dayOffset=0, nightOn=false;   // nightOn: the day stands still until the fourth flamingo has joined; then the first dusk begins
 function updateNight(){
+  if(!nightOn){ if(mates.length>=4 || arrived || level===2){ nightOn=true; dayOffset=EVENING-10-time; } else dayOffset=-time; }
   const p=(((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN, sm=t=>{ t=clamp(t,0,1); return t*t*(3-2*t); };
   night = p<EVENING ? 0 : p<EVENING+DUSK ? sm((p-EVENING)/DUSK) : p<EVENING+DUSK+NIGHT_LEN ? 1 : 1-sm((p-EVENING-DUSK-NIGHT_LEN)/(DAY_LEN-EVENING-DUSK-NIGHT_LEN));
 }
@@ -1608,13 +1609,13 @@ function nightGrade(){
   setInterval(label,500);
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
-  document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
+  document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); nightOn=true; dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=0.97; });
   document.getElementById('testBeach').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) sea=1;
     setTimeout(()=>{ if(!coast||arrived) return; coastA=1; sea=1; const d=SHORE*0.5-coastAlong(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
       camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });
   const nb=document.getElementById('testNight');
-  nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
+  nb.addEventListener('click',()=>{ const toDay=night>0.3; nightOn=true; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });
 }
 
 /* ---------- loop ---------- */
@@ -1636,7 +1637,7 @@ function frame(now){
 let lowFx=false;   // last quality step on slow devices: drop the soft blur on the birds' black feathers
 function start(saved){
   if(saved && saved.kids){ saved.kids.forEach((p,i)=>{ if(kids[i]){ kids[i].x=p.x; kids[i].z=p.z; } }); focX=lead.x; focZ=lead.z; }
-  if(saved && saved.day) dayOffset=saved.day;
+  if(saved && saved.day){ dayOffset=saved.day; nightOn=true; }
   if(saved && saved.mates) for(let i=0;i<Math.min(MATES_MAX,saved.mates);i++) addMate(lead.x-60-i*30,lead.z-90-i*20,0,0,1);
   camY=ground(lead.x,lead.z)+CAM_H;
   requestAnimationFrame(frame);
