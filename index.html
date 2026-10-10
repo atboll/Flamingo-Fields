@@ -1057,7 +1057,11 @@ function nightGrade(){
 { const box=document.getElementById('test'), show=()=>{ box.hidden=location.hash!=='#test'; };
   show(); addEventListener('hashchange',show);
   const give=(n)=>{ startSound(); for(let i=0;i<n && mates.length<MATES_MAX;i++){ const k=mates.length; addMate(lead.x-headX*(90+k*30)+headZ*(k%2?50:-50), lead.z-headZ*(90+k*30)-headX*(k%2?50:-50), 0, headX, headZ); mateMsgT=time; } cv.focus(); };
-  document.getElementById('testFlock').addEventListener('click',()=>give(MATES_MAX));
+  // the first button switches the whole flock on and off; switching it off also rewinds the music so it can start again
+  const fb=document.getElementById('testFlock'), label=()=>{ fb.textContent=mates.length>=MATES_MAX?'Test: remove flock':'Test: full flock'; };
+  const clear=()=>{ mates.length=0; mateMsgT=-99; if(lead.fly){ flyStart=-9; land(); } if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(e){} } padPlayed=false; cv.focus(); };
+  fb.addEventListener('click',()=>{ if(mates.length>=MATES_MAX) clear(); else give(MATES_MAX); label(); });
+  setInterval(label,500);
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   const nb=document.getElementById('testNight');
   nb.addEventListener('click',()=>{ const toDay=night>0.3; dayOffset=(toDay?0:EVENING)-time; nb.textContent=toDay?'Test: go to dusk':'Test: back to day'; cv.focus(); });

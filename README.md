@@ -29,7 +29,7 @@ then open http://localhost:8000.
 
 ## Testing
 
-Add `#test` to the end of the address to show three test buttons: a full flock at once, one flamingo at a time, and a jump to dusk. Without `#test` they are hidden.
+Add `#test` to the end of the address to show three test buttons: a full flock on and off, one flamingo at a time, and a jump to dusk. Without `#test` they are hidden.
 
 ## How it works
 
