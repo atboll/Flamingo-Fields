@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 00:50</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 01:15</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -101,7 +101,7 @@ let gSlopeX=0, gSlopeZ=0, camY=CAM_H;
 const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);
 // The coast: once the mountains have parted, the field ahead ends in sand and then in the sea. It is a straight shore across the
 // way to the moon, fixed in the world from that moment. coastAlong() is how far a point lies past the start of the sand.
-const SAND_RAMP=2000, SHORE=5000;
+const SAND_RAMP=2500, SHORE=6250;
 let arrived=false, coast=false, coastA=0, coastX=0, coastZ=0;   // coastA: how far the shore has faded into being, 0..1
 // The shore is not ruled straight: it wanders in long bays and small coves. The curve is folded into coastAlong itself, growing from
 // nothing where the sand begins to its full swing at the water, so sand, sea, waves and everything that lives there follow the same line.
@@ -824,7 +824,7 @@ function updateCoast(dt){
   if(coast) coastA=Math.min(1,coastA+dt/8);
   // The shore is laid down while the mountains are still parting, far ahead, and fades in there: it is first seen small and distant
   // and comes closer as the kids fly on, instead of springing up in front of them.
-  if(!coast && sea>=0.5){ const far=2500+(1-sea)*SEA_TIME*430; coastX=lead.x+SUNDX*far; coastZ=lead.z+SUNDZ*far; coast=true; coastA=0;
+  if(!coast && sea>=0.5){ const far=3125+(1-sea)*SEA_TIME*430; coastX=lead.x+SUNDX*far; coastZ=lead.z+SUNDZ*far; coast=true; coastA=0;
     shore.length=0;
     for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*7000, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
       shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),0,lat,cs,100+i)); } }
@@ -1527,7 +1527,7 @@ function updatePath(dt){
 // The trail itself: the field's feathers drift slowly out of their places into a wide road that hovers over the grass and
 // runs on toward the moon, away into the horizon. Feathers on the road are not collected; fly through and they scatter.
 const FEATHER_TOP=640;   // how high feathers alone can carry the kids
-const SEA_TIME=45;   // seconds of flying the road for the mountains to part fully
+const SEA_TIME=56;   // seconds of flying the road for the mountains to part fully
 const ROAD_STEP=130, ROAD_HALF=600, ROAD_RISE=13000, ROAD_END=70000;
 function trailFeather(j,al){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al, u=0, hgt=WAY_UP?(lead.y-30+Math.max(ahead,-1100)*0.5)*skyA:0;   // the road lies over the field all the way to the horizon
