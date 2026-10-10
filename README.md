@@ -27,6 +27,10 @@ then open http://localhost:8000.
 | Fly fast (full flock only) | Hold Shift | Drag far |
 | Land (full flock only) | Tap Space | Tap |
 
+## Testing
+
+Add `#test` to the end of the address to show three test buttons: a full flock at once, one flamingo at a time, and a jump to dusk. Without `#test` they are hidden.
+
 ## How it works
 
 - Collect 10 feathers to fly for 10 seconds. A rare great feather fills the counter at once.
