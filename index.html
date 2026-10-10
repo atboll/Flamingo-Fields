@@ -114,7 +114,8 @@ const BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
 // Your own flock: fly a good part of a pass with the wild flamingos and one of them stays with you,
 // walking through the grass beside the kids and taking to the air when they do.
 const MATES_MAX=5, PASS_NEEDED=8, mates=[];
-const freeFly=()=>mates.length>=MATES_MAX;   // with a full flock the kids fly whenever they like, for as long as they like
+const freeFly=()=>mates.length>=MATES_MAX;
+const CRUISE=260, CEILING=2400, FAST=800;   // full-flock flight: cruising height, how high Space can take you, and Shift speed   // with a full flock the kids fly whenever they like, for as long as they like
 let mateMsgT=-99;
 function addMate(x,z,y,hx,hz){
   mates.push({x,z,y,open:y>6?1:0,vx:hx*200,vz:hz*200,vy:0,hx,hz,ph:h2(mates.length*5+2,9)*6.28,id:50+mates.length,wp:0,sp:0});
@@ -126,7 +127,7 @@ function updateMates(dt){
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
     const back=(air?80:85)+row*(air?60:52), lat=side*((air?75:58)+row*(air?55:26))+wob;
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
-    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?540:400,d*2.2), e=1-Math.exp(-dt*3.5);
+    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1000:400,d*2.2), e=1-Math.exp(-dt*3.5);
     m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
     m.x+=m.vx*dt; m.z+=m.vz*dt;
     const sp=m.sp=Math.hypot(m.vx,m.vz);
@@ -194,7 +195,7 @@ cv.addEventListener('pointerup',endStick); cv.addEventListener('pointercancel',e
 function hop(){
   if(lead.fly) return;
   if(lead.y===0){ lead.vy=240; pal.hopAt=time+0.16; }
-  else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
+  else if(feathers>=NEED||freeFly()){ lead.fly=true; lead.glide=false; lead.alt=CRUISE; flightLeft=FLY_TIME; if(!freeFly()) feathers=0; pal.flyAt=time+0.25; flyStart=time; chime(12); chime(19); }
 }
 let flyStart=0, spaceAt=0;
 function land(){ if(lead.fly && time-flyStart>0.6){ flightLeft=0; for(const k of kids){ k.fly=false; k.glide=true; } } }   // free flight ends when the player chooses
@@ -207,6 +208,10 @@ function update(dt){
   if(keys.has('d')||keys.has('arrowright')) ix+=1;
   if(keys.has('w')||keys.has('arrowup')) iz+=1;
   if(keys.has('s')||keys.has('arrowdown')) iz-=1;
+  if(lead.fly && freeFly()){                                 // height stays where you leave it
+    if(keys.has(' ')) lead.alt=Math.min(CEILING,lead.alt+380*dt);
+    if(iz<0){ lead.alt=Math.max(110,lead.alt-460*dt); iz=0; }   // "back" means down while flying free
+  }
   let m=Math.hypot(ix,iz); if(m>1){ix/=m;iz/=m;}
   if(stick){
     const dx=stick.x-stick.x0, dy=stick.y-stick.y0, d=Math.hypot(dx,dy);
@@ -220,7 +225,7 @@ function update(dt){
 
   const idle=!(ix||iz);
   if(lead.fly && idle){ ix=headX; iz=headZ; }            // keep gliding forward with no key held
-  let top = lead.fly?430:sprint?340:210;
+  let top = lead.fly?(sprint&&freeFly()?FAST:430):sprint?340:210;
   // slower uphill, faster downhill
   if(lead.fly && flock && flock.joined && idle){              // with the flock and hands off: settle into the gap behind the leader
     const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-lead.x)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-lead.z)*1.2, m=Math.hypot(vx,vz)||1;
@@ -262,8 +267,8 @@ function update(dt){
     k.climb=Math.max(rate,(k.climb||0)-70*dt);
     if(k===lead && k.y===0 && k.vy===0 && lead.sprint>0.6 && k.climb>32 && rate<k.climb*0.3){ lead.vy=170+k.climb*1.5; pal.hopAt=time+0.16; k.climb=0; }
     k.flyT=(k.flyT||0)+((k.fly?1:0)-(k.flyT||0))*(1-Math.exp(-dt*5));
-    if(k.fly){ const tgt=(k===lead?(flock&&flock.joined?clamp(flock.y-gh-25,120,720):keys.has(' ')?640:260):lead.y*0.92)+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
-    else if(k.y>0||k.vy>0){ k.vy-=(k.glide?240:720)*dt; if(k.glide&&k.vy<-150) k.vy=-150; k.y+=k.vy*dt; if(k.y<=0){k.y=0;k.vy=0;k.glide=false;} }
+    if(k.fly){ const tgt=(k===lead?(freeFly()?lead.alt:flock&&flock.joined?clamp(flock.y-gh-25,120,720):keys.has(' ')?640:CRUISE):Math.max(lead.y*0.92,lead.y-26))+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
+    else if(k.y>0||k.vy>0){ k.vy-=(k.glide?240+k.y*1.2:720)*dt; if(k.glide){ const cap=-Math.max(150,k.y*0.7); if(k.vy<cap) k.vy=cap; } k.y+=k.vy*dt; if(k.y<=0){k.y=0;k.vy=0;k.glide=false;} }
     // pick up feathers within reach
     if(k.y<55 && feathers<NEED){ const ci=Math.floor(k.x/FC), cj=Math.floor(k.z/FC);
       for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
@@ -275,9 +280,9 @@ function update(dt){
   if(ls>40){ let dy=Math.atan2(headX,headZ)-camYaw; dy=Math.atan2(Math.sin(dy),Math.cos(dy)); camYaw+=dy*(1-Math.exp(-dt*1.5)); }
   fwdX=Math.sin(camYaw); fwdZ=Math.cos(camYaw); rgtX=fwdZ; rgtZ=-fwdX;
   // in the air the camera pulls back, rises and tips down a little to show the hills from above
-  lift+=(clamp(lead.y/240,0,2.7)-lift)*(1-Math.exp(-dt*2.5)); camBack=CAM_BACK+Math.min(lift,1.4)*170; horizon=H*(0.5-0.1*Math.min(lift,1.7));
+  lift+=(clamp(lead.y/240,0,2.7)-lift)*(1-Math.exp(-dt*2.5)); camBack=CAM_BACK+Math.min(lift,1.4)*170+lead.sprint*(lead.flyT||0)*110; horizon=H*(0.5-0.1*Math.min(lift,1.7));
   camPx=focX-fwdX*camBack; camPz=focZ-fwdZ*camBack;
-  { const gt=Math.max(ground(focX,focZ), ground(camPx,camPz)-15)+CAM_H+lead.y*0.85*Math.min(1,lift*1.6); camY+=(gt-camY)*(1-Math.exp(-dt*4)); }
+  { const gt=Math.max(ground(focX,focZ), ground(camPx,camPz)-15)+CAM_H+(lead.y-Math.min(lead.y*0.15,95))*Math.min(1,lift*1.6); camY+=(gt-camY)*(1-Math.exp(-dt*4)); }
 }
 
 /* ---------- sky ---------- */
@@ -359,7 +364,9 @@ const BANDS=[
   {a:1100,b:2000,sp:52, lw:2.8, n:3,fill:false},
   {a:2000,b:3800,sp:104,lw:4.4, n:3,fill:false},
   {a:3800,b:7600,sp:208,lw:7,   n:2,fill:false},
-  {a:7600,b:15200,sp:416,lw:12, n:1,fill:false}];
+  {a:7600,b:15200,sp:416,lw:12, n:1,fill:false},
+  {a:15200,b:30400,sp:832,lw:22, n:1,fill:false},
+  {a:30400,b:60800,sp:1664,lw:40,n:1,fill:false}];
 const FAR=3800;
 
 function drawGround(){
@@ -588,8 +595,12 @@ function drawWorld(){
     for(let i=0;i<=NX;i++){ const cx=(i*W/NX-W/2)/s, h=ground(camPx+rgtX*cx+fwdX*d, camPz+rgtZ*cx+fwdZ*d); ys[i]=horizon+(camY-h)*s; lit-=gSlopeX*SUNDX+gSlopeZ*SUNDZ; }
     ys[NX+1]=lit/(NX+1); return ys; };
   ctx.lineCap='round';
+  // From high up the air below is clear: distances are judged against the camera's height, so the hills keep their colour and shading.
+  const hk=Math.pow(Math.max(1,(camY-ground(focX,focZ))/CAM_H),0.75);
+  const dMin=Math.max(0,(camY-130)*focal/(H-horizon+60));       // nearest ground still on screen
   for(let bi=BANDS.length-1;bi>=0;bi--){
-    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
+    const b=BANDS[bi], sp=b.sp, nbin=Math.ceil((b.b-b.a)/sp), bins=new Array(nbin).fill(null), low=lift<0.12, nb=(bi>=6&&camY<600)?0:(bi===5&&low)?0:(bi===4&&low)?1:Math.max(1,b.n-bladeCut);
+    if(b.b<dMin) continue;                                     // this whole band lies under the bottom edge of the view
     // world-grid cells under this depth slice of the view
     let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [b.a,b.b]) for(const sg of [-1,1]){ const cx=sg*(d*tanH+sp*4), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d;
@@ -600,7 +611,7 @@ function drawWorld(){
       let cx=rx*rgtX+rz*rgtZ; if(Math.abs(cx)>dz*tanH+sp*4) continue;
       const r=h2(i,j+bi*7919), r2=h2(i+31,j-bi*131);
       const x=(i+(r-0.5)*0.9)*sp, z=(j+(r2-0.5)*0.9)*sp;
-      rx=x-camPx; rz=z-camPz; dz=rx*fwdX+rz*fwdZ; if(dz<b.a||dz>=b.b) continue; cx=rx*rgtX+rz*rgtZ;
+      rx=x-camPx; rz=z-camPz; dz=rx*fwdX+rz*fwdZ; if(dz<b.a||dz>=b.b||dz<dMin) continue; cx=rx*rgtX+rz*rgtZ;
       const s=focal/dz, bx=W/2+cx*s, by=horizon+(camY-ground(x,z))*s, lit=-(gSlopeX*SUNDX+gSlopeZ*SUNDZ);
       // rolling gusts: a slow wide swell plus a faster ripple, both travelling downwind
       const gust=clamp(0.5+0.36*Math.sin(x*0.0028+z*0.0042-time*1.5+Math.sin(z*0.0016+time*0.25)*2.2)+0.18*Math.sin(x*0.011-z*0.007-time*2.6),0,1);
@@ -623,14 +634,14 @@ function drawWorld(){
       const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
       kidsBeyond(dn+sp);
       // the strip of bare ground under this row, so a hill hides whatever lies behind it
-      ctx.fillStyle=groundColor(clamp(CAM_H*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz-2500)/11000,0,1)),0.72,1.25));
+      ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1)),0.72,1.25));
       ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
       for(let i=1;i<=NX;i++) ctx.lineTo(i*W/NX,farP[i]-0.5);
       for(let i=NX;i>=0;i--) ctx.lineTo(i*W/NX,Math.max(nearP[i],farP[i])+1);
       ctx.fill();
       farP=nearP;
       const paths=bins[bn]; if(!paths) continue;
-      const hz=Math.pow(clamp((dz-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
+      const hz=Math.pow(clamp((dz/hk-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
       ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
       for(let c=0;c<5;c++){
         const col = near>0 ? mix(BLADE[c],DEEP,near) : mix(BLADE[c],HAZE,hz);
@@ -890,9 +901,9 @@ function drawHud(){
       ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText('Flying with the flamingos',W/2,y+78*q); ctx.restore();
     }
   }
-  if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<6){
-    ctx.save(); ctx.globalAlpha=clamp(6-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Tap to land':'Tap Space to land, hold it to soar',W/2,y+78*q); ctx.restore();
+  if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<9){
+    ctx.save(); ctx.globalAlpha=clamp(9-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag far to fly fast · tap to land':'Hold Space to climb · S to descend · Shift to fly fast · tap Space to land',W/2,y+78*q); ctx.restore();
   }
   if(ready){
     ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
