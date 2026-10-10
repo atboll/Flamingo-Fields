@@ -294,7 +294,7 @@ function update(dt){
     if(k.fly){ const tgt=(k===lead?(freeFly()?lead.alt:flock&&flock.joined?clamp(flock.y-gh-25,120,720):keys.has(' ')?640:CRUISE):Math.max(lead.y*0.92,lead.y-26))+Math.sin(time*1.2+(k===lead?0:1.1))*14; k.vy+=((tgt-k.y)*3-k.vy*2.6)*dt; k.y=Math.max(1,k.y+k.vy*dt); }
     else if(k.y>0||k.vy>0){ k.vy-=(k.glide?240+k.y*1.2:720)*dt; if(k.glide){ const cap=-Math.max(150,k.y*0.7); if(k.vy<cap) k.vy=cap; } k.y+=k.vy*dt; if(k.y<=0){k.y=0;k.vy=0;k.glide=false;} }
     // pick up feathers within reach
-    if(k.y<55 && feathers<NEED){ const ci=Math.floor(k.x/FC), cj=Math.floor(k.z/FC);
+    if(k.y<55 && feathers<NEED && pathA<0.05){ const ci=Math.floor(k.x/FC), cj=Math.floor(k.z/FC);
       for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
         if(f && Math.hypot(f.x-k.x,f.z-k.z)<(f.big?64:46) && feathers<NEED){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
           if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); } } } }
@@ -603,6 +603,7 @@ function drawWorld(){
   if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
   for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
+  if(pathA>0.01) for(let i=0;i<TRAIL_N;i++){ const q=trailFeather(i); if(q.a<=0.01) continue; const p=proj(q.x,q.z); if(p[1]>60 && p[1]<26000 && Math.abs(p[0])<p[1]*(W/2)/focal+300) kd.push({f:q, cx:p[0], dz:p[1]}); }
   kd.sort((a,b)=>b.dz-a.dz);
   let ki=0;
   const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].dz>=depth){ const e=kd[ki++]; if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
@@ -853,7 +854,9 @@ function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs stri
 function featherShape(c,size){ c.beginPath(); c.moveTo(0,-size); c.quadraticCurveTo(size*0.62,-size*0.15,size*0.06,size*0.72); c.quadraticCurveTo(-size*0.6,-size*0.05,0,-size); }
 function drawFeather(f,sx,sy,s){
   // floats just above the grass tips so it can be spotted from far off
-  const big=f.big?1:0, y=sy-(62+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*s, size=Math.max(3.4,11*s)*(1+big*1.9), tw=0.75+0.25*Math.sin(time*5+f.ph*40);
+  const fa=f.trail?f.a:1-pathA; if(fa<=0.01) return;
+  ctx.save(); ctx.globalAlpha=fa;
+  const big=f.big?1:0, y=sy-(62+(f.h||0)+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*s, size=Math.max(3.4,11*s)*(1+big*1.9), tw=0.75+0.25*Math.sin(time*5+f.ph*40);
   if(big){                                                    // the great feather: a wide golden halo and slow turning rays
     const R=size*5, g2=ctx.createRadialGradient(sx,y,0,sx,y,R); g2.addColorStop(0,'rgba(255,236,170,'+0.55*tw+')'); g2.addColorStop(0.4,'rgba(255,200,190,.22)'); g2.addColorStop(1,'rgba(255,200,190,0)');
     ctx.fillStyle=g2; ctx.beginPath(); ctx.arc(sx,y,R,0,7); ctx.fill();
@@ -863,11 +866,12 @@ function drawFeather(f,sx,sy,s){
   }
   const g=ctx.createRadialGradient(sx,y,0,sx,y,size*2.8); g.addColorStop(0,'rgba(255,226,232,'+0.65*tw+')'); g.addColorStop(1,'rgba(255,226,232,0)');
   ctx.fillStyle=g; ctx.beginPath(); ctx.arc(sx,y,size*2.8,0,7); ctx.fill();
-  if(night>0.05) GLOWS.push(sx,y,size*(big?3.2:2.6)*(1+0.7*pathA*clamp(1-Math.abs((f.x-pathPx)*SUNDZ-(f.z-pathPz)*SUNDX)/260,0,1)));
+  if(night>0.05 && fa>0.5) GLOWS.push(sx,y,size*(big?3.2:2.6));
   ctx.save(); ctx.translate(sx,y); ctx.rotate(0.6+Math.sin(time*1.6+f.ph*9)*0.5);
   featherShape(ctx,size); ctx.fillStyle='#f8a6b9'; ctx.fill();
   ctx.save(); featherShape(ctx,size); ctx.clip(); ctx.fillStyle='#ffd3dc'; ctx.fillRect(-size,-size*0.1,size*2,size); ctx.fillStyle='#2a1e24'; ctx.fillRect(-size,-size*1.05,size*2,size*0.36); ctx.restore();   // pale base, black tip
   ctx.strokeStyle='rgba(186,146,88,.85)'; ctx.lineWidth=Math.max(0.6,size*0.09); ctx.beginPath(); ctx.moveTo(0,-size*0.8); ctx.lineTo(size*0.08,size*1.15); ctx.stroke();
+  ctx.restore();
   ctx.restore();
 }
 function flamingoIcon(u,body,leg,bill){   // a small standing flamingo, drawn around the current origin; u is roughly half its body length
@@ -1041,34 +1045,30 @@ soundBtn.addEventListener('click',()=>{
 });
 document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
 
-/* ---------- the moonlight path: a clue, not a signpost ---------- */
-// On a settled night, once the flock is complete, a faint band of moonlit grass runs across the field toward the moon.
-// It lies in a fixed place in the world, a little to one side of where the kids were when it appeared.
+/* ---------- the feather trail to the moon: a clue, not a signpost ---------- */
+// On a settled night, once the flock is complete, the feathers gather into a trail toward the moon.
+// It lies in a fixed place in the world, starting a little to one side of where the kids were when it formed.
 let pathA=0, pathPx=0, pathPz=0, pathAlign=0;
 function updatePath(dt){
-  const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX;
-  const ok=night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
+  const lat=(lead.x-pathPx)*SUNDZ-(lead.z-pathPz)*SUNDX, al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
+  const ok=night>0.98 && freeFly() && (pathA===0 || (Math.abs(lat)<6000 && al>-6000 && al<22000));     // wander far from it and it fades, to be found again nearby
   if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lead.x+SUNDZ*sd*700; pathPz=lead.z-SUNDX*sd*700; }
   pathA=clamp(pathA+(ok?dt/7:-dt/3),0,1);
   // the path answers when the kids travel along it toward the moon
   const on=pathA>0.3 && Math.abs(lat)<300 && Math.hypot(lead.vx,lead.vz)>60 && (headX*SUNDX+headZ*SUNDZ)>0.92;
   pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
 }
-function drawPath(){
-  if(pathA<=0.01) return;
-  const along=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ, pts=[];
-  for(let k=0;k<46;k++){ const t=along-1600+Math.pow(k/45,2.2)*30000, x=pathPx+SUNDX*t, z=pathPz+SUNDZ*t, p=proj(x,z);
-    pts.push(p[1]>90?{x,z,d:p[1],g:ground(x,z),e:clamp(k/5,0,1)}:null); }
-  ctx.globalCompositeOperation='screen';
-  for(const [hw,a] of [[270,0.02],[225,0.02],[182,0.021],[142,0.022],[104,0.022],[70,0.023],[40,0.024]]){   // many thin layers, so the edge is soft
-    for(let k=0;k<pts.length-1;k++){ const A=pts[k], B=pts[k+1]; if(!A||!B) continue;
-      const fade=A.e*clamp(1-A.d/24000,0,1)*(1+0.4*pathAlign*clamp(A.d/2500,0,1));   // when followed, the light ahead lifts a little
-      ctx.fillStyle='rgba(196,218,255,'+(a*pathA*fade).toFixed(4)+')';
-      ctx.beginPath();
-      for(const [Q,sg] of [[A,-1],[B,-1],[B,1],[A,1]]){ const p=proj(Q.x+SUNDZ*sg*hw,Q.z-SUNDX*sg*hw), sc=focal/Math.max(60,p[1]);
-        ctx.lineTo(W/2+p[0]*sc, horizon+(camY-Q.g)*sc); }
-      ctx.closePath(); ctx.fill(); } }
-  ctx.globalCompositeOperation='screen';
+// The trail itself: the field's feathers drift out of their places into a wavering line that hovers over the grass,
+// then lifts and curves up toward the moon, thinning as it climbs. They are not collected; fly through and they scatter.
+const TRAIL_N=72, TRAIL_FLAT=3500;
+function trailFeather(i){
+  const u0=i-32, t=i<32?i*110:TRAIL_FLAT+u0*150+u0*u0*4, u=Math.max(0,t-TRAIL_FLAT), hgt=0.355*u*u/(u+2500);   // the rise settles onto the line of sight to the moon
+  const e0=clamp(pathA*1.7-(i/TRAIL_N)*0.7,0,1), e=e0*e0*(3-2*e0);                                              // nearest feathers fall into line first
+  const wob=Math.sin(time*0.6+i*1.7)*26*e+(h2(i,5)-0.5)*1900*(1-e), al=t+(h2(i,9)-0.5)*700*(1-e);
+  let x=pathPx+SUNDX*al+SUNDZ*wob, z=pathPz+SUNDZ*al-SUNDX*wob, h=hgt*e+Math.sin(time*0.9+i)*10*e*clamp(u/800,0,1);
+  const dx=x-lead.x, dz=z-lead.z, dy=(62+h)-(lead.y+40), d=Math.hypot(dx,dz,dy);
+  if(d<150 && d>1){ const p=(1-d/150)*95/d; x+=dx*p; z+=dz*p; h=Math.max(0,h+dy*p); }                             // scatter around the kids as they pass
+  return {x,z,h,ph:h2(i,3),trail:true,a:clamp(pathA*3,0,1)*clamp(1-(u-8500)/4500,0,1)*(0.55+0.45*e)};
 }
 
 /* ---------- night: a blue moonlight grade over the finished frame, then the things that give light ---------- */
@@ -1087,7 +1087,6 @@ function nightGrade(){
   // moonlight lying across the field below the moon
   ctx.save(); ctx.translate(mx,horizon); ctx.scale(0.45,1.1); g=ctx.createRadialGradient(0,0,0,0,0,W*0.6); g.addColorStop(0,'rgba(170,200,255,'+0.2*ma+')'); g.addColorStop(1,'rgba(170,200,255,0)');
   ctx.fillStyle=g; ctx.fillRect(-W*2,0,W*4,H*2); ctx.restore();
-  drawPath();
   // feathers give off their own light
   for(let i=0;i<GLOWS.length;i+=3){ const R=GLOWS[i+2]; g=ctx.createRadialGradient(GLOWS[i],GLOWS[i+1],0,GLOWS[i],GLOWS[i+1],R);
     g.addColorStop(0,'rgba(255,190,214,'+0.85*n+')'); g.addColorStop(0.25,'rgba(255,150,190,'+0.4*n+')'); g.addColorStop(1,'rgba(255,150,190,0)');
