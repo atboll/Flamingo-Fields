@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:38</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:42</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -359,7 +359,7 @@ let flock=null, nextFlock=FLOCK_FIRST, flockN=0;
 const FLOCK_RING=6000, FLOCK_FIX=8000;   // how far to the side a flock's line may pass, and how far off it stops minding where the kids are
 const FLOCK_GONE=19000;   // farther than this a bird is under two pixels wide and fully faded
 const FLOCK_FAR=24000, FLOCK_NEAR=2700;   // they set out FLOCK_FAR away, too small to see; within FLOCK_NEAR they slow to cruising speed
-const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*80,-r*60]); if(r<=4) BIRDS.push([r*80,-r*60]); }
+const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*115,-r*86]); if(r<=4) BIRDS.push([r*115,-r*86]); }   // the wild flock's V, the birds well apart
 const BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
 // Your own flock: fly a good part of a pass with the wild flamingos and one of them stays with you,
 // walking through the grass beside the kids and taking to the air when they do.
@@ -1529,7 +1529,7 @@ function drawWorld(){
       const cp=proj((ci+0.5)*FC,(cj+0.5)*FC); if(cp[1]<-80||cp[1]>2760||Math.abs(cp[0])>Math.max(0,cp[1])*th+240) continue;
       const f=featherAt(ci,cj); if(!f) continue; const p=proj(f.x,f.z); if(p[1]<80||p[1]>2600||Math.abs(p[0])>p[1]*th+80) continue; kd.push({f, cx:p[0], dz:p[1]}); } }
   { const th=(W/2)/focal; for(const q of blues(camPx+fwdX*2600,camPz+fwdZ*2600,3200,[])){ const p=proj(q.x,q.z); if(p[1]>60 && p[1]<5600 && Math.abs(p[0])<p[1]*th+200){ q.a*=clamp((5600-p[1])/1200,0,1); kd.push({f:q, cx:p[0], dz:p[1]}); } } }
-  if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*9, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*12, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
+  if(flock) for(let i=0;i<BIRDS.length-(flock.gave?1:0);i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*13, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*17, bx=flock.x+ol*flock.dz+of*flock.dx, bz=flock.z-ol*flock.dx+of*flock.dz, p=proj(bx,bz);
     if(p[1]>60) kd.push({b:i, cx:p[0], dz:p[1]}); }
   for(const m of mates){ const p=proj(m.x,m.z); if(p[1]>60) kd.push({m, cx:p[0], dz:p[1]}); }
   if(coast && !BOX){   // boulders along the waterline, and low bushes with flowers where the grass gives way to sand
