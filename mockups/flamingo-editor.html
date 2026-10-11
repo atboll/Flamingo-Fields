@@ -271,8 +271,8 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   const open=o.open===undefined?1:o.open, ss=(a,b)=>{ const t=clamp((open-a)/(b-a),0,1); return t*t*(3-2*t); };
   const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.9,0.75,-0.95,-0.6], chord=0.86+0.14*(OP[0]+OP[1]+OP[2])/3, QF=[1-OP[0],1-OP[0],1-OP[1],1-OP[2],1-OP[3]], QA=1-(OP[0]+OP[1]+OP[2])/3;   // the wing keeps its width as it folds; QF is how far each joint is folded
   const amp=(1-0.82*glide)*OP[2], down=clamp(-Math.cos(phi),0,1)*amp, upst=clamp(Math.cos(phi),0,1)*amp, SEG=[16,15,14,13];
-  const rz=0.42*Math.sin(Math.PI*clamp(open,0,1));   // while the wings are opening or closing they are held angled upward, most at the half-way point
-  const ang=[0,1,2,3].map(k=>Math.sin(phi-0.38*k)*(0.46+0.2*k)*amp+0.12*glide-upst*0.16*k+rz*(0.75+0.18*k));
+  const rz=0.42*Math.sin(Math.PI*clamp(open,0,1));   // how far through opening or closing the wings are, most at the half-way point: it sets the flap-like tilt
+  const ang=[0,1,2,3].map(k=>Math.sin(phi-0.38*k)*(0.46+0.2*k)*amp+0.12*glide-upst*0.16*k);
   // The wing, rebuilt from the reference picture: long and tapering to a fingered tip. Along its whole back edge, from body to tip,
   // runs a row of long dark flight feathers; in front of them a black band; in front of that the crimson coverts, paler toward the leading edge.
   // Seen from underneath, the coverts are pale pink with a scalloped edge and the flight feathers a dusky maroon.
