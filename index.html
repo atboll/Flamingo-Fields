@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 10:10 door</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 10:25 door</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -314,7 +314,7 @@ function updateMates(dt){
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
     const tight=1-0.35*pathAlign, back=((air?80:85)+row*(air?60:52))*tight, lat=(side*((air?75:58)+row*(air?55:26))+wob)*tight;
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
-    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1400:400,d*2.2), e=1-Math.exp(-dt*3.5);
+    const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1900:400,d*2.2), e=1-Math.exp(-dt*3.5);
     m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
     m.x+=m.vx*dt; m.z+=m.vz*dt;
     const sp=m.sp=Math.hypot(m.vx,m.vz);
@@ -376,12 +376,12 @@ function updateFlock(dt){
     if(f.unseen>2){ flock=null; nextFlock=Math.max(nextFlock,time+3); } }
 }
 // Blue feathers hang in the air in short strings. Flying through one gives a burst of speed; the next one tops the time back up.
-const BC=2600, BOOST=0.4, BOOST_TIME=4, gotBlue=new Map();
+const BC=2600, BOOST=0.8, BOOST_TIME=4, gotBlue=new Map();
 let boostT=0, boostAt=-9;
 function blues(px,pz,R,out){
   if(level===2) return out;
   for(let cj=Math.floor((pz-R)/BC);cj<=Math.floor((pz+R)/BC);cj++) for(let ci=Math.floor((px-R)/BC);ci<=Math.floor((px+R)/BC);ci++){
-    if(h2(ci*7+3,cj*5+11)>0.34) continue;
+    if(h2(ci*7+3,cj*5+11)>0.136) continue;
     const x0=(ci+0.2+0.6*h2(ci,cj+71))*BC, z0=(cj+0.2+0.6*h2(ci+13,cj))*BC, an=h2(ci+9,cj-4)*6.283, n=3+(h2(ci-2,cj+5)<0.5?1:0), hi=h2(ci+31,cj+17);
     const a0=hi<0.7?190+hi/0.7*380:700+(hi-0.7)/0.3*900, sl=(h2(ci+5,cj+41)-0.5)*70;   // most within reach of a feather flight, some up where only a full flock goes
     if(coast && coastAlong(x0,z0)>-600) continue;
@@ -389,7 +389,7 @@ function blues(px,pz,R,out){
       out.push({x:x0+Math.sin(an)*i*270, z:z0+Math.cos(an)*i*270, h:a0+i*sl, ph:h2(ci+i,cj-i), blue:true, a:g===undefined?1:clamp((time-g-45)/2,0,1), key}); } }
   if(pathA>0.3){   // and down the middle of the feather road, for those who keep to it
     const al=(px-pathPx)*SUNDX+(pz-pathPz)*SUNDZ;
-    for(let j=Math.max(1,Math.floor((al-R)/3400)-1), j1=Math.floor((al+R)/3400); j<=j1; j++){ const t=j*3400+h2(j,51)*1200, lat=(h2(j,53)-0.5)*500, a0=240+h2(j,57)*260;
+    for(let j=Math.max(1,Math.floor((al-R)/8500)-1), j1=Math.floor((al+R)/8500); j<=j1; j++){ const t=j*8500+h2(j,51)*1200, lat=(h2(j,53)-0.5)*500, a0=240+h2(j,57)*260;
       for(let i=0;i<4;i++){ const tt=t+i*270, x=pathPx+SUNDX*tt+SUNDZ*lat, z=pathPz+SUNDZ*tt-SUNDX*lat, key=-(j*4+i+1); if(gotBlue.has(key)) continue;
         if(coast && alongRoad(x,z)>SHORE-3200) continue;
         out.push({x,z,h:a0+i*22,ph:h2(j,i+61),blue:true,a:clamp(pathA*1.5,0,1),key}); } } }
@@ -730,12 +730,6 @@ const KBOIL=[0,1,2].map(f=>{ const r=rng(77+f*13), off=new Int32Array(KBW*KBH), 
     tone[i]=fbm((x+y*0.5)/34,y/20,900+f*7)+(r()-0.5)*0.2; }
   return {off,tone}; });
 function drawKid(k,sx,sy,s){
-  if(boostT>0 && k.fly){   // a burst of speed: pale streaks of wind stream back past the kid
-    const a=clamp(boostT/0.9,0,1), cy=sy-(k.y+44)*s; ctx.save(); ctx.lineCap='round';
-    for(let i=0;i<7;i++){ const ph=(time*1.9+h2(i,k===lead?91:97))%1, an=Math.PI/2+(h2(i,93)-0.5)*2.3, r0=(26+ph*95)*s, r1=r0+(26+40*h2(i,95))*s;
-      ctx.strokeStyle='rgba(205,236,255,'+(0.9*a*Math.sin(ph*Math.PI)).toFixed(3)+')'; ctx.lineWidth=Math.max(1.4,3.4*s*(1-ph*0.5));
-      ctx.beginPath(); ctx.moveTo(sx+Math.cos(an)*r0*1.25,cy+Math.sin(an)*r0*0.8); ctx.lineTo(sx+Math.cos(an)*r1*1.25,cy+Math.sin(an)*r1*0.8); ctx.stroke(); }
-    ctx.restore(); }
   const L=LOOKS[k===lead?'lead':'pal'], run=Math.min(1,k.run), sun=sunX>=sx?1:-1;
   paintKid(kctx,k,sx);
   const src=kctx.getImageData(0,0,KBW,KBH).data, out=kimg.data, B=KBOIL[k===lead?0:1], off=B.off, tone=B.tone;
@@ -1611,7 +1605,7 @@ let fastBuf=null, fastGain=null, fastNext=-1, fastLoading=false;
 function updateFastSound(){
   if(!actx || !master) return;
   if(!fastBuf){
-    if(!fastLoading && mates.length>=MATES_MAX-1){ fastLoading=true;
+    if(!fastLoading && (mates.length>=MATES_MAX-1 || boostT>0)){ fastLoading=true;
       fetch('fast.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
         .then(buf=>{ fastGain=actx.createGain(); fastGain.gain.value=0; fastGain.connect(master); fastBuf=buf; }).catch(()=>{}); }
     return;
@@ -1625,7 +1619,8 @@ function updateFastSound(){
   }
   // it swells as the kids pick up speed beyond normal flying pace and dies away as they slow
   const on=(lead.fly&&freeFly())?clamp((Math.hypot(lead.vx,lead.vz)-450)/(FAST-450),0,1):0;
-  fastGain.gain.setTargetAtTime(on*1.8,t,on>0?0.25:0.5);
+  const bk=lead.fly?clamp(boostT/0.9,0,1):0, lvl=on*1.8*(1+0.5*bk)+(1-on)*bk*1.3;   // a blue feather makes the wind howl half as loud again, and brings it in for a feather flight too
+  fastGain.gain.setTargetAtTime(lvl,t,lvl>0?0.25:0.5);
 }
 // Long beach sounds are streamed, not held in memory, and looped by two players that hand over to each other with a crossfade.
 function streamLoop(url,x){
