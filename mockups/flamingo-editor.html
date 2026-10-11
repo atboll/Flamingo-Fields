@@ -370,7 +370,15 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   };
   const far=cfx>0?-1:1;
   ctx.lineCap='round'; ctx.lineJoin='round';
-  if(cfz>0){ neck(); wing(far); body(); wing(-far); legs(); } else { legs(); wing(far); body(); wing(-far); neck(); }
+  { const above=elev>0, wingUp=ang[1]>0;
+    if(above) legs();                                   // seen from above, the legs are under the body
+    if(cfz>0) neck();                                   // flying away: the neck is the far end
+    if(!(above && wingUp)) wing(far);                   // the far wing goes behind the body, unless it is raised and we look down on it
+    body();
+    if(cfz<=0) neck();
+    if(!above) legs();                                  // seen from underneath, the legs are the nearest thing
+    if(above && wingUp) wing(far);
+    wing(-far); }                                       // the near wing lies over everything
 }
 
 /* ---- the editor ---- */
