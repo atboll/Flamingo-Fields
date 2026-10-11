@@ -30,6 +30,8 @@ button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline
 output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
 #slots button{min-width:44px;font-variant-numeric:tabular-nums;color:var(--soft)}
 #slots button[data-full]{color:var(--ink);font-weight:600;box-shadow:inset 0 -3px 0 var(--accent)}
+#slots button[data-cur]{background:var(--accent);color:var(--paper);box-shadow:none}
+#curS{font-size:13px;font-weight:600;color:var(--ink)}
 #hint,.note{font-size:13px;color:var(--soft)}
 .lib{display:flex;flex-wrap:wrap;gap:6px 8px;flex-basis:100%;align-items:center}
 .grp{font-size:12px;color:var(--soft);flex-basis:100%;margin-top:2px}
@@ -92,6 +94,7 @@ output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
   <button type="button" class="tog" id="save" aria-pressed="false">Save</button>
   <div class="seg" id="slots" role="group" aria-label="Save slots"></div>
   <button type="button" class="tog" id="list" aria-pressed="false">Show list</button>
+  <span id="curS"></span>
   <span id="hint" role="status"></span>
 </div>
 <div class="controls" id="listbox" hidden>
@@ -433,7 +436,13 @@ function playSnd(id,then,btn){ const a=ac(); loadSnd(id).then(buf=>{ stopSnd(); 
 function loopNext(){ if(!looping) return; if(!cfg.sn.length){ stopAll(); return; }   // one of its sounds at random, never the same twice running, then its pause, give or take a fifth
   const pick=cfg.sn.length>1?cfg.sn.filter(id=>id!==lastSnd):cfg.sn, id=pick[Math.floor(Math.random()*pick.length)]; lastSnd=id;
   playSnd(id,()=>{ if(looping) loopT=setTimeout(loopNext,cfg.sw*1000*(0.8+0.4*Math.random())); },document.querySelector('.pv[data-id="'+id+'"]')); }
-function voiceShow(){ const r=cfg.sp/100; document.getElementById('vpO').textContent=cfg.sp===100?'as recorded':(cfg.sp<100?'deeper':'higher')+' ×'+r.toFixed(2); document.getElementById('vwO').textContent=cfg.sw+' s';
+let curSlot=-1;   // which slot the whale on show came from, if any
+const KEYS=['p','s','u','z','c','d','ds','k','f','t','bs','bt','wr','sp','sw','sv'];
+function curShow(){ const el=document.getElementById('curS'); if(!el || typeof slots==='undefined') return; const w=curSlot>=0?slots[curSlot]:null;
+  const same=w && KEYS.every(k=>(w[k]||0)===(cfg[k]||0)) && (w.sn||[]).join()===cfg.sn.join();
+  el.textContent=w?('Slot '+(curSlot+1)+(same?' loaded':' loaded, changed (not saved)')):'New whale (not saved)';
+  document.querySelectorAll('#slots button').forEach((b,i)=>{ if(i===curSlot) b.dataset.cur='1'; else delete b.dataset.cur; }); }
+function voiceShow(){ curShow(); const r=cfg.sp/100; document.getElementById('vpO').textContent=cfg.sp===100?'as recorded':(cfg.sp<100?'deeper':'higher')+' ×'+r.toFixed(2); document.getElementById('vwO').textContent=cfg.sw+' s';
   document.getElementById('vcount').textContent=cfg.sn.length+' of 6 sounds';
   document.querySelectorAll('.pick').forEach(b=>b.setAttribute('aria-pressed',String(cfg.sn.includes(b.dataset.id))));
   if(cur){ cur.playbackRate.value=r; curG.gain.value=cfg.sv/100; } }
@@ -462,11 +471,11 @@ function slotRow(){ const row=$('slots'); row.textContent='';
   slots.forEach((w,i)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=String(i+1); if(w){ b.dataset.full='1'; b.title='Pattern '+w.p+(w.c?', with calf':''); }
     b.setAttribute('aria-label','Slot '+(i+1)+(w?', pattern '+w.p+(w.c?' with calf':''):', empty'));
     b.addEventListener('click',()=>{
-      if(armed){ slots[i]=Object.assign({v:2},cfg,{sn:cfg.sn.slice()}); armed=false; $('save').setAttribute('aria-pressed','false'); const ok=keep(); slotRow(); say(ok?'Saved in slot '+(i+1)+'.':'Saved for now, but this browser will not remember it. Use Show list to keep a copy.'); }
-      else if(slots[i]){ Object.assign(cfg,{sn:[],sp:100,sw:10,sv:100},slots[i]); cfg.sn=(cfg.sn||[]).slice(); stopAll(); show(); say('Showing the whale from slot '+(i+1)+'.'); }
+      if(armed){ slots[i]=Object.assign({v:2},cfg,{sn:cfg.sn.slice()}); curSlot=i; armed=false; $('save').setAttribute('aria-pressed','false'); const ok=keep(); slotRow(); say(ok?'Saved in slot '+(i+1)+'.':'Saved for now, but this browser will not remember it. Use Show list to keep a copy.'); }
+      else if(slots[i]){ Object.assign(cfg,{sn:[],sp:100,sw:10,sv:100},slots[i]); cfg.sn=(cfg.sn||[]).slice(); curSlot=i; stopAll(); show(); say('Showing the whale from slot '+(i+1)+'.'); }
       else say('Slot '+(i+1)+' is empty. Press Save, then a slot.'); });
     row.appendChild(b); });
-  $('listtxt').value=text(); }
+  $('listtxt').value=text(); curShow(); }
 $('save').addEventListener('click',()=>{ armed=!armed; $('save').setAttribute('aria-pressed',String(armed)); say(armed?'Now pick a slot for this whale.':''); });
 $('list').addEventListener('click',()=>{ const open=$('listbox').hidden; $('listbox').hidden=!open; $('list').setAttribute('aria-pressed',String(open)); $('list').textContent=open?'Hide list':'Show list'; $('listtxt').value=text(); });
 $('copy').addEventListener('click',()=>{ const t=$('listtxt'); const fall=()=>{ t.focus(); t.select(); say('Text selected. Copy it with your keyboard.'); };
