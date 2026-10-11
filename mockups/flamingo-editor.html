@@ -249,7 +249,8 @@ function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs stri
 }
 
 /* ---- the flying flamingo being reworked here: the same bird with a rebuilt wing (not in the game yet) ---- */
-const SKIN={cv:document.createElement('canvas')}; SKIN.g=SKIN.cv.getContext('2d');
+// Small spare canvases for painting a bird's skin, one for each size of bird (the size is rounded up to a power of two), so only a bird-sized patch is ever copied.
+const SKINS={}; function skinFor(w,h){ let b=64; const n=Math.max(w,h); while(b<n) b*=2; let k=SKINS[b]; if(!k){ const cv=document.createElement('canvas'); cv.width=cv.height=b; k=SKINS[b]={cv,g:cv.getContext('2d')}; } return k; }
 function drawBirdNew(o,sx,sy,s){ return drawBirdNewOn(ctx,o,sx,sy,s); }
 function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph, id, y absolute height, sc size}
   const cfx=o.hx*rgtX+o.hz*rgtZ, cfz=o.hx*fwdX+o.hz*fwdZ, S=(o.tiny?s:Math.max(s,0.17))*(o.sc||1.9), ph=o.ph;
@@ -314,9 +315,10 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     const sect=(ta,tz,j0,j1,dp,L)=>{ const rng=(a,z,n)=>{ const o=[]; for(let i=0;i<=n;i++) o.push(a+(z-a)*i/n); return o; };
       // the flight feathers of this section
       if(L===0){ const ord=[]; for(let j=j0;j<=j1;j++) ord.push(j); if(top) ord.reverse();   // like roof tiles: seen from outside each feather lies over the next one out; from underneath it is the other way round
-        for(const j of ord){ const q=F[j], W=1.3, rt=q.fb+4.5*(1-0.6*q.u), a0=Wp(q.tb-0.16,rt), a1=at(q,0,-W), a2=at(q,0.82,-W), c2=at(q,0.94,-0.55*W), tp=at(q,1,0.15), c1=at(q,0.95,0.85*W), b2=at(q,0.8,W), b1=at(q,0,W), b0=Wp(q.tb+0.16,rt);
-          ctx.fillStyle=C.f1; ctx.beginPath(); ctx.moveTo(a0[0],a0[1]); ctx.lineTo(a1[0],a1[1]); ctx.lineTo(a2[0],a2[1]); ctx.quadraticCurveTo(c2[0],c2[1],tp[0],tp[1]); ctx.quadraticCurveTo(c1[0],c1[1],b2[0],b2[1]); ctx.lineTo(b1[0],b1[1]); ctx.lineTo(b0[0],b0[1]); ctx.closePath(); ctx.fill();
-          ctx.strokeStyle=C.f2; ctx.lineWidth=Math.max(0.5,0.32*S); ctx.beginPath(); ctx.moveTo(a1[0],a1[1]); ctx.lineTo(a2[0],a2[1]); ctx.quadraticCurveTo(c2[0],c2[1],tp[0],tp[1]); ctx.quadraticCurveTo(c1[0],c1[1],b2[0],b2[1]); ctx.lineTo(b1[0],b1[1]); ctx.stroke(); } }   // each feather a leaf with its own edge, so the overlaps show
+        // (all the feathers of a section are filled in one go and edged in one go, which costs far less than painting them one at a time)
+        const LF=ord.map(j=>{ const q=F[j], W=1.3, rt=q.fb+4.5*(1-0.6*q.u); return [Wp(q.tb-0.16,rt), at(q,0,-W), at(q,0.82,-W), at(q,0.94,-0.55*W), at(q,1,0.15), at(q,0.95,0.85*W), at(q,0.8,W), at(q,0,W), Wp(q.tb+0.16,rt)]; });
+        ctx.fillStyle=C.f1; ctx.beginPath(); for(const f of LF){ ctx.moveTo(f[0][0],f[0][1]); ctx.lineTo(f[1][0],f[1][1]); ctx.lineTo(f[2][0],f[2][1]); ctx.quadraticCurveTo(f[3][0],f[3][1],f[4][0],f[4][1]); ctx.quadraticCurveTo(f[5][0],f[5][1],f[6][0],f[6][1]); ctx.lineTo(f[7][0],f[7][1]); ctx.lineTo(f[8][0],f[8][1]); ctx.closePath(); } ctx.fill();
+        if(S>0.22){ ctx.strokeStyle=C.f2; ctx.lineWidth=Math.max(0.5,0.32*S); ctx.beginPath(); for(const f of LF){ ctx.moveTo(f[1][0],f[1][1]); ctx.lineTo(f[2][0],f[2][1]); ctx.quadraticCurveTo(f[3][0],f[3][1],f[4][0],f[4][1]); ctx.quadraticCurveTo(f[5][0],f[5][1],f[6][0],f[6][1]); ctx.lineTo(f[7][0],f[7][1]); } ctx.stroke(); } }   // each feather a leaf with its own edge
       // the black band, broad at the body and thinning to the tip
       if(L===1 && C.band){ const a=Math.max(ta,0.12), z=Math.min(tz,3.72); if(z>a){ const T=rng(a,z,6), pts=T.map(t=>Wp(t,-0.4+0.9*(t-0.12)/3.6)); for(let i=6;i>=0;i--) pts.push(Wp(T[i],-7.2+4.2*Math.pow((T[i]-0.12)/3.6,1.3))); poly(pts,C.band); } }
       // the coverts, paler along the leading edge; underneath, their back edge is scalloped
@@ -424,11 +426,11 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   { const above=elev>0;
     // The skin: the given parts are painted plain on a spare canvas, the dark underside is laid over all of them at once
     // along one line running from the neck through the body to the tail, and the finished skin is set into the picture.
-    const skin=parts=>{ const cv=SKIN.cv, g=SKIN.g, m=MAIN.getTransform(), R=78*S;
-      if(cv.width!==MAIN.canvas.width||cv.height!==MAIN.canvas.height){ cv.width=MAIN.canvas.width; cv.height=MAIN.canvas.height; }
-      const x0=Math.max(0,Math.floor((sx-R)*m.a+m.e)), y0=Math.max(0,Math.floor((sy-R)*m.d+m.f)), x1=Math.min(cv.width,Math.ceil((sx+R)*m.a+m.e)), y1=Math.min(cv.height,Math.ceil((sy+R)*m.d+m.f));
+    const skin=parts=>{ const m=MAIN.getTransform(), R=78*S, CW=MAIN.canvas.width, CH=MAIN.canvas.height;
+      const x0=Math.max(0,Math.floor((sx-R)*m.a+m.e)), y0=Math.max(0,Math.floor((sy-R)*m.d+m.f)), x1=Math.min(CW,Math.ceil((sx+R)*m.a+m.e)), y1=Math.min(CH,Math.ceil((sy+R)*m.d+m.f));
       if(x1<=x0||y1<=y0) return;
-      g.setTransform(1,0,0,1,0,0); g.clearRect(x0,y0,x1-x0,y1-y0); g.setTransform(m); g.lineCap='round'; g.lineJoin='round'; g.globalCompositeOperation='source-over';
+      const bw=x1-x0, bh=y1-y0, SK=skinFor(bw,bh), cv=SK.cv, g=SK.g;
+      g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,bw,bh); g.setTransform(m.a,m.b,m.c,m.d,m.e-x0,m.f-y0); g.lineCap='round'; g.lineJoin='round'; g.globalCompositeOperation='source-over';
       ctx=g; for(const p of parts) p();
       const bm=body('mask'), nl=neck('line',bm.c), D=P(0,0,-1), O=P(0,0,0), dl=Math.hypot(D[0]-O[0],D[1]-O[1])||1, ux=(D[0]-O[0])/dl*200*S, uy=(D[1]-O[1])/dl*200*S;
       const h0=[nl[0][0]+(nl[0][0]-nl[1][0])*3, nl[0][1]+(nl[0][1]-nl[1][1])*3], W=bm.WL, e=W[W.length-1], e0=W[W.length-2], t0=[e[0]+(e[0]-e0[0])*6, e[1]+(e[1]-e0[1])*6];
@@ -436,11 +438,11 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       { // Seen straight along its length, the border is a bowl following the round of the belly, sitting lower the more the bird is seen from above.
         // As the bird turns, the border eases between that bowl and the line along its side, so it never jumps.
         const k=clamp((Math.abs(cfx)-0.08)/0.45,0,1), mix=k*k*(3-2*k), c0=P(0,3.5,0.7+bob), Rr=6.3*S, n=W.length-1, sg=cfx>0?-1:1;
-        const Wb=mix>=1?W:W.map((p,i)=>{ const x=sg*(-1.3+2.6*i/n), fr=((x*2.5+0.5)%1+1)%1, bx=c0[0]+Rr*1.2*x, by=c0[1]+Rr*(0.4-0.95*bm.c-0.72*x*x+0.1*(1-Math.abs(fr-0.5)*2)); return [bx+(p[0]-bx)*mix, by+(p[1]-by)*mix]; });
+        const Wb=mix>=1?W:W.map((p,i)=>{ const x=sg*(-1.3+2.6*i/n), fr=((x*2.5+0.5)%1+1)%1, bx=c0[0]+Rr*1.2*x, by=c0[1]+Rr*(0.4-0.95*bm.c-0.72*x*x+0.1*(1-Math.abs(fr-0.5)*2))+(Math.max(0,elev-0.25)-Math.max(0,-elev-0.1))*70*S; return [bx+(p[0]-bx)*mix, by+(p[1]-by)*mix]; });
         const nb2=nl.map(p=>[Wb[0][0]+(p[0]-Wb[0][0])*mix, Wb[0][1]+(p[1]-Wb[0][1])*mix]), hb=[Wb[0][0]+(h0[0]-Wb[0][0])*mix-sg*Rr*0.6*(1-mix), Wb[0][1]+(h0[1]-Wb[0][1])*mix], e1=Wb[n], tb2=[e1[0]+(t0[0]-e1[0])*mix+sg*Rr*0.6*(1-mix), e1[1]+(t0[1]-e1[1])*mix];
         poly([hb].concat(nb2,Wb,[tb2,[tb2[0]+ux,tb2[1]+uy],[hb[0]+ux,hb[1]+uy]]),DK); }
       g.globalCompositeOperation='source-over';
-      ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
+      ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,0,0,bw,bh,x0,y0,bw,bh); MAIN.restore(); };
     const thighs=()=>{ legs(far,1); legs(-far,1); }, bodyS=()=>body('shape'), neckS=()=>neck('shape');
     if(o.wingsOnly){ wing(o.wingsOnly==='far'?far:-far); return; }   // the standing bird borrows just these wings when it opens them
     legs(far,0);                                        // the far leg is always behind the body, so it never shows on the near side
@@ -541,15 +543,15 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   const TSH=[[-8,43],[-15,41.4],[-25,33.6],[-19.4,35.6],[-22,29.4],[-15.6,33.8],[-16.2,29.6],[-9.6,35.6]];
   const tail=()=>{ for(const o of [far*2.2,0,-far*2.2]) poly(TSH.map(p=>P(o,p[0],p[1]+bob)), o===far*2.2?'#c95485':o===0?LINE:DK); };
   // The skin: the given parts are painted plain on a spare canvas, the dark underside is laid over all of them at once, and the result is set into the picture.
-  const skin=parts=>{ const cv=SKIN.cv, g=SKIN.g, t=MAIN.getTransform();
-    if(cv.width!==MAIN.canvas.width||cv.height!==MAIN.canvas.height){ cv.width=MAIN.canvas.width; cv.height=MAIN.canvas.height; }
-    const x0=Math.max(0,Math.floor((sx-55*S)*t.a+t.e)), y0=Math.max(0,Math.floor((sy-95*S)*t.d+t.f)), x1=Math.min(cv.width,Math.ceil((sx+55*S)*t.a+t.e)), y1=Math.min(cv.height,Math.ceil((sy+12*S)*t.d+t.f));
+  const skin=parts=>{ const t=MAIN.getTransform(), CW=MAIN.canvas.width, CH=MAIN.canvas.height;
+    const x0=Math.max(0,Math.floor((sx-55*S)*t.a+t.e)), y0=Math.max(0,Math.floor((sy-95*S)*t.d+t.f)), x1=Math.min(CW,Math.ceil((sx+55*S)*t.a+t.e)), y1=Math.min(CH,Math.ceil((sy+12*S)*t.d+t.f));
     if(x1<=x0||y1<=y0) return;
-    g.setTransform(1,0,0,1,0,0); g.clearRect(x0,y0,x1-x0,y1-y0); g.setTransform(t); g.lineCap='round'; g.lineJoin='round'; g.globalCompositeOperation='source-over';
+    const bw=x1-x0, bh=y1-y0, SK=skinFor(bw,bh), cv=SK.cv, g=SK.g;
+    g.setTransform(1,0,0,1,0,0); g.clearRect(0,0,bw,bh); g.setTransform(t.a,t.b,t.c,t.d,t.e-x0,t.f-y0); g.lineCap='round'; g.lineJoin='round'; g.globalCompositeOperation='source-over';
     ctx=g; for(const p of parts) p();
     const W=body('mask'), a=W[0], a1=W[1], e=W[W.length-1], e0=W[W.length-2], h0=[a[0]+(a[0]-a1[0])*8,a[1]+(a[1]-a1[1])*8], t0=[e[0]+(e[0]-e0[0])*8,e[1]+(e[1]-e0[1])*8];
     g.globalCompositeOperation='source-atop'; poly([h0].concat(W,[t0,[t0[0],t0[1]+200*S],[h0[0],h0[1]+200*S]]),DK); g.globalCompositeOperation='source-over';
-    ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
+    ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,0,0,bw,bh,x0,y0,bw,bh); MAIN.restore(); };
   // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
   // so the same wing unfolds from lying along the flank to full spread.
   const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,2.4,41.4+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
