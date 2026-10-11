@@ -370,6 +370,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       poly([Q(3.2,1.45),Q(6.4,1.05),Q(8.3,0.2),Q(7.5,-2.2),Q(5.0,-1.5),Q(3.2,-1.6)],'#fbd9d6');                                  // the pale base
       poly([Q(8.3,0.2),Q(9.3,-0.7),Q(10.2,-2.8),Q(10.0,-4.5),Q(8.7,-3.5),Q(7.5,-2.2)],DARK);                                    // the black tip, hooking down
       poly([Q(3.25,1.45),Q(0.5,-0.55),Q(3.25,-1.6)],'#fbd9d6');   // where it meets the head it ends in a wedge, its point running back under the eye
+      poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fbd9d6');   // and the same seen from above or below: the bill's tube runs on into the head, narrowing to that point
       ln([Q(0.9,-0.5),Q(7.6,-0.9),Q(9.2,-2.9)],'#d98a98',0.35*hk);   // the line of the mouth, running back through the wedge
     };
     if(cfz>0.15){ if(cfz<0.72) bill(); head(); }                                                                               // from behind: the bill is hidden past the head and no eyes show
