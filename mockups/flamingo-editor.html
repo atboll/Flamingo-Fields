@@ -320,7 +320,13 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); dot(a,1.1,kb); } };       // the webbed foot, toes trailing
   // The body is a droplet: full and round at the breast, drawing out to a point at the tail, darker along the belly and pale along the back.
   const body=()=>{
-    const tail=()=>poly([P(-2.4,-15,1.3+bob),P(2.4,-15,1.3+bob),P(2.1,-22.5,0.3+bob*0.8),P(0.8,-20.6,0.7+bob*0.8),P(0,-25,0.5+bob*0.75),P(-0.8,-20.6,0.7+bob*0.8),P(-2.1,-22.5,0.3+bob*0.8)],'#e2557f');   // a few short tail feathers at its tip
+    // The tail: a small fan of seven feathers at the droplet's tip, the outer ones shorter and spread a little to the sides, the middle ones longest.
+    // Each is a rounded blade, pale pink with a darker line down it, laid so the middle feathers lie over the outer ones.
+    const tail=()=>{ const sway2=Math.sin(phi-0.9)*0.5*(1-glide);
+      for(const j of [3,-3,2,-2,1,-1,0]){ const a=Math.abs(j), l0=j*0.75, l1=j*2.25, f0=-15.5, f1=-27.5+a*1.9, u0=1.1+bob, u1=0.2-a*0.35+bob*0.75+sway2, hw=1.25-a*0.08;
+        const B=(t,side)=>P(l0+(l1-l0)*t+side*hw*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.15))), f0+(f1-f0)*t, u0+(u1-u0)*t);
+        poly([B(0,-1),B(0.35,-1),B(0.75,-1),B(0.94,-0.75),P(l1,f1,u1),B(0.94,0.75),B(0.75,1),B(0.35,1),B(0,1)], a%2?'#f6b4c6':'#fbd0db');
+        ln([P(l0,f0-1,u0),P(l1,f1+1.2,u1)],'#e2557f',0.4); } };
     if(cfz<=0) tail();
     { const f=P(0,12.5,0.9+bob), r=P(0,-19.5,0.5+bob), dx=r[0]-f[0], dy=r[1]-f[1], L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, w=6.3*S;
       const prof=u=>Math.pow(Math.sin(Math.PI*Math.pow(u,0.58)),0.85);                               // widest a third of the way back, then a long taper
