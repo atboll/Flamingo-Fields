@@ -1870,15 +1870,14 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     // from it, pale pink for most of its length, then bends down into a black tip. A pale patch lies between the eye and the bill.
     const HFc=37.5+HF, HUc=2.8+HU, hk=1-0.0065*HFc*cfz, Q=(df,du,lat)=>P(lat||0,HFc+df,HUc+du);
     const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),'#ec78a5'); poly(pts,'#ff9dbf'); dot(Q(0.2,0),2.7*hk,'#ff9dbf'); dot(Q(-0.2,1.1),1.3*hk,'#ff9dbf'); };
-    const bill=()=>{   // The bill, from the close-up of the standing picture: deep and heavy, running out from the face and then bent sharply down in the middle like a knee;
-      // pale at the base, with a near-white patch reaching back toward the eye, and black from the bend to the tip.
-      ln([Q(4.6,-0.1),Q(6.2,-0.2),Q(7.2,-0.7)],'#fbd9d6',2.9*hk); ln([Q(7.5,-1.6),Q(7.6,-3.2),Q(7.35,-4.6)],DARK,1.9*hk);          /* its bulk, so it has width from in front as well */
-      poly([Q(2.1,1.35),Q(4.3,1.55),Q(4.7,-0.2),Q(3.7,-1.75),Q(2.3,-1.45)],'#fdf1ee');                                              /* the near-white patch at its root */
-      poly([Q(3.3,1.6),Q(5.4,1.55),Q(7.0,0.9),Q(7.75,-0.1),Q(5.9,-2.6),Q(5.5,-2.15),Q(4.4,-1.8),Q(3.3,-1.75)],'#fbd9d6');           /* the pale base, out to the bend */
-      poly([Q(7.75,-0.1),Q(8.05,-0.7),Q(8.3,-2.6),Q(7.75,-5.0),Q(7.0,-5.4),Q(6.35,-3.7),Q(5.9,-2.6)],DARK);                         /* black from the bend down to the tip */
-      poly([Q(3.3,1.5),Q(0.6,-0.5),Q(3.3,-1.7)],'#fdf1ee');                                                                         /* where it meets the head it ends in a wedge, its point running back under the eye */
-      poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fbd9d6');                                                           /* and the same seen from above or below */
-      ln([Q(1.0,-0.5),Q(5.6,-0.75),Q(6.7,-1.5)],'#d98a98',0.35*hk); };                                                              /* the line of the mouth */
+    const bill=()=>{   // The bill is three flat triangles set edge to edge, so it is all straight edges and sharp corners: a near-white one at the root, its point
+      // reaching back into the face toward the eye; a pale pink one from the root out to the bend; and a black one from the bend down to the tip.
+      const R1=[3.5,1.7], R2=[3.3,-1.9], B=[7.9,0.3], T=[7.0,-5.3], M=[B[0]+(R2[0]-B[0])*0.55,B[1]+(R2[1]-B[1])*0.55], q=p=>Q(p[0],p[1]);
+      /* seen from in front, above or below, the same three parts have a little width: straight-edged shapes across the bill */
+      poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fdf1ee'); poly([Q(4.9,-0.1,1.45),Q(7.9,0.3,0),Q(4.9,-0.1,-1.45)],'#fbd9d6'); poly([Q(7.3,-1.0,1.0),Q(7.0,-5.3,0),Q(7.3,-1.0,-1.0),Q(7.9,0.3,0)],DARK);
+      poly([q(R1),q(R2),Q(0.9,-0.3)],'#fdf1ee');   /* the white triangle at the root */
+      poly([q(R1),q(B),q(R2)],'#fbd9d6');           /* the pale pink triangle, out to the bend */
+      poly([q(B),q(T),q(M)],DARK); };               /* the black triangle, from the bend down to the tip */
     if(cfz>0.15){ if(cfz<0.72) bill(); head(); }                                                                               // from behind: the bill is hidden past the head and no eyes show
     else { head(); bill(); }
     // The eyes are painted flat on the two sides of the head. Each is seen full only from its own side; as the head turns it narrows
@@ -1994,15 +1993,14 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   const headAll=()=>{ let dx=G(0.97,1,0.25), du=G(-0.26,-0.08,-0.97); { const n=Math.hypot(dx,du)||1; dx/=n; du/=n; }
     const hs=1.08, hf=cf[3]+dx*2.2, hu=cu[3]+du*2.2, hk=(1-0.0065*hf*cfz)*hs, Q=(a,b,lat)=>P(lat||0, hf+(dx*a-du*b)*hs, hu+(du*a+dx*b)*hs);
     const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),DK); poly(pts,TOP); dot(Q(0.2,0),2.7*hk,TOP); dot(Q(-0.2,1.1),1.3*hk,TOP); };
-    const bill=()=>{   // The bill, from the close-up of the standing picture: deep and heavy, running out from the face and then bent sharply down in the middle like a knee;
-      // pale at the base, with a near-white patch reaching back toward the eye, and black from the bend to the tip.
-      ln([Q(4.6,-0.1),Q(6.2,-0.2),Q(7.2,-0.7)],'#fbd9d6',2.9*hk); ln([Q(7.5,-1.6),Q(7.6,-3.2),Q(7.35,-4.6)],DARK,1.9*hk);          /* its bulk, so it has width from in front as well */
-      poly([Q(2.1,1.35),Q(4.3,1.55),Q(4.7,-0.2),Q(3.7,-1.75),Q(2.3,-1.45)],'#fdf1ee');                                              /* the near-white patch at its root */
-      poly([Q(3.3,1.6),Q(5.4,1.55),Q(7.0,0.9),Q(7.75,-0.1),Q(5.9,-2.6),Q(5.5,-2.15),Q(4.4,-1.8),Q(3.3,-1.75)],'#fbd9d6');           /* the pale base, out to the bend */
-      poly([Q(7.75,-0.1),Q(8.05,-0.7),Q(8.3,-2.6),Q(7.75,-5.0),Q(7.0,-5.4),Q(6.35,-3.7),Q(5.9,-2.6)],DARK);                         /* black from the bend down to the tip */
-      poly([Q(3.3,1.5),Q(0.6,-0.5),Q(3.3,-1.7)],'#fdf1ee');                                                                         /* where it meets the head it ends in a wedge, its point running back under the eye */
-      poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fbd9d6');                                                           /* and the same seen from above or below */
-      ln([Q(1.0,-0.5),Q(5.6,-0.75),Q(6.7,-1.5)],'#d98a98',0.35*hk); };                                                              /* the line of the mouth */
+    const bill=()=>{   // The bill is three flat triangles set edge to edge, so it is all straight edges and sharp corners: a near-white one at the root, its point
+      // reaching back into the face toward the eye; a pale pink one from the root out to the bend; and a black one from the bend down to the tip.
+      const R1=[3.5,1.7], R2=[3.3,-1.9], B=[7.9,0.3], T=[7.0,-5.3], M=[B[0]+(R2[0]-B[0])*0.55,B[1]+(R2[1]-B[1])*0.55], q=p=>Q(p[0],p[1]);
+      /* seen from in front, above or below, the same three parts have a little width: straight-edged shapes across the bill */
+      poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fdf1ee'); poly([Q(4.9,-0.1,1.45),Q(7.9,0.3,0),Q(4.9,-0.1,-1.45)],'#fbd9d6'); poly([Q(7.3,-1.0,1.0),Q(7.0,-5.3,0),Q(7.3,-1.0,-1.0),Q(7.9,0.3,0)],DARK);
+      poly([q(R1),q(R2),Q(0.9,-0.3)],'#fdf1ee');   /* the white triangle at the root */
+      poly([q(R1),q(B),q(R2)],'#fbd9d6');           /* the pale pink triangle, out to the bend */
+      poly([q(B),q(T),q(M)],DARK); };               /* the black triangle, from the bend down to the tip */
     if(cfz>0.15){ if(cfz<0.72) bill(); head(); } else { head(); bill(); }
     const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfx; if(fo<-0.15 || cfz>0.8) return;
       const w=clamp((fo+0.15)/1.0,0.16,1), e=Q(1.2,0.5,o), e1=Q(1.2,0.5,o+sg), an=Math.atan2(e1[1]-e[1],e1[0]-e[0]);
