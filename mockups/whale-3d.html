@@ -61,6 +61,11 @@ output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
   <label for="str">Strength <input id="str" type="range" min="0" max="100" value="70"></label>
   <label for="pur">Purple <input id="pur" type="range" min="0" max="100" value="60"></label>
   <label for="wsize">Whale size <input id="wsize" type="range" min="60" max="140" value="100"></label>
+  <label for="dots">White dots <input id="dots" type="range" min="0" max="100" value="45"></label>
+  <label for="dsz">Dot size <input id="dsz" type="range" min="0" max="100" value="50"></label>
+  <label for="knob">Head knobs <input id="knob" type="range" min="0" max="100" value="50"></label>
+  <label for="flank">Flank patches <input id="flank" type="range" min="0" max="100" value="40"></label>
+  <label for="tailm">Tail marks <input id="tailm" type="range" min="0" max="100" value="35"></label>
   <button type="button" class="tog" id="rand">Random</button>
   <button type="button" class="tog" id="calf" aria-pressed="false">Add calf</button>
 </div>
@@ -183,6 +188,12 @@ function flipper(sg,t){
     const d=(un-u)*L; c=[c[0]+dir[0]*d,c[1]+dir[1]*d,c[2]+dir[2]*d];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
+  if(CUR) for(const d of CUR.f){ if(d.sg!==sg) continue;   // white flecks lying on the flipper's dark face
+    const k=clamp(Math.round(S*(1-Math.pow(1-d.u,1/1.6))),1,S-1), q=st[k], q2=st[k+1], v=d.v, bl=Math.pow(Math.sin(Math.PI*v),0.7)*q.t+0.001;
+    const p=[q.A[0]+(q.B[0]-q.A[0])*v+q.n[0]*bl, q.A[1]+(q.B[1]-q.A[1])*v+q.n[1]*bl, q.A[2]+(q.B[2]-q.A[2])*v+q.n[2]*bl];
+    const e1=norm([q.A[0]-q.B[0],q.A[1]-q.B[1],q.A[2]-q.B[2]]), e2=norm([q2.A[0]+q2.B[0]-q.A[0]-q.B[0],q2.A[1]+q2.B[1]-q.A[1]-q.B[1],q2.A[2]+q2.B[2]-q.A[2]-q.B[2]]);
+    const at=(a,m)=>bentAt(FLIP_S,p[0]+a[0]*m,p[1]+a[1]*m,p[2]+a[2]*m);
+    late.push(()=>decs.push([at(q.n,0),at(q.n,0.02),at(e1,0.02),at(e2,0.02),d.r,1,'w',0.012])); }   // placed after all the meshes, so their points keep their numbers
 }
 function fluke(sg){   // one half of the tail: flat, lying level, swept back to a point; it bends with the stock
   const S=12, st=[];
@@ -197,10 +208,17 @@ function backFin(){
   blade(st,DARK,DARK,bent);
 }
 const EYE_S=0.283; let eyes=[];
+let CUR=null; const decs=[], late=[];   // the dots of the whale being built, and where they have landed this frame
+function bodyDot(d){ const x=1-2*d.s, top=d.yl===undefined, h=top?(Math.cos(d.th)>0?TOP(d.s):BOT(d.s)):(d.yl>0?TOP(d.s):BOT(d.s)), w=WID(d.s);
+  const yl=top?h*Math.cos(d.th):d.yl, z=w*Math.sqrt(Math.max(0,1-(yl/h)*(yl/h))), o=norm([0,yl/(h*h),z/(w*w)]), sg=d.sg;
+  decs.push([bent(x,yl,sg*z),bent(x,yl+o[1]*0.02,sg*(z+o[2]*0.02)),bent(x+0.02,yl,sg*z),bent(x,yl-o[2]*0.02,sg*(z+o[1]*0.02)),d.r,d.ax||1,d.col,0.03]); }
 function build(t){
+  decs.length=0; late.length=0;
   vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
   const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
   eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); const r=bent(1-2*EYE_S+0.02,yl,sg*z), w=bent(1-2*EYE_S,yl+0.02,sg*z); eyes.push([p,q,r,w]); }
+  for(const fn of late) fn();
+  if(CUR) for(const d of CUR.b) bodyDot(d);
   INIT=false;
 }
 
@@ -235,7 +253,11 @@ function marksFor(c,out){
     const band=Math.exp(-Math.pow((x-(0.45-1.2*h1))/(0.2+0.25*h4),2))*(0.4+0.6*h2);   // a wash across the body at a place of its own
     pm=clamp(pm*(0.6+0.4*h3)+band*sm((b+a*0.5-0.45)/0.35)*0.8,0,1)*0.85;
     const lm=(c2-0.5)*1.2-0.5*h3*sm(y/0.09)+0.35*h2*sm((b-0.55)/0.2);          // lighter and darker blue patches, and a darker saddle along the back
-    out[q*2]=pm*U*Math.min(1,S*1.5); out[q*2+1]=lm*0.5*S; }
+    out[q*3]=pm*U*Math.min(1,S*1.5); out[q*3+1]=lm*0.5*S;
+    let dm=0; if(c.t>0 && Q[4]===PALE && x<-0.87 && Math.abs(y)<0.07){ const zc=Math.abs(z)/0.38;   // each whale's own dark pattern under the tail
+      const val=0.55*vn(x*9+3,1,z*9+1,q0+0.7)+0.25*vn(x*21,2,z*21,q0+0.9)+0.3*sm((0.22-zc)/0.22)*(0.4+0.6*h1)+0.3*sm((zc-0.7)/0.3)*h2+0.25*sm((-1.0-x)/0.12)*h4;
+      dm=sm((val-(1.05-0.8*c.t/100))/0.1); }
+    out[q*3+2]=dm; }
 }
 function drawBg(){
   if(bg==='blank'){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--paper'); ctx.fillRect(0,0,W,H); return; }
@@ -246,25 +268,35 @@ function drawBg(){
   if(bg==='night'){ ctx.fillStyle='#e8ecff'; for(let i=0;i<70;i++){ let n=Math.sin(i*127.1)*43758.5453; n-=Math.floor(n); let m=Math.sin(i*311.7)*43758.5453; m-=Math.floor(m); ctx.globalAlpha=0.3+0.6*n; ctx.fillRect(m*W,n*H*0.85,1.4,1.4); } ctx.globalAlpha=1; }
 }
 const order=[];
-const cfg={p:12,s:70,u:60,z:100,c:0}; let MKA=null, MKB=null, dirty=true;
-const calfCfg=()=>({p:cfg.p+50,s:cfg.s*0.6,u:cfg.u});
+const cfg={p:12,s:70,u:60,z:100,c:0,d:45,ds:50,k:50,f:40,t:35}; let MKA=null, MKB=null, DA=null, DB=null, dirty=true;
+const calfCfg=()=>({p:cfg.p+50,s:cfg.s*0.6,u:cfg.u,d:cfg.d*0.6,ds:cfg.ds,k:cfg.k,f:cfg.f*0.6,t:cfg.t*0.7});
+// where this whale's dots go: head knobs, chin dots, white ovals along the edge of the white, white flecks on flank, stock and flippers
+function dotsFor(c,few){ const b=[], f=[], q0=c.p, R=(i,salt)=>hsh(q0+0.37,i,salt,1.7), dz=0.5+c.ds/100*1.3; let n;
+  n=Math.round(c.k/100*24*few); for(let i=0;i<n;i++) b.push({s:0.025+0.2*R(i,1),th:0.12+1.05*R(i,2),sg:R(i,3)<0.5?1:-1,r:0.006+0.005*R(i,4),col:'k'});
+  n=Math.round(c.k/100*12*few); for(let i=0;i<n;i++){ const sv=0.03+0.18*R(i,5); b.push({s:sv,yl:-(mouth(sv)+0.02+0.035*R(i,6)),sg:R(i,7)<0.5?1:-1,r:0.005+0.004*R(i,8),col:'c'}); }
+  n=Math.round(c.f/100*11*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const sv=0.43+0.4*(i+R(i,9+sg))/n; b.push({s:sv,yl:-(palTop(sv)-0.016),sg,r:(0.006+0.005*R(i,11+sg))*(0.7+0.7*c.f/100),ax:2.3,col:'w'}); }
+  n=Math.round(c.d/100*50*few); for(let i=0;i<n;i++){ const sv=0.3+0.62*R(i,13), a=R(i,14); b.push({s:sv,yl:-(palTop(sv)-0.012-0.08*a*a),sg:R(i,15)<0.5?1:-1,r:(0.003+0.006*R(i,16)*R(i,17))*dz,col:'w'}); }
+  n=Math.round(c.d/100*9*few); for(let i=0;i<n;i++) b.push({s:0.74+0.21*R(i,18),th:0.25*R(i,19),sg:R(i,20)<0.5?1:-1,r:(0.004+0.004*R(i,21))*dz,col:'w'});
+  n=Math.round(c.d/100*60*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const u=0.2+0.76*Math.pow(R(i,22+sg),0.6), side=R(i,24+sg)-0.5, e=Math.abs(side)*2;
+    if(R(i,26+sg)>0.25+0.75*Math.max(u*u,e*e)) continue; f.push({sg,u,v:clamp(0.5+side*0.86,0.07,0.93),r:(0.0035+0.008*R(i,28+sg)*R(i,30+sg))*dz}); }
+  return {b,f}; }
 function draw(dt){
   T+=dt; TB+=dt*2.1*(+document.getElementById('beat').value/100);
   if(yawTo!==null){ const k=1-Math.exp(-dt*6); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; pitch+=(pitchTo-pitch)*k; if(Math.abs(d)<0.002 && Math.abs(pitchTo-pitch)<0.002) yawTo=null; }
   if(INIT) build(T);
-  if(dirty){ if(!MKA){ MKA=new Float32Array(QUADS.length*2); MKB=new Float32Array(QUADS.length*2); } marksFor(cfg,MKA); marksFor(calfCfg(),MKB); dirty=false; }
+  if(dirty){ if(!MKA){ MKA=new Float32Array(QUADS.length*3); MKB=new Float32Array(QUADS.length*3); } marksFor(cfg,MKA); marksFor(calfCfg(),MKB); DA=dotsFor(cfg,1); DB=dotsFor(calfCfg(),0.55); dirty=false; }
   // the whale's own place and heading
   const P={px:0,py:0,pz:0,head:0,roll:0,tip:0.03*Math.sin(TB*0.5)*calm};
   if(swim){ swimA+=dt*0.22*calm; const R=2.3; P.px=R*Math.sin(swimA); P.pz=R*Math.cos(swimA); P.py=0.3*Math.sin(swimA*1.7); P.head=swimA; P.roll=-0.2; P.tip+=0.13*Math.cos(swimA*1.7); }
-  const sc=cfg.z/100, mom={sc,o:[0,0,0],mk:MKA,ph:0}, list=[mom];
-  if(cfg.c) list.push({sc:sc*0.42,o:[-0.6*sc,(-0.56+0.03*Math.sin(T*0.7))*sc,0.36*sc],mk:MKB,ph:1.3});   // the calf keeps under her and a little back
+  const sc=cfg.z/100, mom={sc,o:[0,0,0],mk:MKA,dots:DA,ph:0}, list=[mom];
+  if(cfg.c) list.push({sc:sc*0.42,o:[-0.6*sc,(-0.56+0.03*Math.sin(T*0.7))*sc,0.36*sc],mk:MKB,dots:DB,ph:1.3});   // the calf keeps under her and a little back
   const ca=Math.cos(yaw), sa=Math.sin(yaw);
   const depth=w=>{ const ch=Math.cos(P.head), sh=Math.sin(P.head); return (w.o[0]*ch+w.o[2]*sh+P.px)*sa+(-w.o[0]*sh+w.o[2]*ch+P.pz)*ca; };
   list.sort((A,B)=>depth(B)-depth(A));
   for(const w of list) pass(w,P);
 }
 function pass(w,P){
-  const tb=TB; TB+=w.ph; build(T+w.ph*2); TB=tb;
+  const tb=TB; TB+=w.ph; CUR=w.dots; build(T+w.ph*2); TB=tb;
   const px=P.px,py=P.py,pz=P.pz, sc=w.sc, ox=w.o[0], oy=w.o[1], oz=w.o[2];
   const ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
   const ca=Math.cos(yaw), sa=Math.sin(yaw), cp=Math.cos(-pitch), sp=Math.sin(-pitch);
@@ -290,11 +322,17 @@ function pass(w,P){
     const lam=(nx*lx+ny*ly+nz*lz)*0.5+0.5;
     order.push([mz,q,0.72*lam+0.3*face]);
   }
+  for(const d of decs){ const p=d[0]*3, o=d[1]*3; if(SV[o+2]<SV[p+2]-0.003*sc) order.push([SV[p+2]-d[7]*sc,-2,d]); }
   for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[o+2]<SV[p+2]-0.004*sc) order.push([SV[p+2]-0.06*sc,-1,e]); }
   order.sort((A,B)=>B[0]-A[0]);
   const night=bg==='night', gcol=night?'#6c86a0':'#8fb1c0';
   ctx.lineJoin='round';
   for(const it of order){
+    if(it[1]===-2){   // a dot lying on the skin
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3);
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=E[6]==='w'?(night?'#dfe6f2':'#ffffff'):E[6]==='k'?(night?'#5b6090':'#7d83b0'):(night?'#3a3f6a':'#474c7c');
+      ctx.beginPath(); ctx.ellipse(0,0,E[4]*E[5],E[4],0,0,6.2832); ctx.fill(); ctx.restore(); continue; }
     if(it[1]<0){   // the eye, drawn lying on the skin: a dark almond with a fine pale rim, a soft paler lid round it and two creases arching over it
       const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3), R=0.014;   // (the three points are 0.02 apart on the whale itself, so the drawing scales with it)
       ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
@@ -307,7 +345,7 @@ function pass(w,P){
       ctx.fillStyle=night?'#090a1a':'#0c0e22'; ctx.fill(); ctx.strokeStyle=night?'#7b86c4':'#8f9bd6'; ctx.lineWidth=R*0.2; ctx.stroke();
       ctx.fillStyle='rgba(235,240,255,0.8)'; ctx.beginPath(); ctx.arc(R*0.35,R*0.3,R*0.2,0,6.2832); ctx.fill();
       ctx.restore(); continue; }
-    const Q=QUADS[it[1]], col=shade(Q[4],it[2],Q[6],MK[it[1]*2],MK[it[1]*2+1]); let X=[],Y=[];
+    const Q=QUADS[it[1]], col=shade(Q[4],it[2],Math.max(Q[6],MK[it[1]*3+2]),MK[it[1]*3],MK[it[1]*3+1]); let X=[],Y=[];
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
     ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill(); ctx.stroke();
@@ -332,21 +370,21 @@ const bgs={blank:'bgBlank',day:'bgDay',night:'bgNight'};
 for(const k in bgs) document.getElementById(bgs[k]).addEventListener('click',()=>{ bg=k; for(const j in bgs) document.getElementById(bgs[j]).setAttribute('aria-pressed',String(j===k)); });
 
 /* ---- this whale's settings, the calf, and the ten save slots ---- */
-const $=id=>document.getElementById(id), IN={p:'pat',s:'str',u:'pur',z:'wsize'};
+const $=id=>document.getElementById(id), IN={p:'pat',s:'str',u:'pur',z:'wsize',d:'dots',ds:'dsz',k:'knob',f:'flank',t:'tailm'};
 function show(){ for(const k in IN) $(IN[k]).value=cfg[k]; $('patO').textContent=cfg.p; $('calf').setAttribute('aria-pressed',String(!!cfg.c)); $('calf').textContent=cfg.c?'Remove calf':'Add calf'; dirty=true; }
 for(const k in IN) $(IN[k]).addEventListener('input',()=>{ cfg[k]=+$(IN[k]).value; $('patO').textContent=cfg.p; dirty=true; });
-$('rand').addEventListener('click',()=>{ const r=(a,b)=>Math.round(a+Math.random()*(b-a)); cfg.p=r(1,99); cfg.s=r(45,100); cfg.u=r(15,100); cfg.z=r(78,125); show(); });
+$('rand').addEventListener('click',()=>{ const r=(a,b)=>Math.round(a+Math.random()*(b-a)); cfg.p=r(1,99); cfg.s=r(45,100); cfg.u=r(15,100); cfg.z=r(78,125); cfg.d=r(0,100); cfg.ds=r(20,90); cfg.k=r(20,100); cfg.f=r(0,100); cfg.t=r(0,90); show(); });
 $('calf').addEventListener('click',()=>{ cfg.c=cfg.c?0:1; show(); });
 const KEY='whale-slots-v1'; let slots=new Array(10).fill(null), armed=false;
-try{ const v=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(v)) for(let i=0;i<10;i++) if(v[i] && typeof v[i].p==='number') slots[i]={p:v[i].p,s:v[i].s,u:v[i].u,z:v[i].z,c:v[i].c?1:0}; }catch(_){}
+try{ const v=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(v)) for(let i=0;i<10;i++) if(v[i] && typeof v[i].p==='number') { const w=v[i], g=(k,dflt)=>typeof w[k]==='number'?w[k]:dflt; slots[i]={p:w.p,s:g('s',70),u:g('u',60),z:g('z',100),c:w.c?1:0,d:g('d',0),ds:g('ds',50),k:g('k',0),f:g('f',0),t:g('t',0)}; } }catch(_){}
 const keep=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(slots)); return true; }catch(_){ return false; } };
 const say=t=>{ $('hint').textContent=t; };
-const text=()=>{ const L=[]; slots.forEach((w,i)=>{ if(w) L.push('slot '+(i+1)+': pattern '+w.p+', strength '+w.s+', purple '+w.u+', size '+w.z+', calf '+(w.c?'yes':'no')); }); return L.length?L.join('\n'):'No whales saved yet.'; };
+const text=()=>{ const L=[]; slots.forEach((w,i)=>{ if(w) L.push('slot '+(i+1)+': pattern '+w.p+', strength '+w.s+', purple '+w.u+', size '+w.z+', dots '+w.d+', dot size '+w.ds+', knobs '+w.k+', flank '+w.f+', tail '+w.t+', calf '+(w.c?'yes':'no')); }); return L.length?L.join('\n'):'No whales saved yet.'; };
 function slotRow(){ const row=$('slots'); row.textContent='';
   slots.forEach((w,i)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=String(i+1); if(w){ b.dataset.full='1'; b.title='Pattern '+w.p+(w.c?', with calf':''); }
     b.setAttribute('aria-label','Slot '+(i+1)+(w?', pattern '+w.p+(w.c?' with calf':''):', empty'));
     b.addEventListener('click',()=>{
-      if(armed){ slots[i]={p:cfg.p,s:cfg.s,u:cfg.u,z:cfg.z,c:cfg.c}; armed=false; $('save').setAttribute('aria-pressed','false'); const ok=keep(); slotRow(); say(ok?'Saved in slot '+(i+1)+'.':'Saved for now, but this browser will not remember it. Use Show list to keep a copy.'); }
+      if(armed){ slots[i]=Object.assign({},cfg); armed=false; $('save').setAttribute('aria-pressed','false'); const ok=keep(); slotRow(); say(ok?'Saved in slot '+(i+1)+'.':'Saved for now, but this browser will not remember it. Use Show list to keep a copy.'); }
       else if(slots[i]){ Object.assign(cfg,slots[i]); show(); say('Showing the whale from slot '+(i+1)+'.'); }
       else say('Slot '+(i+1)+' is empty. Press Save, then a slot.'); });
     row.appendChild(b); });
