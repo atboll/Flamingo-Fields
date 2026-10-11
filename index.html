@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:28</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:40</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -526,7 +526,7 @@ function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLe
 /* ---------- update ---------- */
 function update(dt){
   time+=dt; HILL=level===2?0.9:1;
-  if(level===2){ if(!whales) whalesStart(); whalesUpdate(dt); } else whales=null;
+  if(level===2){ if(!whales) whalesStart(); whalesUpdate(dt); whalePush(dt); } else whales=null;
   let ix=0, iz=0, sprint=false;
   if(keys.has('a')||keys.has('arrowleft')) ix-=1;
   if(keys.has('d')||keys.has('arrowright')) ix+=1;
@@ -1535,6 +1535,26 @@ function whalesUpdate(dt){ const mid=whMid();
 }
 const WH_SKY=[[0,0x2a,0x8a,0x88],[0.4,0x4f,0xa9,0x99],[0.76,0x93,0xc7,0x9e],[1,0xf0,0xd8,0x98]];   // the sky's colours from the top of the picture down to the horizon (as drawSky paints them)
 const whRoll=w=>clamp(w.turn*5,-0.2,0.2);
+// You cannot fly into a whale. Each one carries an unseen cushion about a kid's height off its skin, shaped to the whole animal: the long body,
+// both flippers, the tail flukes, and the calf if she has one. Coming near, the kids are eased aside, more firmly the nearer they get, and slide round it;
+// they are never let inside. The cushion moves with the whale, so one swimming toward them moves them out of its way.
+// Each part is a stretched ball: [along the whale, to its side, up] for its middle and for its three half-lengths, all as shares of the whale's length.
+const WH_PARTS=[[0,0,0, 0.5,0.115,0.1],[0.16,0.2,-0.07, 0.07,0.16,0.07],[0.16,-0.2,-0.07, 0.07,0.16,0.07],[-0.47,0,0, 0.07,0.15,0.08]], WH_CALF=[-0.3,0.18,-0.28, 0.21,0.1,0.06];
+function whaleNear(w,x,y,z){   // how near a point is to whale w: under 1 is inside its cushion; also the way straight out from there
+  const fx=Math.cos(w.psi), fz=Math.sin(w.psi), dx=x-w.x, dz=z-w.z, a=dx*fx+dz*fz, b=-dx*fz+dz*fx, c=y-w.y, L=w.len, M=KID_H; let best=null;
+  for(const e of (w.c.c?WH_PARTS.concat([WH_CALF]):WH_PARTS)){ const pa=a-e[0]*L, pb=b-e[1]*L, pc=c-e[2]*L, sa=e[3]*L+M, sb=e[4]*L+M, sc=e[5]*L+M;
+    const q=Math.sqrt(pa*pa/(sa*sa)+pb*pb/(sb*sb)+pc*pc/(sc*sc)); if(best && q>=best.q) continue;
+    let ga=pa/(sa*sa), gb=pb/(sb*sb), gc=pc/(sc*sc); const gl=Math.hypot(ga,gb,gc); if(gl<1e-9){ ga=0; gb=0; gc=1; } else { ga/=gl; gb/=gl; gc/=gl; }
+    best={q, nx:ga*fx-gb*fz, ny:gc, nz:ga*fz+gb*fx, out:(1-q)*Math.min(sa,sb,sc)}; }
+  return best; }
+function whalePush(dt){ if(!whales || !lead.fly) return;
+  for(const w of whales){ if(w.y===null) continue; const far=w.len*0.75+KID_H*3; if(Math.abs(lead.x-w.x)>far || Math.abs(lead.z-w.z)>far) continue;
+    const gh=ground(lead.x,lead.z), n=whaleNear(w,lead.x,gh+lead.y+45,lead.z); if(!n || n.q>=1.45) continue;
+    const soft=clamp((1.45-n.q)/0.45,0,1), k=soft*soft*900*dt;                       // the gentle part: a steady easing aside that grows as they come nearer
+    lead.vx+=n.nx*k; lead.vz+=n.nz*k; lead.alt=clamp(lead.alt+n.ny*k*0.9,110,SKY_TOP);
+    if(n.q<1){ const d=n.out+2; lead.x+=n.nx*d; lead.z+=n.nz*d; pal.x+=n.nx*d; pal.z+=n.nz*d;   // the firm part: never inside the cushion itself
+      const dy=n.ny*d; lead.y=Math.max((lead.fl||0)+1,lead.y+dy); lead.alt=clamp(lead.alt+dy,110,SKY_TOP);
+      const vn=lead.vx*n.nx+lead.vz*n.nz; if(vn<0){ lead.vx-=vn*n.nx; lead.vz-=vn*n.nz; } } } }
 const whP=w=>({x:w.x,y:w.y,z:w.z,head:-w.psi,roll:whRoll(w),tip:w.tip,len:w.len,tb:w.tb,t:time+w.ph*3});
 function drawWhale(w,e){ if(!w.look) w.look=WHALE.look(w.c); const t0=performance.now(), P=whP(w);
   // distance haze, very slight: nothing for a long way, then growing with the square of the distance to about a quarter at the far side of the ring.
