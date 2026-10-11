@@ -279,11 +279,13 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   const wing=sd=>{
     const isFar=(-sd*cfx>0);
     const xs=[4.4], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
-    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e-SEG[k]*0.16*(1-e)*0.55); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
+    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e-SEG[k]*0.16*(1-e)*0.55); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55+[-3.6,6.2,-2.2,-2.4][k]*e); }   // the arm is a zigzag, as in the wing drawing: back from the shoulder to the elbow, forward to the wrist, then out along the hand   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
     // As a part folds, its surface turns from lying flat to hanging down along the flank: the leading edge rides up onto the back and the feathers point back and down.
     // the leading edge: from the shoulder it bows outward to the outer joint, its furthest-forward point, then angles back to the tip
-    const LE=t=>t<2?5.2+4.3*(1-(1-t/2)*(1-t/2)):9.5-4.4*(t-2)-0.5*(t-2)*(t-2);
+    // (measured from the arm, so the skin stretched in front of the elbow is widest there)
+    const ZG=t=>{ const z=[0,-3.6,2.6,0.4,-2.0], k=Math.max(0,Math.min(3,Math.floor(t))); return z[k]+(z[k+1]-z[k])*(t-k); };
+    const LE=t=>(t<2?5.2+4.3*(1-(1-t/2)*(1-t/2))-1.2*Math.sin(Math.PI*t/2):9.5-4.4*(t-2)-0.5*(t-2)*(t-2))-ZG(t);
     // Toward the body the wing narrows to a small shoulder from behind: the front edge keeps its line, and the back edge rises to meet it,
     // every layer drawing up together, so the wing is a long triangle where it joins the body.
     const Wp=(t,f0)=>{ const tp=clamp(t/0.7,0,1), A=LE(Math.max(0,t)), f=A-(A-f0)*(0.5+0.5*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
@@ -296,9 +298,12 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     // They are painted as one dark mass with fine lines between the feathers, so the wing reads as a surface, not a fence;
     // only their rounded tips stand apart, a little on the arm and deeply out at the wing tip, where they spread like fingers.
     const NF=17, F=[];
-    for(let j=0;j<NF;j++){ const u=j/(NF-1), tb=0.1+3.55*u, fb=-2.5+1.5*u, sweep=Math.pow(clamp((u-0.45)/0.55,0,1),1.6);
-      const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.8,0.9,0.97][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
-      F.push({tb,fb,tt:tb+sweep*0.9,ft:fb-len*(1-0.6*sweep),u}); }
+    // The feathers stand in two fans, as in the wing drawing: those on the arm spread from the elbow, leaning in toward the body on its inner side
+    // and outward on its outer side; those on the hand spread from the wrist, swinging round until the outermost points along the wing.
+    // They are longest out at the tip.
+    for(let j=0;j<NF;j++){ const u=j/(NF-1), tb=0.1+3.55*u, fb=-2.5+1.5*u, an=tb<2?0.36*(tb-1):0.36+0.86*Math.pow((tb-2)/1.65,1.1);
+      const len=(17+7*clamp((tb-1.5)/1.7,0,1))*(j<3?[0.8,0.9,0.97][j]:1)*(1+0.05*Math.sin(j*2.3))*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
+      F.push({tb,fb,tt:tb+len*Math.sin(an)/14.5,ft:fb-len*Math.cos(an),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
     const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.68-0.24*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
     ctx.fillStyle=C.f1; ctx.beginPath(); { const p=at(F[NF-1],0,1); ctx.moveTo(p[0],p[1]); }
@@ -434,7 +439,10 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       ctx=g; for(const p of parts) p();
       const bm=body('mask'), nl=neck('line',bm.c), D=P(0,0,-1), O=P(0,0,0), dl=Math.hypot(D[0]-O[0],D[1]-O[1])||1, ux=(D[0]-O[0])/dl*200*S, uy=(D[1]-O[1])/dl*200*S;
       const h0=[nl[0][0]+(nl[0][0]-nl[1][0])*3, nl[0][1]+(nl[0][1]-nl[1][1])*3], W=bm.WL, e=W[W.length-1], e0=W[W.length-2], t0=[e[0]+(e[0]-e0[0])*6, e[1]+(e[1]-e0[1])*6];
-      g.globalCompositeOperation='source-atop'; poly([h0].concat(nl,W,[t0,[t0[0]+ux,t0[1]+uy],[h0[0]+ux,h0[1]+uy]]),DK); g.globalCompositeOperation='source-over';
+      g.globalCompositeOperation='source-atop';
+      if(Math.abs(cfx)<0.22){ if(elev<=0){ g.fillStyle=DK; g.fillRect(sx-R,sy-R,2*R,2*R); } }   // seen straight along its length there is no side to split: all bright from above, all dark from below
+      else poly([h0].concat(nl,W,[t0,[t0[0]+ux,t0[1]+uy],[h0[0]+ux,h0[1]+uy]]),DK);
+      g.globalCompositeOperation='source-over';
       ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
     const thighs=()=>{ legs(far,1); legs(-far,1); }, bodyS=()=>body('shape'), neckS=()=>neck('shape');
     if(o.wingsOnly){ wing(o.wingsOnly==='far'?far:-far); return; }   // the standing bird borrows just these wings when it opens them
