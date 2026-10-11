@@ -143,10 +143,10 @@ function body(){
   for(let i=0;i<NR+2;i++) for(let j=0;j<M;j++){
     const a=first+i*M+j, b=first+i*M+(j+1)%M, c=first+(i+1)*M+(j+1)%M, d=first+(i+1)*M+j;
     const pale=j>=K1 && j<K1+2*K2, s=Math.pow(clamp((i-0.5)/NR,0,1),1.2);
-    const row=r=>r>K1 && r<K1+2*K2 && s>0.035 && s<0.5;   // throat grooves run along the lines between pale patches
+    const row=r=>r>K1 && r<K1+2*K2 && s>0.012 && s<0.68;   // throat grooves run along the lines between pale patches
     const cy=(MV[a*3+1]+MV[c*3+1])/2, cz=(MV[a*3+2]+MV[c*3+2])/2;
-    const g=[]; if(row(j+1)) g.push(b,c); if(row(j)) g.push(a,d);
-    quad(a,b,c,d,pale?PALE:DARK,[i===0?0.4:i>NR?-0.4:0,cy,cz],g.length?g:null);
+    const g=[]; if(row(j+1)) g.push(b,c,(j+1)%M); if(row(j)) g.push(a,d,j);   // each groove line remembers which row it is, so it can end at its own place
+    quad(a,b,c,d,pale?PALE:DARK,[i===0?0.4:i>NR?-0.4:0,cy,cz],g.length?g:null); QUADS[QUADS.length-1][10]=s;
   }
 }
 // a thin lens-shaped blade through a row of stations, each with a leading point A, a trailing point B, an "up" n and a half thickness
@@ -284,7 +284,9 @@ function dotsFor(c,few){ const b=[], f=[], q0=c.p, R=(i,salt)=>hsh(q0+0.37,i,sal
   n=Math.round(c.d/100*60*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const u=0.2+0.76*Math.pow(R(i,22+sg),0.6), side=R(i,24+sg)-0.5, e=Math.abs(side)*2;
     if(R(i,26+sg)>0.25+0.75*Math.max(u*u,e*e)) continue; f.push({sg,u,v:clamp(0.5+side*0.86,0.07,0.93),r:(0.0035+0.008*R(i,28+sg)*R(i,30+sg))*dz}); }
   const T=c.t/100, tail={notch:(R(1,40)*1.6-0.5)*T, bow:(R(2,40)*2-1)*T, amp:(0.25+0.75*R(3,40))*T, freq:9+16*R(4,40), ph:6.28*R(5,40), ph2:6.28*R(6,40)};   // the back curve of the tail fin, this whale's own
-  return {b,f,tail}; }
+  const ge=[], gs=[]; for(let r=0;r<M;r++){ const e=Math.abs(r-(K1+K2))/K2;   // e: 0 along the middle of the belly, 1 up at the edge of the white
+    ge[r]=0.6-0.27*Math.pow(e,1.6)+0.05*(R(r,50)-0.5); gs[r]=0.02+0.07*e*e+0.015*R(r,51); }
+  return {b,f,tail,ge,gs}; }
 function draw(dt){
   T+=dt; TB+=dt*2.1*(+document.getElementById('beat').value/100);
   if(yawTo!==null){ const k=1-Math.exp(-dt*6); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; pitch+=(pitchTo-pitch)*k; if(Math.abs(d)<0.002 && Math.abs(pitchTo-pitch)<0.002) yawTo=null; }
@@ -313,7 +315,7 @@ function pass(w,P){
   const ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
   const ca=Math.cos(yaw), sa=Math.sin(yaw), cp=Math.cos(-pitch), sp=Math.sin(-pitch);
   const D=swim?8.5:5, f=FOC, cx=W/2, cy=kidsOn?H*0.44:H/2;
-  const n=vi/3, MK=w.mk;
+  const n=vi/3, MK=w.mk, GE=w.dots.ge, GS=w.dots.gs;
   for(let i=0;i<n;i++){
     let x=MV[i*3]*sc+ox, y=MV[i*3+1]*sc+oy, z=MV[i*3+2]*sc+oz;
     let y1=y*cr-z*sr, z1=y*sr+z*cr;                 // bank
@@ -361,8 +363,11 @@ function pass(w,P){
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
     ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill(); ctx.stroke();
-    if(Q[5]){ ctx.strokeStyle=gcol; ctx.lineWidth=Math.max(0.5,0.004*sc*f/it[0]); ctx.beginPath();
-      for(let k=0;k<Q[5].length;k++){ const i=Q[5][k]*3, z=SV[i+2], x=cx+SV[i]*f/z, y=cy-SV[i+1]*f/z; if(k&1) ctx.lineTo(x,y); else ctx.moveTo(x,y); } ctx.stroke(); }
+    if(Q[5]){ const G=Q[5], sq=Q[10], lw=Math.max(0.5,0.004*sc*f/it[0]); ctx.strokeStyle=gcol;   // the grooves end on a curve: longest along the middle of the belly, shorter out to the sides, thinning out at both ends
+      for(let k=0;k<G.length;k+=3){ const r=G[k+2], wv=Math.min(1,(GE[r]-sq)/0.07,(sq-GS[r])/0.025); if(wv<=0) continue;
+        const i1=G[k]*3, i2=G[k+1]*3, z1=SV[i1+2], z2=SV[i2+2]; ctx.lineWidth=lw*(0.35+0.65*wv); ctx.globalAlpha=Math.min(1,wv*2.5);
+        ctx.beginPath(); ctx.moveTo(cx+SV[i1]*f/z1,cy-SV[i1+1]*f/z1); ctx.lineTo(cx+SV[i2]*f/z2,cy-SV[i2+1]*f/z2); ctx.stroke(); }
+      ctx.globalAlpha=1; }
   }
 }
 let last=0;
