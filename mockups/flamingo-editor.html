@@ -314,7 +314,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     // are shorter the nearer they sit to the body, so the wing's back edge curves in to meet it.
     // It has no edge: it is laid down in thin see-through layers, each reaching a little further out along the wing and a little further
     // back over the feathers than the one before, so the wing's own colours pass gradually into the body's pink.
-    { for(let k=9;k>=0;k--){ if(top) break;   // the top of the wing has no pink patch over it: the wing's own shapes run clean to the body
+    { for(let k=9;k>=0;k--){ break;   // neither face of the wing has a pink patch over it: the wing's own shapes run clean to the body
       const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
         const T0=-0.34, mdl=LE(0)-dep*0.55, rnd=t=>t>=0?1:Math.sqrt(Math.max(0,1-Math.pow(t/T0,2)));   // inside the body it closes in a round end, so no corner pokes out past the shoulder
           // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
