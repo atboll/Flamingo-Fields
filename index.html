@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 19:20</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 19:50</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1482,15 +1482,19 @@ function whGround(x,z,mid){ const g=ground(x,z), d=Math.hypot(x-mid[0],z-mid[1])
 function whalesStart(){ const mid=whMid(); whales=WHALE_CFG.map((c,i)=>{
     const len=c.z*KID_H, R=5200+len*1.25+(h2(i,811)-0.5)*900, th=i*Math.PI*2/WHALE_CFG.length*3+(h2(i,813)-0.5)*0.5;   // every third place round the ring, so big and small are mixed
     return {c, look:null, len, R, ph:h2(i,817)*6.28, v:110+len*0.045, x:mid[0]+R*Math.cos(th), z:mid[1]+R*Math.sin(th), y:null, psi:th+Math.PI/2, turn:0, tip:0, tb:h2(i,819)*6, mode:0, tx:0, tz:0, low:c.c?0.74:0.33}; });
-  // the five biggest have voices: one call each, deeper and slower the bigger the whale
-  whales.slice().sort((a,b)=>b.len-a.len).slice(0,5).forEach((w,i)=>{ w.voice=i; w.rate=0.84+i*0.055; w.callT=time+5+i*6.5+h2(i,823)*4; w.snd=null; });
+  // voices: each whale has up to six sounds of its own (sn), a pitch (sp), a pause between calls in seconds (sw) and a volume (sv), set on the mockup page.
+  // A whale saved without them gets a set to be going on with: the big calls for the big whales, slower the bigger; the singing for the small ones.
+  whales.forEach((w,i)=>{ const c=w.c, big=c.z>=30, has=Array.isArray(c.sn)&&c.sn.length>0;
+    w.sn=has?c.sn:(big?[0,1,2,3,4,5].map(k=>'b'+(k+i)%7):[0,1,2,3,4,5].map(k=>'s'+(i*5+k*3)%14));
+    w.rate=has?c.sp/100:(big?clamp(1.12-c.z/260,0.8,1.05):clamp(1.3-c.z/60,1,1.25)); w.pause=has?c.sw:(big?18:22); w.vol=has?c.sv/100:(big?1:0.7);
+    w.callT=time+3+h2(i,823)*22; w.snd=null; w.last=null; });
   whCrossT=time+WH_CROSS_FIRST; whCrossI=0; }
 function whalesUpdate(dt){ const mid=whMid();
-  if(time>whCrossT){ whCrossT=time+WH_CROSS_EVERY; for(let n=0;n<whales.length;n++){ const w=whales[(whCrossI+n*3)%whales.length]; if(w.mode===0){ w.mode=1; if(w.voice!==undefined) w.callT=Math.min(w.callT,time+1.5); whCrossI=(whCrossI+n*3+3)%whales.length; break; } } }
+  if(time>whCrossT){ whCrossT=time+WH_CROSS_EVERY; for(let n=0;n<whales.length;n++){ const w=whales[(whCrossI+n*3)%whales.length]; if(w.mode===0){ w.mode=1; w.callT=Math.min(w.callT,time+1.5); whCrossI=(whCrossI+n*3+3)%whales.length; break; } } }
   for(const w of whales){
     const dx=w.x-mid[0], dz=w.z-mid[1], dist=Math.hypot(dx,dz), th=Math.atan2(dz,dx); let cx, cz;
     if(w.mode===0){ const a=th+0.32, R=w.R*(1+0.07*Math.sin(3*a+w.ph)+0.04*Math.sin(5*a+w.ph*2.1)); cx=mid[0]+R*Math.cos(a); cz=mid[1]+R*Math.sin(a); }   // round the ring: a regular path with a slow swell in and out of its own
-    else if(w.mode===1){ cx=mid[0]; cz=mid[1]; if(dist<Math.max(700,w.len*0.3)){ w.mode=2; if(w.voice!==undefined) w.callT=Math.min(w.callT,time); w.tx=mid[0]+Math.cos(w.psi)*w.R; w.tz=mid[1]+Math.sin(w.psi)*w.R; } }   // leaving the ring to pass over the doorway...
+    else if(w.mode===1){ cx=mid[0]; cz=mid[1]; if(dist<Math.max(700,w.len*0.3)){ w.mode=2; w.callT=Math.min(w.callT,time); w.tx=mid[0]+Math.cos(w.psi)*w.R; w.tz=mid[1]+Math.sin(w.psi)*w.R; } }   // leaving the ring to pass over the doorway...
     else { cx=w.tx; cz=w.tz; if(dist>w.R*0.82) w.mode=0; }                                                                                                              // ...and straight on to the ring on the far side
     let d=Math.atan2(cz-w.z,cx-w.x)-w.psi; d=Math.atan2(Math.sin(d),Math.cos(d));
     const maxT=w.v/Math.max(1300,w.len*0.9), want=clamp(d*0.8,-maxT,maxT); w.turn+=(want-w.turn)*(1-Math.exp(-dt*1.2)); w.psi+=w.turn*dt;
@@ -2026,22 +2030,22 @@ function updateFastSound(){
   const bk=lead.fly?clamp(boostT/0.9,0,1):0, lvl=on*1.8*(1+0.5*bk)+(1-on)*bk*1.3;   // a blue feather makes the wind howl half as loud again, and brings it in for a feather flight too
   fastGain.gain.setTargetAtTime(lvl,t,lvl>0?0.25:0.5);
 }
-// The big whales' calls. Each of the five giants has its own, played a little slower the bigger it is. They call now and then as they circle,
-// and when they leave the ring and pass over the doorway. How loud depends on how far the whale is from the kids, and it is heard from the side it is on.
-// Layered over everything else; nothing is turned down for them.
-const WH_SND=5; let whBufs=null, whLoading=false;
+// The whales' voices. Each whale calls with one of its own sounds, picked at random and never the same twice running, then waits out its pause
+// (give or take a fifth) before the next. One that leaves the ring to cross calls as it sets off and again over the doorway.
+// How loud depends on how far the whale is from the kids, and it is heard from the side it is on. Layered over everything else; nothing is turned down for them.
+const WH_FILE=id=>(id[0]==='b'?'whale_big_':'whale_sing_')+id.slice(1)+'.mp3', whBuf={};
 function updateWhaleSound(){
   if(!actx || !master || level!==2 || !whales) return;
-  if(!whBufs){ if(!whLoading){ whLoading=true; const got=[]; let left=WH_SND;
-      for(let i=0;i<WH_SND;i++) fetch('whale_big_'+(i+1)+'.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b)).then(buf=>{ got[i]=buf; }).catch(()=>{}).then(()=>{ if(--left===0) whBufs=got; }); }
-    return; }
   const t=actx.currentTime;
-  for(const w of whales){ if(w.voice===undefined) continue; const buf=whBufs[w.voice]; if(!buf) continue;
-    if(!w.snd && time>w.callT){ const src=actx.createBufferSource(), g=actx.createGain(), pan=actx.createStereoPanner?actx.createStereoPanner():null, wh=w;
+  for(const w of whales){
+    for(const id of w.sn) if(whBuf[id]===undefined){ whBuf[id]=null; fetch(WH_FILE(id)).then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b)).then(buf=>{ whBuf[id]=buf; }).catch(()=>{}); }
+    if(!w.snd && time>w.callT){ const ready=w.sn.filter(id=>whBuf[id]); if(ready.length){
+      const pick=ready.length>1?ready.filter(id=>id!==w.last):ready, id=pick[Math.floor(Math.random()*pick.length)], buf=whBuf[id];
+      const src=actx.createBufferSource(), g=actx.createGain(), pan=actx.createStereoPanner?actx.createStereoPanner():null, wh=w;
       src.buffer=buf; src.playbackRate.value=w.rate; g.gain.value=0; src.connect(g); if(pan){ g.connect(pan); pan.connect(master); } else g.connect(master);
-      src.onended=()=>{ if(wh.snd && wh.snd.src===src) wh.snd=null; }; src.start(); w.snd={src,g,pan}; w.callT=time+buf.duration/w.rate+16+Math.random()*30; }
+      src.onended=()=>{ if(wh.snd && wh.snd.src===src){ wh.snd=null; wh.callT=time+wh.pause*(0.8+0.4*Math.random()); } }; src.start(); w.snd={src,g,pan}; w.last=id; w.callT=time+1e6; } }
     if(w.snd){ const dx=w.x-lead.x, dz=w.z-lead.z, d=Math.hypot(dx,dz,w.y-w.low*w.len/2-ground(lead.x,lead.z)-lead.y), q=d/3600;
-      w.snd.g.gain.setTargetAtTime(1.7/(1+q*q),t,0.35);
+      w.snd.g.gain.setTargetAtTime(w.vol*1.7/(1+q*q),t,0.35);
       if(w.snd.pan) w.snd.pan.pan.setTargetAtTime(clamp((dx*rgtX+dz*rgtZ)/Math.max(400,d)*1.1,-0.85,0.85),t,0.35); }
   }
 }
