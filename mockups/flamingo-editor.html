@@ -269,7 +269,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   // Unfolding from closed to full spread happens in three moves: the upper arm swings out from the body, then the forearm
   // straightens, then the hand opens and the flight feathers fan out. Folding runs the same three moves backwards.
   const open=o.open===undefined?1:o.open, ss=(a,b)=>{ const t=clamp((open-a)/(b-a),0,1); return t*t*(3-2*t); };
-  const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.9,0.75,-0.95,-0.6], chord=0.86+0.14*(OP[0]+OP[1]+OP[2])/3, QF=[1-OP[0],1-OP[0],1-OP[1],1-OP[2],1-OP[3]], QA=1-(OP[0]+OP[1]+OP[2])/3;   // the wing keeps its width as it folds; QF is how far each joint is folded
+  const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.7,-0.4,-0.7,-0.5], chord=0.86+0.14*(OP[0]+OP[1]+OP[2])/3, QF=[1-OP[0],1-OP[0],1-OP[1],1-OP[2],1-OP[3]], QA=1-(OP[0]+OP[1]+OP[2])/3;   // the wing keeps its width as it folds; QF is how far each joint is folded
   const amp=(1-0.82*glide)*OP[2], down=clamp(-Math.cos(phi),0,1)*amp, upst=clamp(Math.cos(phi),0,1)*amp, SEG=[16,15,14,13];
   const rz=0.42*Math.sin(Math.PI*clamp(open,0,1));   // how far through opening or closing the wings are, most at the half-way point: it sets the flap-like tilt
   const ang=[0,1,2,3].map(k=>Math.sin(phi-0.38*k)*(0.46+0.2*k)*amp+0.12*glide-upst*0.16*k);
@@ -279,10 +279,10 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   const wing=sd=>{
     const isFar=(-sd*cfx>0);
     const xs=[4.4], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
-    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
+    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e-SEG[k]*0.16*(1-e)*0.55); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
     // As a part folds, its surface turns from lying flat to hanging down along the flank: the leading edge rides up onto the back and the feathers point back and down.
-    const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.45*q+1.3*rz;   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*chord*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*chord*Math.sin(tl)); };
+    const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
     // which face of the wing is turned toward us
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=QA>0.5||((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
@@ -314,6 +314,10 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       else { for(let i=28;i>=0;i--){ const t=3.9*i/28; pts.push(Wp(t,Math.min(LE(t)-0.3,-3.2-(i%2?1.9:0)+1.6*i/28))); } }               // underneath, their edge is scalloped
       poly(pts,C.cov);
       const q=[]; for(let i=0;i<=10;i++){ const t=2.6*i/10; q.push(Wp(t,LE(t))); } for(let i=10;i>=0;i--){ const t=2.6*i/10; q.push(Wp(t,LE(t)-4.4*(1-0.5*i/10))); } poly(q,C.pale); }   // paler along the leading edge
+    // Folded, the pink feathers of the back and shoulder lie over the black band and most of the flight feathers, so only the dark tips
+    // show beneath and behind them. This cover has a toothed lower edge and a thin outline, and it draws back as the wing opens.
+    if(QA>0.3){ const pts=[], N=16; for(let i=0;i<=N;i++){ const t=3.3*i/N; pts.push(Wp(t,LE(t))); } for(let i=5;i>=1;i--){ const t=3.3*i/5; pts.push(Wp(t+0.1,-17.5+3*i/5)); pts.push(Wp(t-0.52,-8.5+1.5*i/5)); } pts.push(Wp(0,-8.5));
+      ctx.globalAlpha=clamp((QA-0.3)/0.3,0,1); poly(pts,'#ff9dbf'); ctx.strokeStyle='#ec78a5'; ctx.lineWidth=Math.max(0.6,0.3*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.stroke(); ctx.globalAlpha=1; }
     if(QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
                                                 // rows of covert feathers
     { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
@@ -528,9 +532,8 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
   // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
   // so the same wing unfolds from lying along the flank to full spread.
-  const wingAny=sd=>{ if(m.open===undefined){ wingFold(sd); return; }
-    const o0=P(0,3.5,42.4+bob); if(m.open>0.3) drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:m.open,phase:m.phase||0,glide:m.open<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round';
-    if(m.open<0.56){ const L=clamp(m.open/0.5,0,1); ctx.globalAlpha=clamp((0.56-m.open)/0.18,0,1); wingFold(sd,1.15*L*L*(3-2*L)); ctx.globalAlpha=1; } };   // closed, it is the standing bird's own folded wing; the jointed wing comes out from under it as that fades
+  const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,3.5,42.4+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
+    drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:op,phase:m.phase||0,glide:op<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round'; };
   const thighs=()=>{ leg(far,1); leg(-far,1); }, bodyS=()=>body('shape');
   ctx.lineCap='round'; ctx.lineJoin='round';
   if(cfz>0){ skin([neckS]); headAll(); leg(far,0); wingAny(far); skin([thighs,bodyS]); tail(); wingAny(-far); leg(-far,0); }
