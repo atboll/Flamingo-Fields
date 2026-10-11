@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 18:30</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 19:00</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1478,9 +1478,10 @@ let whales=null, whCrossT=0, whCrossI=0, whMs=0;
 const whMid=()=>{ const c=boxC(); return [c[0]-SUNDX*BOX_HALF, c[1]-SUNDZ*BOX_HALF]; };   // the middle of their ring: the doorway
 // the ground as a whale must treat it: the clouds, and the doorway standing up out of them
 function whGround(x,z,mid){ const g=ground(x,z), d=Math.hypot(x-mid[0],z-mid[1]); if(d>1900) return g; const q=clamp((1900-d)/1300,0,1); return g+(DOOR_H+D2_POST+60)*q*q*(3-2*q); }
+// low: how deep a whale's body (and its calf's) reaches below its middle, as a share of half its length. Flippers and tail tips hang lower and may trail through the cloud tops.
 function whalesStart(){ const mid=whMid(); whales=WHALE_CFG.map((c,i)=>{
     const len=c.z*KID_H, R=5200+len*1.25+(h2(i,811)-0.5)*900, th=i*Math.PI*2/WHALE_CFG.length*3+(h2(i,813)-0.5)*0.5;   // every third place round the ring, so big and small are mixed
-    return {c, look:null, len, R, ph:h2(i,817)*6.28, v:110+len*0.045, x:mid[0]+R*Math.cos(th), z:mid[1]+R*Math.sin(th), y:null, psi:th+Math.PI/2, turn:0, tip:0, tb:h2(i,819)*6, mode:0, tx:0, tz:0, low:c.c?0.86:0.6}; });
+    return {c, look:null, len, R, ph:h2(i,817)*6.28, v:110+len*0.045, x:mid[0]+R*Math.cos(th), z:mid[1]+R*Math.sin(th), y:null, psi:th+Math.PI/2, turn:0, tip:0, tb:h2(i,819)*6, mode:0, tx:0, tz:0, low:c.c?0.74:0.33}; });
   whCrossT=time+WH_CROSS_FIRST; whCrossI=0; }
 function whalesUpdate(dt){ const mid=whMid();
   if(time>whCrossT){ whCrossT=time+WH_CROSS_EVERY; for(let n=0;n<whales.length;n++){ const w=whales[(whCrossI+n*3)%whales.length]; if(w.mode===0){ w.mode=1; whCrossI=(whCrossI+n*3+3)%whales.length; break; } } }
@@ -1492,10 +1493,10 @@ function whalesUpdate(dt){ const mid=whMid();
     let d=Math.atan2(cz-w.z,cx-w.x)-w.psi; d=Math.atan2(Math.sin(d),Math.cos(d));
     const maxT=w.v/Math.max(1300,w.len*0.9), want=clamp(d*0.8,-maxT,maxT); w.turn+=(want-w.turn)*(1-Math.exp(-dt*1.2)); w.psi+=w.turn*dt;
     const fx=Math.cos(w.psi), fz=Math.sin(w.psi); w.x+=fx*w.v*dt; w.z+=fz*w.v*dt;
-    // height: over the highest cloud anywhere under its body, flippers and calf, by its own depth plus a gap. It follows the land, and can never be lower than that.
+    // height: its body (and its calf) just over the highest cloud anywhere under it. It follows the land, and can never be lower than that.
     let G=-1e9; const half=w.len/2, wide=w.len*0.17;
     for(let i=-5;i<=5;i++){ const a=i*half*0.24; for(let j=-2;j<=2;j++){ const g=whGround(w.x+fx*a-fz*j*wide, w.z+fz*a+fx*j*wide, mid); if(g>G) G=g; } }
-    const lean=0.62*Math.abs(Math.sin(whRoll(w)))+1.1*Math.abs(Math.sin(w.tip)), floor=G+(w.low+lean)*half+WH_GAP,   // banking and nosing up or down swing the flippers and tail lower, so they count too
+    const lean=0.22*Math.abs(Math.sin(whRoll(w)))+0.75*Math.abs(Math.sin(w.tip)), floor=G+(w.low+lean)*half+WH_GAP,   // banking and nosing up or down swing the body lower, so they count too
           aim=floor+half*(0.012+0.012*Math.sin(time*0.17+w.ph)), y0=w.y;
     w.y=w.y===null?aim:Math.max(floor,w.y+(aim-w.y)*(1-Math.exp(-dt*0.7)));
     const vy=y0===null?0:(w.y-y0)/Math.max(dt,1e-3); w.tip+=(clamp(vy/w.v,-0.1,0.1)-w.tip)*(1-Math.exp(-dt*1.5));
