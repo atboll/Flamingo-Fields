@@ -253,7 +253,7 @@ function drawBirdNew(o,sx,sy,s){ return drawBirdNewOn(ctx,o,sx,sy,s); }
 function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph, id, y absolute height, sc size}
   const cfx=o.hx*rgtX+o.hz*rgtZ, cfz=o.hx*fwdX+o.hz*fwdZ, S=(o.tiny?s:Math.max(s,0.17))*(o.sc||1.9), ph=o.ph;
   // seen a little from above (or from below when the camera is under the flock), so the wing surfaces show instead of lying edge-on
-  const elev=clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.3, ce=Math.cos(elev), se=Math.sin(elev);
+  const elev=o.elev!==undefined?o.elev:clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.3, ce=Math.cos(elev), se=Math.sin(elev);
   const roll=o.roll||0, cr=Math.cos(roll), sr=Math.sin(roll);
   const P=(lat0,fwd,up0)=>{ const lat=lat0*cr+up0*sr, up=up0*cr-lat0*sr, d=-lat*cfx+fwd*cfz, k=S*(1-0.0065*d); return [sx+(lat*cfz+fwd*cfx)*k, sy-(up*ce+d*se)*k]; };
   const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
@@ -263,13 +263,13 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   // Wingbeat. Each bird keeps its own tempo; the down-stroke is quicker than the up-stroke; now and then a bird rests on a short glide.
   const glide=o.phase!==undefined?(o.glide||0):clamp((Math.sin(time*0.37+ph*3.1)-0.82)/0.12,0,1), beat=o.phase!==undefined?o.phase:time*4.2*(0.92+0.16*h2(o.id,3))+ph, phi=beat+0.4*Math.sin(beat);   // the editor can hold the wingbeat at any moment
   // The body rides the wingbeat (up as the wings come down) while the head holds level, as a real bird's does; the neck takes up the difference.
-  const bob=-Math.sin(phi)*2.6*(1-glide), sway=Math.sin(time*0.9+ph*2)*0.7;
+  const bob=o.noBob?0:-Math.sin(phi)*2.6*(1-glide), sway=Math.sin(time*0.9+ph*2)*0.7;
   // The wing is four jointed parts: upper arm, forearm, hand and tip. Each joint follows the one before it a moment later,
   // so the beat travels out along the wing; on the up-stroke the outer parts fold, and the black flight feathers close up, then spread on the way down.
   // Unfolding from closed to full spread happens in three moves: the upper arm swings out from the body, then the forearm
   // straightens, then the hand opens and the flight feathers fan out. Folding runs the same three moves backwards.
   const open=o.open===undefined?1:o.open, ss=(a,b)=>{ const t=clamp((open-a)/(b-a),0,1); return t*t*(3-2*t); };
-  const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.9,0.75,-0.95,-0.6], chord=0.4+0.6*(OP[0]+OP[1]+OP[2])/3;
+  const OP=[ss(0,0.42),ss(0.3,0.72),ss(0.58,1),ss(0.58,1)], FOLD=[-0.9,0.75,-0.95,-0.6], chord=0.86+0.14*(OP[0]+OP[1]+OP[2])/3, QF=[1-OP[0],1-OP[0],1-OP[1],1-OP[2],1-OP[3]], QA=1-(OP[0]+OP[1]+OP[2])/3;   // the wing keeps its width as it folds; QF is how far each joint is folded
   const amp=(1-0.82*glide)*OP[2], down=clamp(-Math.cos(phi),0,1)*amp, upst=clamp(Math.cos(phi),0,1)*amp, SEG=[16,15,14,13];
   const ang=[0,1,2,3].map(k=>Math.sin(phi-0.38*k)*(0.46+0.2*k)*amp+0.12*glide-upst*0.16*k);
   // The wing, rebuilt from the reference picture: long and tapering to a fingered tip. Along its whole back edge, from body to tip,
@@ -280,9 +280,10 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     const xs=[4.4], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
     for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
-    const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k; return P(sd*(xs[k]+(xs[k+1]-xs[k])*r), f*chord+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r); };
+    // As a part folds, its surface turns from lying flat to hanging down along the flank: the leading edge rides up onto the back and the feathers point back and down.
+    const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.45*q; return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*chord*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*chord*Math.sin(tl)); };
     // which face of the wing is turned toward us
-    const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
+    const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=QA>0.5||((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
                :{cov:'#ec78a5',pale:'#ff9dbf',line:'#d85f90',band:null,f1:'#6a2d3f',f2:'#8f465b',edge:'#ff9dbf'};
     const LE=t=>t<2?9-0.75*t:t<3?7.5-2*(t-2):5.5-7.5*(t-3);
@@ -292,7 +293,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     // only their rounded tips stand apart, a little on the arm and deeply out at the wing tip, where they spread like fingers.
     const NF=17, F=[];
     for(let j=0;j<NF;j++){ const u=j/(NF-1), tb=0.1+3.55*u, fb=-2.5+1.5*u, sweep=Math.pow(clamp((u-0.45)/0.55,0,1),1.6);
-      const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.42,0.62,0.82][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.35+0.65*OP[3]:0.5+0.5*OP[1]);
+      const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.42,0.62,0.82][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
       F.push({tb,fb,tt:tb+sweep*0.9,ft:fb-len*(1-0.6*sweep),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
     const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.86-0.4*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
@@ -420,6 +421,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       g.globalCompositeOperation='source-atop'; poly([h0].concat(nl,W,[t0,[t0[0]+ux,t0[1]+uy],[h0[0]+ux,h0[1]+uy]]),DK); g.globalCompositeOperation='source-over';
       ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
     const thighs=()=>{ legs(far,1); legs(-far,1); }, bodyS=()=>body('shape'), neckS=()=>neck('shape');
+    if(o.wingsOnly){ wing(o.wingsOnly==='far'?far:-far); return; }   // the standing bird borrows just these wings when it opens them
     legs(far,0);                                        // the far leg is always behind the body, so it never shows on the near side
     if(above) legs(-far,0);                             // seen from above, the near leg is under the body too
     if(cfz>0){ skin([neckS]); neck('detail'); }         // flying away: the neck and head are the far end
@@ -522,10 +524,15 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     const W=body('mask'), a=W[0], a1=W[1], e=W[W.length-1], e0=W[W.length-2], h0=[a[0]+(a[0]-a1[0])*8,a[1]+(a[1]-a1[1])*8], t0=[e[0]+(e[0]-e0[0])*8,e[1]+(e[1]-e0[1])*8];
     g.globalCompositeOperation='source-atop'; poly([h0].concat(W,[t0,[t0[0],t0[1]+200*S],[h0[0],h0[1]+200*S]]),DK); g.globalCompositeOperation='source-over';
     ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
+  // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
+  // so the same wing unfolds from lying along the flank to full spread.
+  const wingAny=sd=>{ if(m.open===undefined){ wingFold(sd); return; }
+    const o0=P(0,3.5,42.4+bob); if(m.open>0.06) drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:m.open,phase:m.phase||0,glide:m.open<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round';
+    if(m.open<0.36){ ctx.globalAlpha=clamp((0.36-m.open)/0.2,0,1); wingFold(sd); ctx.globalAlpha=1; } };   // closed, it is the standing bird's own folded wing; the jointed wing comes out from under it as that fades
   const thighs=()=>{ leg(far,1); leg(-far,1); }, bodyS=()=>body('shape');
   ctx.lineCap='round'; ctx.lineJoin='round';
-  if(cfz>0){ skin([neckS]); headAll(); leg(far,0); wingFold(far); skin([thighs,bodyS]); tail(); wingFold(-far); leg(-far,0); }
-  else { leg(far,0); wingFold(far); tail(); skin([thighs,neckS,bodyS]); wingFold(-far); leg(-far,0); headAll(); }
+  if(cfz>0){ skin([neckS]); headAll(); leg(far,0); wingAny(far); skin([thighs,bodyS]); tail(); wingAny(-far); leg(-far,0); }
+  else { leg(far,0); wingAny(far); tail(); skin([thighs,neckS,bodyS]); wingAny(-far); leg(-far,0); headAll(); }
 }
 
 /* ---- the editor ---- */
@@ -546,18 +553,18 @@ function drawBg(){
 function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0), sp=+$('spd').value/100; last=now; T+=dt; time+=dt*sp;
   if(yawTo!==null){ const k=1-Math.exp(-dt*6); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; pitch+=(pitchTo-pitch)*k; if(Math.abs(d)<0.002 && Math.abs(pitchTo-pitch)<0.002) yawTo=null; }
   ctx.setTransform(DPR,0,0,DPR,0,0); drawBg();
-  const zoom=+$('zoom').value/100, air=pose==='fly'||pose==='open'; refImg=refOwn||(air?refFly:refStand);   // the standing picture for the ground poses, the flying one in the air
+  const zoom=+$('zoom').value/100, air=pose==='fly'||(pose==='open'&&!newW); refImg=refOwn||(air?refFly:refStand);   // the standing picture for the ground poses, the flying one in the air
   const side=refMode==='side' && refImg.complete && refImg.naturalWidth>0, bx=side?W*(kidsOn&&!air?0.42:0.34):W*(kidsOn&&!air?0.58:0.5);     // the bird moves left to make room for the picture
   const s=zoom*Math.min(W*(side?0.5:0.9),H*1.25)/(air?135:(kidsOn?165:130)), gy=H*0.86, hx=Math.sin(yaw), hz=Math.cos(yaw);
   // the reference picture, beside the bird or laid over it
   if(refMode!=='off' && refImg.complete && refImg.naturalWidth>0){ const k=+$('refS').value/100, ih=H*0.84*k, iw=ih*refImg.naturalWidth/refImg.naturalHeight;
     ctx.globalAlpha=(+$('refA').value/100)*(refMode==='over'?0.55:1); ctx.drawImage(refImg, (side?W*0.74:bx)-iw/2, (refMode==='over'?gy-ih*0.9:H*0.5-ih/2), iw, ih); ctx.globalAlpha=1; }
   if(!air){ ctx.fillStyle='rgba(20,24,50,0.12)'; ctx.beginPath(); ctx.ellipse(bx,gy,26*s,3.2*s,0,0,6.2832); ctx.fill(); }   // a little shadow where it stands
-  if(pose==='fly' || pose==='open'){ const D=Math.max(200,focal/s); camY=Math.tan(clamp(pitch-0.3,-0.69,0.69))*D;
+  if(air){ const D=Math.max(200,focal/s); camY=Math.tan(clamp(pitch-0.3,-0.69,0.69))*D;
     if(!frozen) beatPh+=dt*sp*4.2; const o={hx,hz,ph:1.3,id:51,y:0,sc:1.3,open:pose==='open'?0.5+0.5*Math.sin(time*0.8):1,roll:0,tiny:true};
     if(newW){ o.phase=frozen?(+$('wpos').value/100)*6.2832:beatPh; drawBirdNew(o, bx, H*0.5, s); } else drawBird(o, bx, H*0.5, s); }
   else { const v=pose==='walk'?70:pose==='run'?300:0; wp+=dt*sp*(2+v*0.035)*(v>10?1:0);
-    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true}, bx, gy, s); }
+    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true, open:pose==='open'?0.5-0.5*Math.cos(time*0.8):undefined, phase:frozen?(+$('wpos').value/100)*6.2832:time*4.2}, bx, gy, s); }
   if(kidsOn && !air){ const hk=98*s;   // the kids at their true size beside it: the big one is 98 high, a standing flamingo about 77
     for(let i=0;i<2;i++){ const im=KIDIMG[i]; if(!im.complete || !im.naturalWidth) continue; const kk=KIDS[i], scl=hk/KIDS[0].h*(i?1/1.15:1), w=kk.w*scl, h=kk.h*scl, x=bx-34*s-(i?0.5:0.98)*hk; ctx.drawImage(im,x,gy-h,w,h); } }
   requestAnimationFrame(tick); }
