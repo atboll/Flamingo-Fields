@@ -4,7 +4,9 @@
       "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/702eeb68-image.png mockups/flamingo-ref-1.png)",
       "Bash(git add *)",
       "Bash(git commit -qm 'Flamingo Editor: first page, the game'\\\\''s flamingo in every pose beside a reference picture *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/72c4e1da-image.png mockups/flamingo-ref-2-flying.png)",
+      "Bash(git commit -qm 'Flamingo Editor: rebuilt flying wing from the reference, freeze and wing-position controls *)"
     ]
   }
 }
