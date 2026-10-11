@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:40</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:50</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -242,8 +242,9 @@ function drawDoorLight(){
     bx1.imageSmoothingEnabled=true; bx1.globalCompositeOperation='copy'; bx1.drawImage(cv,0,0,w1,h1); bx2.imageSmoothingEnabled=true; bx2.globalCompositeOperation='copy'; bx2.drawImage(bl1,0,0,w2,h2b);
     ctx.save(); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=b; ctx.imageSmoothingEnabled=true; ctx.drawImage(bl2,0,0,W,H); ctx.restore(); }
   if(n>0.004){ ctx.save(); ctx.globalCompositeOperation='source-over';   // the light takes the whole view as the kids come up to the door
-    const X=r?r.cx:W/2, Y=r?r.cy:H*0.45, R=Math.max(W,H)*(0.25+1.1*n), g=ctx.createRadialGradient(X,Y,0,X,Y,R); g.addColorStop(0,'rgba(255,255,250,'+(0.9*n).toFixed(3)+')'); g.addColorStop(0.5,'rgba(255,254,244,'+(0.5*n*n).toFixed(3)+')'); g.addColorStop(1,'rgba(255,254,244,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='rgba(255,254,246,'+Math.pow(clamp(n/0.93,0,1),2.6).toFixed(3)+')'; ctx.fillRect(0,0,W,H); ctx.restore(); }
+    const m=level===2?Math.min(1,n*1.2):n;   // on the clouds the light takes the view a fifth more strongly as the kids come near
+    const X=r?r.cx:W/2, Y=r?r.cy:H*0.45, R=Math.max(W,H)*(0.25+1.1*m), g=ctx.createRadialGradient(X,Y,0,X,Y,R); g.addColorStop(0,'rgba(255,255,250,'+Math.min(1,0.9*m).toFixed(3)+')'); g.addColorStop(0.5,'rgba(255,254,244,'+(0.5*m*m).toFixed(3)+')'); g.addColorStop(1,'rgba(255,254,244,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='rgba(255,254,246,'+Math.pow(clamp(m/0.93,0,1),2.6).toFixed(3)+')'; ctx.fillRect(0,0,W,H); ctx.restore(); }
   if(n>0.004) frontOverLight(-1e9,-1e9,1e9,1e9,n); else if(r) frontOverLight(r.cx-r.R2*1.5,-1e9,r.cx+r.R2*1.5,1e9,0);
 }
 function doorLightBody(near){
@@ -278,8 +279,8 @@ function doorLightBody(near){
   gr=ctx.createRadialGradient(cx,cy,0,cx,cy,R2); gr.addColorStop(0,'rgba(248,250,240,'+(0.26*A*edge)+')'); gr.addColorStop(0.5,'rgba(244,248,238,'+(0.1*A*edge)+')'); gr.addColorStop(1,'rgba(244,248,238,0)');
   ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cx,cy,R2,0,7); ctx.fill();
   ctx.save(); ctx.translate(cx,cy); ctx.scale(1,0.16); gr=ctx.createRadialGradient(0,0,0,0,0,R2*1.5); gr.addColorStop(0,'rgba(255,255,250,'+(0.3*A*edge)+')'); gr.addColorStop(1,'rgba(255,255,250,0)'); ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(0,0,R2*1.5,0,7); ctx.fill(); ctx.restore();
-  // the ray: a thin blade of light straight up out of the doorway, far taller than the box
-  { const top=Math.min(a1[1],b1[1]), len=Math.max(70*q,dh*7.5), wd=clamp(dw*0.2,1.6,6*q), y1=top-len, gr2=ctx.createLinearGradient(0,cy,0,y1);
+  // the ray: a thin blade of light straight up out of the doorway, far taller than the box (level 1 only: the door on the clouds has none)
+  if(!L2){ const top=Math.min(a1[1],b1[1]), len=Math.max(70*q,dh*7.5), wd=clamp(dw*0.2,1.6,6*q), y1=top-len, gr2=ctx.createLinearGradient(0,cy,0,y1);
     gr2.addColorStop(0,'rgba(255,255,250,'+(0.9*A*edge)+')'); gr2.addColorStop(0.25,'rgba(255,255,250,'+(0.55*A*edge)+')'); gr2.addColorStop(1,'rgba(255,255,250,0)');
     ctx.fillStyle=gr2; ctx.beginPath(); ctx.moveTo(cx-wd,cy); ctx.lineTo(cx+wd,cy); ctx.lineTo(cx+wd*0.12,y1); ctx.lineTo(cx-wd*0.12,y1); ctx.closePath(); ctx.fill();
     const gr3=ctx.createLinearGradient(0,cy,0,y1); gr3.addColorStop(0,'rgba(255,255,250,'+(0.22*A*edge)+')'); gr3.addColorStop(1,'rgba(255,255,250,0)');
