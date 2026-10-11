@@ -308,10 +308,16 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.16,-1.2)],C.line,0.45); }                                             // rows of covert feathers
     { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
   };
-  const legs=()=>{ for(const o of [-1.4,1.4]){                                                  // held straight; only the hips ride the body
-    const hp=P(o,-9,-2+bob), kn=P(o,-27,-2.4+bob*0.6), ft=P(o,-44,-2.2+bob*0.3);
-    ln([hp,kn],'#ee5f8c',1.6); dot(kn,1.15,'#dc4c7c'); ln([kn,ft],'#ee5f8c',1.35);
-    poly([P(o-1.7,-44,-2.2+bob*0.3),P(o+1.7,-44,-2.2+bob*0.3),P(o,-48.5,-2.5+bob*0.25)],'#d0406f'); } };
+  // The legs trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
+  // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
+  const legs=()=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
+    for(const o of [-1.4,1.4]){ const d=o>0?0:1.7, farL=(-o*cfx>0), dk=farL?'#c13a68':'#d5457a', lt=farL?'#e9799c':'#f79bb8', kb=farL?'#a92d58':'#c0366a';
+      const J=[[-7,-2.8+bob],[-24,-11.5-d*0.5+bob*0.6+lag*0.4],[-43.5,-22.5-d+bob*0.3+lag]], ft=[-50,-27.5-d+bob*0.25+lag*1.25];
+      ln([P(o,-3,-1.2+bob),P(o,J[0][0],J[0][1])],farL?'#e2729a':'#f48aab',3.3);                                   // the feathered thigh, coming out of the body
+      ln(J.map(q=>P(o,q[0],q[1])),dk,1.9); ln(J.map(q=>P(o,q[0],q[1]+0.55)),lt,0.8);                          // the leg: dark, with a light line along its top
+      dot(P(o,J[1][0],J[1][1]),1.45,kb); dot(P(o,J[1][0]+0.3,J[1][1]+0.4),0.55,lt);                           // the knob of the joint, with a small highlight
+      const a=P(o,J[2][0],J[2][1]), t0=P(o,ft[0],ft[1]), t1=P(o-2.1,ft[0]+1.2,ft[1]+0.7), t2=P(o+2.1,ft[0]+1.2,ft[1]+0.7);
+      poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); dot(a,1.1,kb); } };       // the webbed foot, toes trailing
   const body=()=>{
     const tail=()=>poly([P(-3.6,-8,1.5+bob),P(3.6,-8,1.5+bob),P(1.6,-19,0.8+bob*0.8),P(0,-22,1+bob*0.75),P(-1.6,-19,0.8+bob*0.8)],'#e2557f');
     if(cfz<=0) tail();
