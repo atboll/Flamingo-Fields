@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 09:55 door</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 10:10 door</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -193,10 +193,14 @@ function drawDoorLight(){
   ctx.save(); ctx.globalCompositeOperation='source-over';
   // its light on the sand: laid in thin bands outward from the door, each brightest down its middle and gone at its sides,
   // and each a little fainter than the one before, so the light has no edge anywhere and dies away over the dunes
-  { const NS=30, LEN=2300, rows=[]; for(let i=0;i<=NS;i++){ const t=i/NS, v=-BOX_HALF-LEN*t, hw=DOOR_W*0.9+900*Math.pow(t,0.8), l=at(-hw,v,null), r=at(hw,v,null); if(!l||!r) break; rows.push([l,r]); }
+  { const NS=30, LEN=2300, rows=[]; for(let i=0;i<=NS;i++){ const t=i/NS, v=-BOX_HALF-LEN*t, hw=DOOR_W*0.9+900*Math.pow(t,0.8), l=at(-hw,v,null), r=at(hw,v,null), m=at(0,v,null); if(!l||!r||!m) break; rows.push([l,r,m]); }
     for(let i=0;i+1<rows.length;i++){ const t=(i+0.5)/NS, al=0.6*A*Math.pow(1-t,2.3); if(al<0.004) break; const l0=rows[i][0], r0=rows[i][1], l1=rows[i+1][0], r1=rows[i+1][1];
-      const gr=ctx.createLinearGradient((l0[0]+l1[0])/2,(l0[1]+l1[1])/2,(r0[0]+r1[0])/2,(r0[1]+r1[1])/2), c='rgba(255,252,236,';
-      gr.addColorStop(0,c+'0)'); gr.addColorStop(0.18,c+al*0.1+')'); gr.addColorStop(0.34,c+al*0.42+')'); gr.addColorStop(0.5,c+al+')'); gr.addColorStop(0.66,c+al*0.42+')'); gr.addColorStop(0.82,c+al*0.1+')'); gr.addColorStop(1,c+'0)');
+      // the light must run even along the length of the fan, so the shading is laid square to that direction as it appears on the screen
+      const m0=rows[i][2], m1=rows[i+1][2], mx=(m0[0]+m1[0])/2, my=(m0[1]+m1[1])/2; let dx=m1[0]-m0[0], dy=m1[1]-m0[1]; const dl=Math.hypot(dx,dy); if(dl<0.01) continue; dx/=dl; dy/=dl;
+      const nx=-dy, ny=dx, tL=((l0[0]+l1[0])/2-mx)*nx+((l0[1]+l1[1])/2-my)*ny, tR=((r0[0]+r1[0])/2-mx)*nx+((r0[1]+r1[1])/2-my)*ny; if(Math.abs(tR-tL)<2) continue;
+      const ax=mx+nx*tL, ay=my+ny*tL, bx=mx+nx*tR, by=my+ny*tR, tc=clamp(-tL/(tR-tL),0.05,0.95), u=1-tc;
+      const gr=ctx.createLinearGradient(ax,ay,bx,by), c='rgba(255,252,236,';
+      gr.addColorStop(0,c+'0)'); gr.addColorStop(tc*0.36,c+al*0.1+')'); gr.addColorStop(tc*0.68,c+al*0.42+')'); gr.addColorStop(tc,c+al+')'); gr.addColorStop(tc+u*0.32,c+al*0.42+')'); gr.addColorStop(tc+u*0.64,c+al*0.1+')'); gr.addColorStop(1,c+'0)');
       ctx.fillStyle=gr; ctx.beginPath(); ctx.moveTo(l0[0],l0[1]); ctx.lineTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]+0.6); ctx.lineTo(l1[0],l1[1]+0.6); ctx.closePath(); ctx.fill(); } }
   // the doorway itself, cut off by any ground that stands in front of its foot
   ctx.save(); ctx.beginPath(); ctx.rect(-10,-10,W+20,lim+10); ctx.clip();
@@ -1215,7 +1219,7 @@ function drawWorld(){
       const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
       SD[STRN]=dn+sp; SY[STRN]=farP; STRN++;
       kidsBeyond(dn+sp);
-      const bc=boxDrawn && BOXV; if(bc){ ctx.save(); ctx.clip(BOXV.clip,'evenodd'); }   // ground lying behind the box stays behind it
+      const bc=boxDrawn && BOXV && dn+sp>BOXV.near-10; if(bc){ ctx.save(); ctx.clip(BOXV.clip,'evenodd'); }   // ground lying behind the box stays behind it; hills nearer than the box cover it as they should
       // the strip of bare ground under this row, so a hill hides whatever lies behind it
       ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1))*(1-hiF*clamp((dz-900)/2500,0,1)),0.72,1.25));
       ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
