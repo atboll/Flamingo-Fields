@@ -134,17 +134,21 @@ function blade(st,kTop,kBot,map){
 }
 const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-function flipper(sg,t){
+function flipper(sg,t){   // a long broad strap of even width with a round end and knobbly edges, as in the reference picture
   const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
-  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=36, L=0.72, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
-  for(let k=0;k<=S;k++){ const u=k/S;
-    const be=0.5+0.34*u+0.12*sw, out=0.8-0.25*u+0.5*u*sw;   // as drawn: hanging down and back, curving a little more back toward the tip; it also stands out from the body
+  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=48, L=0.7, HW=0.074, st=[], ph=t*1.25+(sg>0?0:0.9);
+  let up=0;
+  for(let k=0;k<=S;k++){ const u=1-Math.pow(1-k/S,1.5), un=1-Math.pow(1-Math.min(1,(k+1)/S),1.5);   // stations crowd toward the tip so the end comes out round
+    const flap=Math.sin(ph-u*1.3)*calm;                                 // a slow stroke up and down that runs out along the flipper
+    const be=0.42+0.3*u+0.1*Math.sin(ph*0.5)*calm, out=0.72+0.55*flap*(0.35+0.65*u);
     const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
     const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
-    const root=Math.pow(clamp(1-u/0.24,0,1),2), wd=0.165*Math.pow(Math.sin(Math.PI*Math.pow(clamp(u*0.86+0.06,0,1),0.62)),0.9)+0.012*(1-u), rq=clamp(u/0.25,0,1), hw=wd*0.5*Math.pow(1-Math.pow(u,8),0.5)*(0.55+0.45*rq*rq*(3-2*rq)), tr=(0.032*(1-u)+0.088*Math.pow(Math.sin(Math.PI*Math.pow(u,0.55)),0.8))*Math.pow(1-Math.pow(u,8),0.5),   // slim where it leaves the body; the back edge bulges toward the tail below the root, then sweeps in to the tip
-      bump=1+0.05*Math.sin(u*21+0.5)*Math.min(1,u*5), bumpB=1;   // the drawing's own width: broad a third of the way out, narrowing gently to a slim rounded tip
-    st.push({A:[c[0]+ch[0]*hw*0.84*bump,c[1]+ch[1]*hw*0.84*bump,c[2]+ch[2]*hw*0.84*bump], B:[c[0]-ch[0]*tr,c[1]-ch[1]*tr,c[2]-ch[2]*tr], n, t:(0.006+0.014*(1-u)+0.016*root)*Math.min(1,Math.sqrt((1-u)*14)), mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
-    c=[c[0]+dir[0]*L/S,c[1]+dir[1]*L/S,c[2]+dir[2]*L/S];
+    const rq=clamp(u/0.3,0,1), tipq=clamp((u-0.86)/0.14,0,1), kn=Math.min(1,u*4);
+    const hw=HW*(0.84+0.16*rq*rq*(3-2*rq))*(1+0.07*Math.sin(Math.PI*u))*Math.sqrt(Math.max(0,1-tipq*tipq));
+    const fr=hw*(1+0.085*Math.sin(u*27+0.4)*kn), bk=hw*(1+0.06*Math.sin(u*19+2)*kn);
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), m=clamp((u-0.13)/0.2,0,1);
+    st.push({A:[c[0]+ch[0]*fr,c[1]+ch[1]*fr,c[2]+ch[2]*fr], B:[c[0]-ch[0]*bk,c[1]-ch[1]*bk,c[2]-ch[2]*bk], n, t:(0.008+0.012*(1-u)+0.014*root)*Math.sqrt(Math.max(0.02,1-tipq*tipq)), mix:1-m*m*(3-2*m)});
+    const d=(un-u)*L; c=[c[0]+dir[0]*d,c[1]+dir[1]*d,c[2]+dir[2]*d];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
 }
