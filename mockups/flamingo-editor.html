@@ -327,7 +327,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       // so the leg grows out of the body instead of being pinned to it
       { const A=[-1,0.2+bob,o*0.8], B=[J[1][0]+2.5,J[1][1]+1.6,J[1][2]], a=P(A[2],A[0],A[1]), b=P(B[2],B[0],B[1]), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], R=[];
         for(let i=0;i<=10;i++){ const t=i/10, hw=(3.7*Math.pow(1-t,0.75)*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.7+0.25)))+0.95)*S; L.push([a[0]+dx*t+nx*hw,a[1]+dy*t+ny*hw]); R.push([a[0]+dx*t-nx*hw,a[1]+dy*t-ny*hw]); }
-        poly(L.concat(R.reverse()),farL?'#9a2560':'#b12c69'); ln([P(A[2],A[0]-4,A[1]-2.6),P(B[2],B[0]+3,B[1]+0.2)],farL?'#7c1c4b':'#8f2256',1.2); }   // with a darker line along its underside
+        dot(a,4.16,farL?'#9a2560':'#b12c69'); poly(L.concat(R.reverse()),farL?'#9a2560':'#b12c69');   // rounded where it begins, so no straight end shows
+        ln([P(A[2],A[0]-4,A[1]-2.6),P(B[2],B[0]+3,B[1]+0.2)],farL?'#7c1c4b':'#8f2256',1.2); }   // with a darker line along its underside
       ln(J.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(J.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8);                          // the leg: dark, with a light line along its top
       dot(P(J[1][2],J[1][0],J[1][1]),1.45,kb); dot(P(J[1][2],J[1][0]+0.3,J[1][1]+0.4),0.55,lt);                           // the knob of the joint, with a small highlight
       const a=P(J[2][2],J[2][0],J[2][1]), t0=P(ft[2],ft[0],ft[1]), t1=P(ft[2]-2.1,ft[0]+1.4,ft[1]+0.4), t2=P(ft[2]+2.1,ft[0]+1.4,ft[1]+0.4);
