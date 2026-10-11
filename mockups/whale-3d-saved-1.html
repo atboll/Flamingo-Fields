@@ -1,0 +1,416 @@
+<title>Whale 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* layout: one screen — a slim title row, the canvas taking all spare height, a wrapping row of controls beneath */
+:root{
+  --paper:#f6f4ee; --ink:#27303f; --soft:#6d7686; --line:#d6d2c6; --panel:#ece9df; --accent:#3f5f8f;
+  --display:"Klee One","Hiragino Maru Gothic ProN","Trebuchet MS",sans-serif; --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark } }
+:root[data-theme="dark"]{ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);display:flex;flex-direction:column;gap:10px;padding-inline:16px;padding-block:12px;box-sizing:border-box}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font:600 20px/1.2 var(--display);margin:0;text-wrap:balance}
+header p{margin:0;color:var(--soft);font-size:13px}
+#stage{flex:1 1 auto;min-height:260px;border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.drag{cursor:grabbing}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.controls label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--soft);min-width:0}
+.controls input[type=range]{width:120px;max-width:38vw;accent-color:var(--accent)}
+.seg{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:6px 10px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--paper)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tog{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+.tog[aria-pressed=true]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+[hidden]{display:none!important}
+output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
+#slots button{min-width:44px;font-variant-numeric:tabular-nums;color:var(--soft)}
+#slots button[data-full]{color:var(--ink);font-weight:600;box-shadow:inset 0 -3px 0 var(--accent)}
+#hint{font-size:13px;color:var(--soft)}
+#listtxt{flex:1 1 260px;min-width:0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
+</style>
+
+<header>
+  <h1>Whale 3D</h1>
+  <p>Make whales from the base humpback: set the markings, save up to ten. Drag the picture to turn it. Nothing here is in the game yet.</p>
+</header>
+<div id="stage"><canvas id="cv" aria-label="A solid humpback whale that can be turned by dragging"></canvas></div>
+<div class="controls">
+  <div class="seg" role="group" aria-label="View">
+    <button type="button" data-view="side">Side</button>
+    <button type="button" data-view="above">Above</button>
+    <button type="button" data-view="below">Below</button>
+    <button type="button" data-view="front">Front</button>
+    <button type="button" data-view="behind">Behind</button>
+  </div>
+  <button type="button" class="tog" id="swim" aria-pressed="false">Swim around</button>
+  <button type="button" class="tog" id="kidsB" aria-pressed="true">Kids</button>
+  <label for="size">Zoom <input id="size" type="range" min="40" max="200" value="100"></label>
+  <label for="beat">Tail beat <input id="beat" type="range" min="0" max="200" value="100"></label>
+  <div class="seg" role="group" aria-label="Background">
+    <button type="button" id="bgBlank" aria-pressed="true">Blank</button>
+    <button type="button" id="bgDay" aria-pressed="false">Day sky</button>
+    <button type="button" id="bgNight" aria-pressed="false">Night sky</button>
+  </div>
+</div>
+<div class="controls" aria-label="This whale">
+  <label for="pat">Pattern <input id="pat" type="range" min="1" max="99" value="12"><output id="patO">12</output></label>
+  <label for="str">Strength <input id="str" type="range" min="0" max="100" value="70"></label>
+  <label for="pur">Purple <input id="pur" type="range" min="0" max="100" value="60"></label>
+  <label for="wsize">Whale size <input id="wsize" type="range" min="4" max="80" value="12"><output id="sizeO">12 kids long</output></label>
+  <label for="dots">White dots <input id="dots" type="range" min="0" max="100" value="45"></label>
+  <label for="dsz">Dot size <input id="dsz" type="range" min="0" max="100" value="50"></label>
+  <label for="knob">Head knobs <input id="knob" type="range" min="0" max="100" value="50"></label>
+  <label for="flank">Flank patches <input id="flank" type="range" min="0" max="100" value="40"></label>
+  <label for="tailm">Tail edge <input id="tailm" type="range" min="0" max="100" value="35"></label>
+  <button type="button" class="tog" id="rand">Random</button>
+  <button type="button" class="tog" id="calf" aria-pressed="false">Add calf</button>
+</div>
+<div class="controls" aria-label="Saved whales">
+  <button type="button" class="tog" id="save" aria-pressed="false">Save</button>
+  <div class="seg" id="slots" role="group" aria-label="Save slots"></div>
+  <button type="button" class="tog" id="list" aria-pressed="false">Show list</button>
+  <span id="hint" role="status"></span>
+</div>
+<div class="controls" id="listbox" hidden>
+  <textarea id="listtxt" readonly rows="4" aria-label="The saved whales as text"></textarea>
+  <button type="button" class="tog" id="copy">Copy</button>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), stage=document.getElementById('stage');
+let W=0,H=0,DPR=1;
+function fit(){ const r=stage.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2); W=Math.max(50,r.width); H=Math.max(50,r.height); cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); }
+new ResizeObserver(fit).observe(stage); fit();
+const calm=matchMedia('(prefers-reduced-motion: reduce)').matches?0.35:1;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---- the whale's shape: nose at x=+1, tail stock at x=-1, y up, z out to its sides ---- */
+// The same outline as the flat whale: heights above and below a straight line from jaw tip to tail stock, by s (0 nose .. 1 stock).
+const PT=[[0,0.012],[0.012,0.03],[0.05,0.054],[0.11,0.08],[0.17,0.098],[0.21,0.108],[0.24,0.112],[0.32,0.13],[0.45,0.15],[0.56,0.142],[0.63,0.14],[0.7,0.112],[0.8,0.07],[0.9,0.04],[1,0.026]];
+const PB=[[0,0.012],[0.012,0.05],[0.045,0.11],[0.09,0.17],[0.16,0.235],[0.26,0.288],[0.36,0.27],[0.47,0.215],[0.58,0.16],[0.7,0.105],[0.82,0.06],[0.92,0.036],[1,0.026]];
+// New for the solid whale: how wide it is, seen from above. A broad rounded head, widest behind the flippers, a stock that is taller than it is wide.
+const PW=[[0,0.035],[0.015,0.07],[0.05,0.112],[0.11,0.15],[0.2,0.186],[0.3,0.203],[0.42,0.194],[0.55,0.155],[0.68,0.1],[0.8,0.052],[0.9,0.025],[0.96,0.021],[1,0.03]];
+function prof(T,s){ s=clamp(s,0,1); let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
+  return Math.max(0.003,(2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1); }
+const TOP=s=>prof(PT,s), BOT=s=>prof(PB,s), WID=s=>prof(PW,s);
+// where the dark back ends and the pale underside begins, as a depth below the middle line (taken from the flat whale)
+const mouth=s=>0.006+0.04*Math.pow(Math.sin(clamp(s/0.29,0,1)*Math.PI*0.5),1.3);
+const edge=s=>{ if(s<0.258) return mouth(s); const d0=clamp((s-0.258)/0.03,0,1), d=d0*d0*(3-2*d0), low=0.096+0.018*Math.sin(s*14)*clamp((s-0.4)/0.06,0,1)+(s-0.27)*-0.03+Math.pow(clamp((s-0.5)/0.3,0,1),1.5)*0.02; return mouth(s)+(low-mouth(s))*d; };
+const palBase=sv=>{ if(sv<=0.56) return edge(sv); const back=BOT(sv)*(0.6-0.3*(sv-0.6)), m=clamp((sv-0.56)/0.1,0,1); const m2=clamp((sv-0.78)/0.13,0,1), top=edge(sv)+(back-edge(sv))*m; return Math.min(top+(BOT(sv)+0.01-top)*m2*m2, BOT(sv)*0.7); };   // unlike the flat whale, a strip of white stays under the stock right to the tail
+
+/* ---- movement: the whole body bends up and down along its length, more toward the tail ---- */
+let TB=0, INIT=true;   // tail-beat clock
+const spineY=s=>INIT?0:(0.012+0.2*s*s)*Math.sin(TB-s*3.3)*calm;   // laid out straight the first time, so every patch can be told which way is out
+const FR=[0,0,0,0,0];   // scratch: the spine's place and its "up" at s
+function frame(s){ const y=spineY(s), dy=(spineY(s+0.004)-spineY(s-0.004))/0.008, l=Math.hypot(dy,2); FR[0]=y; FR[1]=dy/l; FR[2]=2/l; }   // up = (FR[1], FR[2]), toward the nose = (FR[2], -FR[1])
+
+/* ---- the mesh: points written fresh every frame, four-cornered patches listed once ---- */
+const MV=[]; let vi=0; const QUADS=[];
+function put(x,y,z){ MV[vi++]=x; MV[vi++]=y; MV[vi++]=z; return vi/3-1; }
+function bent(x,yl,z){ const s=(1-x)/2; frame(s); return put(x+FR[1]*yl, FR[0]+FR[2]*yl, z); }                                   // each point follows the spine where it sits
+function bentAt(sr,x,yl,z){ const xr=1-2*sr; frame(sr); return put(xr+FR[2]*(x-xr)+FR[1]*yl, FR[0]-FR[1]*(x-xr)+FR[2]*yl, z); }   // a stiff part follows the spine at its root
+const DARK=0, PALE=1;
+const FLIP_S=0.34, FLIP_Y=-0.06;   // the flipper's root: where the drawing has it, in the dark of the flank behind and below the eye
+// the border as drawn, plus the dark dipping down round the eye into the pale
+const palTop=sv=>{ const b=palBase(sv), e=(sv-0.281)/0.026; return e*e<1?Math.max(b,0.048+0.04*Math.sqrt(1-e*e)):b; };
+function quad(a,b,c,d,kind,hint,groove,mix){   // hint: roughly which way the patch faces, so the corners get wound the right way
+  const P=i=>[MV[i*3],MV[i*3+1],MV[i*3+2]], A=P(a),B=P(b),C=P(c),D=P(d);
+  const ux=C[0]-A[0],uy=C[1]-A[1],uz=C[2]-A[2], vx=D[0]-B[0],vy=D[1]-B[1],vz=D[2]-B[2];
+  const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+  const mx=(A[0]+B[0]+C[0]+D[0])/4, my=(A[1]+B[1]+C[1]+D[1])/4, mz=(A[2]+B[2]+C[2]+D[2])/4;   // where the patch sits on the straight whale, for the markings
+  if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null,mix||0,mx,my,mz]); else QUADS.push([a,b,c,d,kind,groove||null,mix||0,mx,my,mz]);
+}
+
+const NR=100, K1=7, K2=7, M=2*(K1+K2);
+function body(){
+  const first=vi/3;
+  for(let i=-1;i<=NR+1;i++){
+    const s=i<0?-0.003:i>NR?1.004:Math.pow(i/NR,1.2), cap=(i<0||i>NR)?0.02:1, sc=clamp(s,0,1);
+    const t=TOP(sc)*cap, b=BOT(sc)*cap, w=WID(sc)*cap, tb=Math.acos(clamp(-palTop(sc)/BOT(sc),-1,0));
+    for(let j=0;j<M;j++){
+      const side=j<=K1+K2?1:-1, jj=side>0?j:M-j;   // down the right side, back up the left
+      const th=jj<=K1? tb*jj/K1 : tb+(Math.PI-tb)*(jj-K1)/K2, c=Math.cos(th);
+      bent(1-2*s, c>0?t*c:b*c, side*w*Math.sin(th));
+    }
+  }
+  if(!INIT) return;
+  for(let i=0;i<NR+2;i++) for(let j=0;j<M;j++){
+    const a=first+i*M+j, b=first+i*M+(j+1)%M, c=first+(i+1)*M+(j+1)%M, d=first+(i+1)*M+j;
+    const pale=j>=K1 && j<K1+2*K2, s=Math.pow(clamp((i-0.5)/NR,0,1),1.2);
+    const row=r=>r>K1 && r<K1+2*K2 && s>0.012 && s<0.68;   // throat grooves run along the lines between pale patches
+    const cy=(MV[a*3+1]+MV[c*3+1])/2, cz=(MV[a*3+2]+MV[c*3+2])/2;
+    const g=[]; if(row(j+1)) g.push(b,c,(j+1)%M); if(row(j)) g.push(a,d,j);   // each groove line remembers which row it is, so it can end at its own place
+    quad(a,b,c,d,pale?PALE:DARK,[i===0?0.4:i>NR?-0.4:0,cy,cz],g.length?g:null); QUADS[QUADS.length-1][10]=s;
+  }
+}
+// a thin lens-shaped blade through a row of stations, each with a leading point A, a trailing point B, an "up" n and a half thickness
+function blade(st,kTop,kBot,map){   // stations may carry "rim": a pale edge strip of that share of the width, on the dark face too
+  const rimmed=st[0].rim!==undefined, Mx=rimmed?6:4, first=vi/3;
+  for(const q of st){ const r=rimmed?clamp(q.rim,0.001,0.3):0, US=rimmed?[0,r,0.25,0.5,0.75,1-r,1]:[0,0.25,0.5,0.75,1];
+    for(let side=1;side>=-1;side-=2) for(let m=0;m<=Mx;m++){
+      const u=US[m], bulge=Math.pow(Math.sin(Math.PI*u),0.7)*q.t*side;
+      map(q.A[0]+(q.B[0]-q.A[0])*u+q.n[0]*bulge, q.A[1]+(q.B[1]-q.A[1])*u+q.n[1]*bulge, q.A[2]+(q.B[2]-q.A[2])*u+q.n[2]*bulge);
+    } }
+  if(!INIT) return;
+  const row=2*(Mx+1);
+  for(let k=0;k<st.length-1;k++) for(let side=0;side<2;side++) for(let m=0;m<Mx;m++){
+    const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1, mix=((st[k].mix||0)+(st[k+1].mix||0))/2, edge=rimmed && !side && (m===0||m===Mx-1);
+    quad(o,o+1,o+row+1,o+row,side?kBot:edge?PALE:kTop,[n[0]*sg,n[1]*sg,n[2]*sg],null,(side||edge)?mix:0);
+  }
+}
+const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+// The flipper's outline, traced from the reference picture: how far its front and back edges lie from a straight middle line,
+// as fractions of its length, from the body (0) to the tip (1). Broadest in the upper part, narrowing in a step, the front edge
+// then swinging round the end to meet the back edge, so the tip leans toward the tail.
+const FF=[[0,0.07],[0.12,0.096],[0.3,0.132],[0.45,0.138],[0.6,0.128],[0.68,0.114],[0.78,0.084],[0.87,0.04],[0.94,-0.012],[0.985,-0.062],[1,-0.097]];   // the outer third of the front edge is cut away in a curve back to the tip
+const FB=[[0,-0.08],[0.15,-0.106],[0.3,-0.128],[0.45,-0.126],[0.6,-0.114],[0.8,-0.102],[0.92,-0.099],[0.975,-0.1],[1,-0.094]];
+function prof2(T,s){ let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
+  return (2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1; }
+function flipper(sg,t){
+  const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
+  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=56, L=0.7, st=[], ph=t*1.25+(sg>0?0:0.9);
+  for(let k=0;k<=S;k++){ const u=1-Math.pow(1-k/S,1.6), un=1-Math.pow(1-Math.min(1,(k+1)/S),1.6);   // stations crowd toward the tip so the end comes out round
+    const flap=Math.sin(ph-u*1.3)*calm;                                 // a slow stroke up and down that runs out along the flipper
+    const be=0.78+0.8*Math.pow(u,2.2)+0.06*Math.sin(ph*0.5)*calm, out=0.45+0.45*flap*(0.35+0.65*u);   // swept back at the picture's angle, curving further back toward the tip
+    const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
+    const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
+    const kn=clamp((u-0.45)/0.15,0,1)*clamp((0.98-u)/0.06,0,1);
+    const fr=(prof2(FF,u)+0.007*Math.sin(u*46)*kn)*L, bk=(prof2(FB,u)+0.004*Math.sin(u*38+1)*kn)*L, wd=Math.max(0,fr-bk), rw=0.02*clamp((u-0.06)/0.16,0,1);   // small knobs only along the outer part
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), m=clamp((u-0.1)/0.16,0,1);
+    st.push({A:[c[0]+ch[0]*(fr+rw),c[1]+ch[1]*(fr+rw),c[2]+ch[2]*(fr+rw)], B:[c[0]+ch[0]*(bk-rw),c[1]+ch[1]*(bk-rw),c[2]+ch[2]*(bk-rw)], n, rim:rw/(wd+2*rw+1e-6), t:Math.min(0.008+0.012*(1-u)+0.014*root,wd*0.22+0.0005), mix:1-m*m*(3-2*m)});
+    const d=(un-u)*L; c=[c[0]+dir[0]*d,c[1]+dir[1]*d,c[2]+dir[2]*d];
+  }
+  blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
+  if(CUR) for(const d of CUR.f){ if(d.sg!==sg) continue;   // white flecks lying on the flipper's dark face
+    const k=clamp(Math.round(S*(1-Math.pow(1-d.u,1/1.6))),1,S-1), q=st[k], q2=st[k+1], v=d.v, bl=Math.pow(Math.sin(Math.PI*v),0.7)*q.t+0.001;
+    const p=[q.A[0]+(q.B[0]-q.A[0])*v+q.n[0]*bl, q.A[1]+(q.B[1]-q.A[1])*v+q.n[1]*bl, q.A[2]+(q.B[2]-q.A[2])*v+q.n[2]*bl];
+    const e1=norm([q.A[0]-q.B[0],q.A[1]-q.B[1],q.A[2]-q.B[2]]), e2=norm([q2.A[0]+q2.B[0]-q.A[0]-q.B[0],q2.A[1]+q2.B[1]-q.A[1]-q.B[1],q2.A[2]+q2.B[2]-q.A[2]-q.B[2]]);
+    const at=(a,m)=>bentAt(FLIP_S,p[0]+a[0]*m,p[1]+a[1]*m,p[2]+a[2]*m);
+    late.push(()=>decs.push([at(q.n,0),at(q.n,0.02),at(e1,0.02),at(e2,0.02),d.r,1,'w',0.012])); }   // placed after all the meshes, so their points keep their numbers
+}
+function fluke(sg){   // one half of the tail: flat, lying level, swept back to a point; it bends with the stock
+  const S=28, st=[], e=CUR&&CUR.tail;   // e: this whale's own back edge
+  for(let k=0;k<=S;k++){ const v=k/S, z=sg*0.38*v; let bx=-1.075-0.105*Math.pow(Math.sin(v*Math.PI/2),0.8);
+    if(e){ const fade=1-Math.pow(v,5), ph=sg>0?e.ph:e.ph2;
+      bx+=(e.notch*0.075*Math.pow(1-v,2.5) - e.bow*0.05*Math.sin(Math.PI*v) + e.amp*0.016*Math.sin(v*e.freq+ph)*Math.min(1,v*6) + e.amp*0.007*Math.sin(v*e.freq*2.3+ph*1.7)*Math.min(1,v*6))*fade; }   // a deeper or shallower notch, a bow in or out, and scallops
+    const ax=-0.875-0.305*Math.pow(v,1.3);
+    st.push({A:[ax,0,z], B:[Math.min(bx,ax-0.004),0,z], n:[0,1,0], t:0.003+0.034*Math.pow(1-v,1.6)}); }
+  blade(st,DARK,PALE,bent);
+}
+function backFin(){
+  const S=5, st=[], xL=1-2*0.632, xT=1-2*0.716;
+  for(let k=0;k<=S;k++){ const v=k/S, xa=xL-0.132*Math.pow(v,0.8), xb=xT+0.036*v*v;
+    st.push({A:[xa,TOP((1-xa)/2)*0.9+0.056*v,0], B:[xb,TOP((1-xb)/2)*0.9+0.056*v,0], n:[0,0,1], t:0.002+0.012*(1-v)}); }
+  blade(st,DARK,DARK,bent);
+}
+const EYE_S=0.283; let eyes=[];
+let CUR=null; const decs=[], late=[];   // the dots of the whale being built, and where they have landed this frame
+function bodyDot(d){ const x=1-2*d.s, top=d.yl===undefined, h=top?(Math.cos(d.th)>0?TOP(d.s):BOT(d.s)):(d.yl>0?TOP(d.s):BOT(d.s)), w=WID(d.s);
+  const yl=top?h*Math.cos(d.th):d.yl, z=w*Math.sqrt(Math.max(0,1-(yl/h)*(yl/h))), o=norm([0,yl/(h*h),z/(w*w)]), sg=d.sg;
+  decs.push([bent(x,yl,sg*z),bent(x,yl+o[1]*0.02,sg*(z+o[2]*0.02)),bent(x+0.02,yl,sg*z),bent(x,yl-o[2]*0.02,sg*(z+o[1]*0.02)),d.r,d.ax||1,d.col,0.03]); }
+function build(t){
+  decs.length=0; late.length=0;
+  vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
+  const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
+  eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); const r=bent(1-2*EYE_S+0.02,yl,sg*z), w=bent(1-2*EYE_S,yl+0.02,sg*z); eyes.push([p,q,r,w]); }
+  for(const fn of late) fn();
+  if(CUR) for(const d of CUR.b) bodyDot(d);
+  INIT=false;
+}
+
+/* ---- looking at it ---- */
+let yaw=0.6, pitch=0.28, yawTo=null, pitchTo=null, bg='blank', swim=false, T=0, swimA=0;
+const VIEWS={side:[0,0.06], above:[0,1.5], below:[0,-1.5], front:[-Math.PI/2,0.1], behind:[Math.PI/2,0.1]};
+const SV=[];   // points after the camera: x, y, depth
+const COL={ day:[[[0x20,0x22,0x52],[0x2e,0x31,0x68],[0x44,0x49,0x90]],[[0xa9,0xc4,0xd3],[0xcf,0xe0,0xe8],[0xf7,0xfa,0xfb]]],
+            night:[[[0x15,0x17,0x3c],[0x1f,0x22,0x50],[0x30,0x35,0x72]],[[0x74,0x8c,0xa8],[0x9d,0xb2,0xc8],[0xdc,0xe5,0xf1]]] };
+const PURP={ day:[[0x4a,0x12,0x86],[0x7a,0x22,0xc4],[0xa8,0x4c,0xf0]], night:[[0x32,0x0e,0x62],[0x54,0x1a,0x92],[0x78,0x38,0xbc]] };   // a vivid violet
+function toneT(c,l,k){ const u=clamp(l,0,1)*2, a=c[u<1?0:1], b=c[u<1?1:2], f=u<1?u:u-1; return a[k]+(b[k]-a[k])*f; }
+const RGB=[0,0,0];
+function dark(l,pm,lm){ const nt=bg==='night'?'night':'day', c=COL[nt][DARK], p=PURP[nt];   // the dark skin, with this whale's markings: leaning to purple by pm, lighter or darker by lm
+  for(let k=0;k<3;k++){ let v=toneT(c,l,k); if(pm>0) v+=(toneT(p,l,k)-v)*pm; RGB[k]=v*(1+lm); } }
+function shade(kind,l,mix,pm,lm){ let r,g,b;
+  if(kind===DARK){ dark(l,pm,lm); r=RGB[0]; g=RGB[1]; b=RGB[2]; }
+  else{ const c=COL[bg==='night'?'night':'day'][PALE]; r=toneT(c,l,0); g=toneT(c,l,1); b=toneT(c,l,2);
+    if(mix>0){ dark(l,pm,lm); r+=(RGB[0]-r)*mix; g+=(RGB[1]-g)*mix; b+=(RGB[2]-b)*mix; } }
+  return 'rgb('+Math.round(clamp(r,0,255))+','+Math.round(clamp(g,0,255))+','+Math.round(clamp(b,0,255))+')'; }
+
+/* ---- each whale's own markings: soft patches worked out from where a patch of skin sits and the whale's pattern number ---- */
+const hsh=(i,j,k,q)=>{ let n=Math.sin(i*127.1+j*311.7+k*74.7+q*53.3)*43758.5453; return n-Math.floor(n); };
+function vn(x,y,z,q){ const i=Math.floor(x), j=Math.floor(y), k=Math.floor(z); let fx=x-i, fy=y-j, fz=z-k; fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy); fz=fz*fz*(3-2*fz);
+  const L=(a,b,t)=>a+(b-a)*t;
+  return L(L(L(hsh(i,j,k,q),hsh(i+1,j,k,q),fx),L(hsh(i,j+1,k,q),hsh(i+1,j+1,k,q),fx),fy),L(L(hsh(i,j,k+1,q),hsh(i+1,j,k+1,q),fx),L(hsh(i,j+1,k+1,q),hsh(i+1,j+1,k+1,q),fx),fy),fz); }
+const sm=v=>{ v=clamp(v,0,1); return v*v*(3-2*v); };
+function marksFor(c,out){
+  const q0=c.p, S=c.s/100, U=c.u/100, h1=hsh(q0,1,0,0), h2=hsh(q0,2,0,0), h3=hsh(q0,3,0,0), h4=hsh(q0,4,0,0);
+  for(let q=0;q<QUADS.length;q++){ const Q=QUADS[q], x=Q[7], y=Q[8], z=Q[9];
+    const a=vn(x*2.1+7,y*3.4+3,z*3.4+5,q0), b=vn(x*5.5+1,y*7+9,z*7+2,q0+0.5), c2=vn(x*1.3+4,y*2.1+6,z*2.1+8,q0+0.25);
+    let pm=sm((0.62*a+0.38*b-0.47)/0.17);                                         // blotches
+    const band=Math.exp(-Math.pow((x-(0.45-1.2*h1))/(0.2+0.25*h4),2))*(0.4+0.6*h2);   // a wash across the body at a place of its own
+    pm=clamp(pm*(0.6+0.4*h3)+band*sm((b+a*0.5-0.45)/0.35)*0.8,0,1)*0.85;
+    const lm=(c2-0.5)*1.2-0.5*h3*sm(y/0.09)+0.35*h2*sm((b-0.55)/0.2);          // lighter and darker blue patches, and a darker saddle along the back
+    out[q*3]=pm*U*Math.min(1,S*1.5); out[q*3+1]=lm*0.5*S;
+    const dm=0;
+    out[q*3+2]=dm; }
+}
+function drawBg(){
+  if(bg==='blank'){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--paper'); ctx.fillRect(0,0,W,H); return; }
+  const g=ctx.createLinearGradient(0,0,0,H);
+  if(bg==='day'){ g.addColorStop(0,'#8fc3e8'); g.addColorStop(0.6,'#cfe6f2'); g.addColorStop(1,'#f4efe2'); }
+  else{ g.addColorStop(0,'#0c1030'); g.addColorStop(0.7,'#232a5c'); g.addColorStop(1,'#3a3f74'); }
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  if(bg==='night'){ ctx.fillStyle='#e8ecff'; for(let i=0;i<70;i++){ let n=Math.sin(i*127.1)*43758.5453; n-=Math.floor(n); let m=Math.sin(i*311.7)*43758.5453; m-=Math.floor(m); ctx.globalAlpha=0.3+0.6*n; ctx.fillRect(m*W,n*H*0.85,1.4,1.4); } ctx.globalAlpha=1; }
+}
+const KIDS=[{"w": 83, "h": 187, "feet": 180, "src": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFMAAAC7CAYAAAAZpaLvAAAmhklEQVR42u1dd3wUZf5+Zluym75pm91kN5WagAEFxANBKWJHUO+UK+Kp6CFn/d2pd/Z6cuopcjbQU0+FO04EFKUKHLFRpARIQnqyCembnm3v74/JTGZmZ3ZnW0C49/PZz059Z+Z5n29933mHwllcHC+NIy09biRHKwACqO47TIXzetTZCWI+oSgFb5vq3sNhf1bV2Qak8+UCcro4osA5UIaDlecMmMPWaGeNeL9UQJp7XGjpIQAIkqIU57aYNz6VTxqfzicNT48lAND4dD6Re25LjxuM0UmKUqClxw2AnJvMbHh6LDH86SjV+HQ+SftTMSUHyIan8wkIAUVRHABpYBlmDpe+PKNcI2/gGf50lBID0tvNExCk/amYOufEnBFrOUA3PE2rAsonS4afJ2EH02LMIBaTmQdWtslEAOC+2Tlk34OjifSDExBCAELrU7milBSlQKIutGCaBc8wLGJuNmUQilBDNRMCUEOXUSkA4nbhXzfFwRQn3pbNPW7EaihEqECfy6mDAKBAkBSlZHWkGJjB6EqzyUxcDicUSiUUCvryNdZan/WFzAAx7CPgByBksMUIIZhgVGLFVVE41U0w4KIb+qtSO2z99PLIZBrc8WlqQZNT0q1P6HOTopWs8ZEC2df9V9fXUMxzqNQ0NNX1NZTFaJblFlChAFBcQgkIDSMoiqLFlcVm6LJPXhqJLju9b2F+hP83wamXAV3MYHFLRloGUQwKRXV9LWUxmQkZ9AqcDicLJANm2FwjiylDMvZlboh9MDIEHBdAbpmTp/a6X55PQnHkwJNtZmMGbbBErsEQwuV0QaVW8RgZVtfIYjQTsTO4rJMLTISKYPdtcUGrl4o2Fx7f3osRSUrERVDYeMIB24CgYX1FT0GwMSBrbjZlEFCALkIhCaI/DFs4NoJnMAItN63pRkkLwcYTTgCAbQB+M12lVsHpcA6fa8S4L70Dbg/gKIpif/6UkhYnazT8LVvK7Fi2sQdcUfnwkAPaSDVSU2L9i+u5QJLAQ1BZT282ZhAuULRpCd6rev96HV7+bz/euDbah40hKG1x4VCDC/utLnxb60S/BJGSEmOw+vU7cPXPl/ttxygQVMtwgQIGU2ixGdGOilTyWBpsMcZQMMQocMDqwgSjEgesLnafbtBT6nX4AMRNsHHNg4N2hkLR9yX462ufAwDsDpf34JNQqLHWBMUQyqfBoU0yCyJzo4SQkAMaTBlpTkJNYwf67E7MnpGPZUvmAQBKyxvw0OMf47nHf4H7H/nQ47xAjY1sMGlXguI73yyYnqfoIhSnDVSLIZ4GpbFjyFNQq/DB27+DNlLDbrv5thXo7OoLG5BemSnUk2dyYSJOpmSlJQAAXn35t7zjOmw9+ONjH6O+sT3kQHq15t6A5LpHp7MkREeKGuC1T96MhBgtfnn766isbkJldRO7r2/ADoUiPCShpAJ9fy83HKI+JjMFANDe1YeG1i7EaDXIy0jGgdJ69pgf3l4KlVIBu8OJR97agr3F1Xh9+S0AgOSkODA9wAUX3T08zKzhiAAhRNQ5F5ZwA1mYZ0SEWoVjVU1oaO1it3OBBID3vzwAANCoVSira8ZXyxfj8RfW4b2PdsOSkQSzif6R1vUk7GCaTWY2/8g4s1yRD0Wk4G9JS4jBuFwDeroH8NsrL8DYLJqhXX12j2MXX3E+u7z+uV+j1daLthYa/KUPvouW1i64XG6AAkhbaAGlpPxKJl4lhMDldPFCr9MB5pwpebj7uqlQKun2X/TUJyiubPI49uDqZaJ1/PdwFYo7ewEAqz/8GuvevxcKBYWSkw1Y8OtnqJCDKZbI4DKRAZLZFm5gdRFqjM5MwW8um4Cfjc8CAFSWtyErR4+unn4AwPS735IFJgBMuPVVqNUqvP2326BPiIZCQcHhcKFwxu+p0Is5JZ5N4YIo3CYEPBRqINOQMKiHHdhfUo/CkSaPY1oaexETFYmDq5chJSEKax7/hVcgAWDBxfkAgNt+/zbg7EF8NFBR3YSDX/+NjMqyEMYlNJsyAhJ/lc/AX2JdyFIxkKVSXN4SDqPNKShraGPrXXzVJERFalhGZuXo2WXm/4275iPLrJf1wLNnFLDLbW3dGJmbBofDBX1iAkZTFGEM6ejsTAIQ9A64UV0vL15XCkWceXCFUgG32w23W9xKM/tUahX7zwVFoRwiPXdZqkRqVLA7nOjoHWDPUSgVGJ+bBkNkNAtegl6LBL2W9jMF/77KsaomEI0bW7YXo6VjAOdPHAVCgG/3leLOW2ej6IdytLV3AwDUKgoAhZM18p179imrrTUUwwaH3RmUuPqjS1VKBVQSYDsdTtxx9SQPNgZT/r3pRww4ndiz9wjmL/orAGDqpJG49+EPoKJc0EUo2KDkeEUVBQCjsjL96wOymMyEAVBOio2bUBWCJxRr4fq/nroJZbWteG/zfpTWtoiqFO7xB1cvY8EMKFKKodDeNYTHv3ceQXwUhe1lLfjdbXMBAPpYCm+s2oF1mw6AEOBEZRU1FFqbiZyMkkJML/oDJNcwCYEQrsfqImBOjUOuKQkA8Jt5E3Fw9TIkx+uw9ombeMczy4xRCRRIOmLiEys+isIf3toJiykG+lj6Wf/y2nZ8sG4fjldUUVwgAchOzSkAwJicRrxFOwwYYiBJiTTDxvSUWIzPTQMAdA7qQwCYN2Uk5k0ZSWfNX6ITEv938wzsW7WMrduXdQ6EoQBw/aUFuG76WHz9TQXaOunnLRyfGXTyQwkAsdExjzMSL5bgYIwQY5QYo6NQKngGizE0TocTJkMcctIS0Wd3oKy2FQDwzG1zcP7IdORlJHlcIzFOh/G5aXC53Dgvzwh9rBZajRr9HQ7ZBsZX6bcP/SsVCnzw+T6cV2DBRVNG4IJL7wva11SxqpP47oQSc+DFmMlsO1zR6LFv0pgMr9eI0KhwUYEFugh10OLtrUwanY6p+Wbs2FWMMSNNIK3rCZV4bVCA8s1oCCLVxDgtEuO0ONXaIwpkUlyUvMTGCCMKRxjDFl2pVbRX2NXUgRVvbUFJeQNWvPA7Ni8hZ2yRJJgqjUo0IcdloFjkwzU843MNaLX1odXWJ3oxuUCGumwqOoYDJfUe2wty0lCQk4alt8+FfcDJy09QnDyFRSawClOKkTDW01uqTczvZMAdYUlBtlGPQycbkRinDRsoTpfLr+MXPPIeNhUdAwD8/pVPPfYvuWYyjEmxWHTHCjrOnzoKLzxxk2jixyJ3FJzFZCYOu4M1QGJ+o5CpOrUSc6eMREZKHLZ9V4Z+txsV1jYPa88YqGdvn8tab5+gOV1wEYLdB8uh02rwx5Wf42fj6ETHc3deIauO/3t9I745Wu2x/dk7Lse087KH1MniV/HpP+8bDCBo0b/q5y/6rF/M8lNc1B12BwumWDxNuQmIgoJGpYRapYB9wIHvVy1jo5J9ZXX4sbweJ6y0I/7Qwhmo7bLhyfd2YGxWCm6eXSgL0Bc/2okNe4o9tv9sXBbOG2nCjZec57OOaXeuwIX5FnxztBqpBgNeePkVpKYasPatl7H4YtoIVjbQ990STUtTWmo8mls76ZzA794UBdBiNJNqCb9TxfUJhaPVxETbnKxHTSN9E/959le88O76y8bh/PJ0ngU+H/SNr9t1VDYzdx0sp7Plmggsf/U1LFtyO7bt2UsnfF/9g+g53PvIytHDbneyQG7f+w0AoLa6GvMLEzk6XIfpS9/C72+Zh1lz6YxSkj4Gt9z1hiiQZlMG8eaLqgCgvslKmZKNBBREWckV25rGNqjUKkQoFVDZFaIPJIyj50/Px/zp+bKA/KLoOGzddK7yZxdfjEtmz8bR8koAQMnx46Ks5IaaleVtWL3pe2g09P1fee189riTZaVA/BSUHt6IyfkWzL53Ff76zCKMyEkbkj4R95AMujk1PrJHCqExYYbWca11tkGP1PhoXrrtppneRY0BUpic4AIuVi6fOppd3rF1Cy6ePAnXX30lNm/aBFvRP0TP4UpCVo4ei6+cxOrYE8eO4Y5bfgMAmDlrNgYGgezq7ceAw4UoneeYULtAImtkpuCGqEUREPDTbUqlEoQQVDd14FRHN9+tsBgkK2XyjmKgMdulnPEXP9rJW29taab17wP3objilGxLbh/satm7exf27t6FOdOnYVxeDup1Y7Dth1L2uNgYLRLio3iOdnd3H6rrayjm53dymM4UKaBSK9ixjS6Xix7dNpgmY5gZrdUg06D3AESKdVx2+opoIlSeEdXxYtoYdfcPYM2OH2UZII1K6bEtN28EkjqPYPoFI4YCiYk5aDxlQ0J8FBL10Rgz6X5U1dcGNz7T5XDzRNtbbrLAksaC5ktshfu450gd87d75ovW8+b6b5Cm9z1c8MWPdkIfp+Nt62ixorTkBB558ws4nS4023pQXV9DqVMWUOlGPdKNemjTIgIGkgdmfZOVrUStUcPhcHjoTqZ8c6Iaz32yM6ALSqkAZtuyG6Z5PT8/2+DzGmMzDdiwp5iX6OX261/x4DtIiIpEydon+I54e3DxtEIqV6lWq0EI4Vnyn884j7V4bz2yQJRV3oyDmHGSisvFytLrf4at+0p9PtTFhdn48qXbYJcImKaMNkMJgvc+3wcA6OkbAOKA0CY6OD6n0+Fk3YQ8UxLevns+bppxHjY8TlvGI0caZF1ACLTQjaksawHcbrhldJPsP14rS1+mp0Ti0Xe+woQR6YiN8swH/PnySXA1d+HBX0zHFRcUkluW/B3t5acQbOEpRKfdCZVGxXOBAKCsvgXW3m6cX0g74J899uugLsoA7B6wwxJD34L7lI32JbQaqBI8Abgw34IX7rpSVvdEexfB47fS3RGLn/mEHQe14IIRWDpn4qCRcOOXf/4IFg3w8DMLUddkB9Pde6KyOiCGepzETXxwRf/Ckel4cOGMkHRqAQBxuZGZqoO7sxeVtTZkmeP5IhOnA9FFQKlUoOZUO8ypCQH1+/Q12aC2O2Ft74YxYWi499cHKxCvo5Azfxp6nC70dLbh57ev5rnq1X4aIw8xr2+yUmJh5P6yep/60Z+SmR4Dd1cfQFEskJU1HUPZfVsvOxTGXyABoK3TTQM5+CxcIDt7BrD52xLsLW6EgqKgVigQG5fowTOLnzlNyT5ZLjudDif08dFwud1QKoIfm5mVo0d5cSPcNn4CmcdOtRLOulbUDlABZdspioLa7pQczps3NgO/uHMeu/7YC+t4+wMZIilJY2NyGlFr1Dxxv/OKC7Fu7xG8c8/CoAF199vhtvUgyxyPypoO9p8BtaqhG9mjUqCIkc6Pdrd3ofzISbSdoqVl5vWXDgkpIXDVt4FQACXg10dbf8Q191xF3wcBLln4PE0glQJOpwiAhB5XwEv4GNNJjbWOkg2mWNCfEh+NBRcVYN4FI4PWma4Wm3Qrq1VQJESLJh4Ypq567G0QNx+p6HhanH9+P53kdda18vav2vQDSmtb8OiK2wEAlyx8AXMuKcCX2w/Lu2/iZmETvukrKebW5gbKmGIglECtDjicQQMJAMSLK0SpVVDqYyRBrCxvw/Z/fyXKhO7BHMKRosPIn5IPpZHWty5rO1Zt+gEAMCLfDF20FkqNEpV11dSWHUO9X9x3LbnvBJmNGcTXa9I+x7EQAX1tg0P5gi2KSA0olQLurn4QpwuEuKGIigTp7hcFmjtEhkatCy2cF4MSdUOvVU+eNwUFU8fxrxcTiekTc/HRxu9xx21z6NzliF9RAFBZVy0YdOAJWtDvm1ubGinGXWJgjVCrcLKhFblpiUEDSqlUUCZEw9HUDkpBJyaUKfFeu5wry9tQfuwkWiXesFJHqFEwdRwvpzrxrmd5Fa6Y/CgBgI/e+gO56fYXwvsekFShQQWSYqOw+r7rMZyF69+uXfkxj42tvQ52+dol85FkSuadq5/7wLC8gyP7IsaUNAJCsa9sT8xLx2M3zxpWEHneQHcbTh4uYyM3Nolx61Xs8o9lVtrILH3pzAKTtvBGwpXA9Y/+GgoFBbebhO3dGlF9KbNMvn0Fyqqrztx5jZhBXtzXAe+/bjqdrRmXHTZG+gPo+1/uBwC8vHYvNCrFsAEa0EVMyUZ6Bg6BoZhekI3a5g78bcnVIQXRn9Jvd+KxVVux5Ycy3vZwvN7nMzaXU+qbrZS1uYEihKC+yUoxQxF3H6mgDUJnT9AZJW4S2Z9y4ZKVIo428TvOHjZmSor+IFP1MTr8+aZLkROA+xQIgP/ZshuHSiqw/Xg/evrtEpELkeUrDjszxaIla3MD9f7fXwYAtHf34bNvjoUdyFOtbfjz31bjUEkF4pNS8MeHluKpJ+ihLmPHjOAlLZiGbq/bFTaG+vVW1LZ1nwwZn8Fy6YIbqe3r1hAAqKqtG9JRNjse+3ALnlg0B4cqrRifZcTqLfuweM75GHA4ESHoqPMXyJUfb0BDEz0Mp2AK3W901WUTsHHw3cnK8pOIi46ArXuAzf58+dkH5IwQ823rPiHETQBCBkcPqyWPfez5l/DEH++DzdaJdz/+F+y9XchNpmPtcZmp2LPvW9x1/Xx8f6wU08aP8QNUCk5NNPpUWvzlOTrTE6NV4LdPrkRiHNA6mDf55OM1AIDDh0tx5ChtiN575ymMGGEBQNDSQSEvfzp12sB879WXCACYDHTvID0MWwmFRH7TZutEXBzdLfuXl17BwmvpLoeakkMAgL7WOqSnpMCUrEe20eAT0G59LqLbyvHO5iKa+aXH6WNH5+PaxUuHYnQOqMz6X15Zi1tvuQGJcQBxA5QCSEg/jWB+9o9VpN1G32ViQgIitZFQUPJVbmcX/WZtp82Gfbs2or1paPBp4ag8zCg8D6CArJwECOazACgKbemT4HQ68NpDd7O7IrQ63HzPw4jTJ7EgJorMO8Vs5+4noKBPnxZSQGWjwQyOU6tV0Ol0fgEJALExMYiNoUVdn6hFQooJcbG0qmhsaUNzRzuGxoF7zu+m7axDbdkJyfoZNraKpEgZAIeAJABC/368bESu/c2tIWnFyEgtzp9zDXq72mHrpDM/DS2t2Lh3F1Zv+gyNzW0sM3d8e5A979mnnsb61a+z69qoaDgGBhCnT/IAjgss8+OC3moDqDDMNeAXQJ++9w5h2BVo6erqRkenDb3dnWgs+RpqTSJKjh9mWWrrdLDLMycXYud3B0Xr0UZFY8njyz0AZNgnFHneupugtRPIzb/49Ig5/aCdIbuwLjoWWYVXINkQjVk33DkIYgwLJACs3/q9Z+sPTpO26L4/e4i4EFQuQ3m6VEEhMT70/rvfb9/bBwagiYgI/IKc0WmmXAOsCiXs3W2YM4dOlmzZshsAEBer5gELACPGT8RFl12D+KQUyfp51pyIGyWu2LfX7SahsuyyK1nz1ko6MZwYfIa9tp625MZsOolrrWiGTqeFPj4BDTXlMGYl4ci3ewAAycZ0FH21Afe++IZf10iM826omGNC6SL5Yc0J+vr70dPdHfDFLKPooYgZJhMLorWiGcbsZKRlJcEyKg1GSy7gjseVv7odLpcTjbVVfgMpND7cHwsyISH3NWVV9s+/v0YcDseg+MUgNibWbwCrTzSw69UnGlDf0ABD5hDL2+o7kZyUxDueWfa3CA2PVMkdO334DdDNdw5NqMSdSYb7sMIHF4LIBRIAlEoFrBX0EOuW2g72ZdfqEw0BA5kYN6QzhS7RcBRZYG79fChB4HK70d7eLgtQIYDMumVUGswj0lhRT8qIR2qmnt0nPMdf0ZZbThbvJsMOZn15M2sw+vr7YchO8mCdGAPFQKk+0YC2tnb09fWzdVormuHsJOyxUuee6UUWmFyrq1QqYEhNYRkkxU6x/+oTDbDZbLBWDE0lwRggKop4gB6ozvSnhJKdssCcc+UvKQZUl8uN6hMNqDxa5/HgYiwUirxCqUSHzcaCyPqvHU4PQ8WtJ5wsDRWgsq3Zlk203mRAyM6y+DxHDEwA+O/2fR7HjinMQVdTv6Q3EO4SCsvudwRkzE6GyWSQdaw/7KouaYA+IQE/5SJLzH/Y+xnh6rj6+sagLppu9Hyboqe3V1LfCpkupU68NpYPNREKUZcFJrd/nKvn5Ii5XF1nzE7G97sP+bTiXMMk9CaYc7nXFdPB4RJzn2DuK9pA3IIBpRkJUXB0tMgSczFwpEa5uVwuj0hJ6C55ayShe8YLh72wNFSRkE8whUACgMJth8Jt98v4CAsTn3PdLkNWosfUFmJOvxx3TMhIykt0NazW/Jud60hXTy+7nh09eO3kzIABbWpuwYB9gCfm1opmGA0GKJVKSUD9XZbrHQyLmO/Z9i/iEIzkreimZAMpFbNzZy7k6mGXyy3LO/Dl2HNDU+66VEas7Gjw7JTVGju/+pjUlzchZXCOyvERHegyjvfrQkKmtLS0IMEU6+G8GwwpaK7uEDUyvlwvf9bFAM0LshtDljWfOfcXlCmHn92OsR6SDSD3QSyj0hARr0DfwACbNWJ0JgAcKCoWNTJS4auUwRK7vlQuwZtRDIvTXlvaAEMWzSC1ewDtaRNkO+1ijMjIS/UQaZalA/DpZ4rpRSmVwh5Lhs4VHjssOpMpqZlJPAZFdVT6Ld7MAxgMqagtO8XWx4DIFXcx9nlzt4RslkoHSt1bKCy6rNbY9J9VRKlUQalUIEnRi0xlFzpTxqC6pBFOdRQv5eYL2P7+ATS3trDWW+gejT4vGw6nE4bUFNl1coGSSkb70rFchzQ3wHFIspipoCicqm5FT2Udyso7UFnehqjWMriUEZItLRXy6ZLUmDg13wNIZtnW2QVDaooku8R0KUR8SG4DezjwRLrusDPz80/fJWq1Cs0VDRil6gBAD64qrXUg6cKLJI0Bs0wIQXNLK/paHaitr+cByDVCAGAeYYA5Iz1kyQdRBgo+LMo7/ngDLl14Y/iY6XI5Ya1ohgMqtJpHs6PU1PYuxLSUgB6344ZlVKqHbnO5XPhhz2EkJyXCFWHniTfXLWJ0Zn15E2o44zy9JTO4cbg3J92vfCgV5m+oMcMJjdnJSKw57vHmQ3llN7JyE3HIlsJjQb21AfYBB8xmE6pr6uTd0OAdZWVa/A4IvOlCb/pXbF8g1l2Wa9TX34ecMWY6gsxOBeDgvRSak6MHXAOIP3UIsfp2qOx03/qhUidisuQDyeozc7rXB/VmSOQkk6X812DdJJ9ivn7tm4QBEgCqyvmvHAunDlPZu9k3JrJzEjz8SFl6jgO+N0PhveONyPJBxUpZcWDj3v0ScwDIUHQiXmHnASk2IX1Wjh6t7khUuuI89KOckpKUiOiY6IAMDBdkT5eJwDLK9/S7gbBTttPOGAgn8TxFan43V3c7vv/iS1QdLILdVoaqg0WoOlg0xHLOsnDbkT1bcXDHZr+APLhjMw7u2AzLqDRsfv/jodzCvzcKEh+E8wtd8Yn+Z/9+iwBAu7UbxuxkaJtLoetzSQ7kF04AtfxN/ucJdYax6G2k4+/Mwgt5+zILpw4CTs93WThzHnZ8+hkS4jUonDkPhZfM4wD3Be8RGus6YEiPH9q/czNbx8Gdm9HeYcfC390Fy6hxAlVAhSwdJ+ukN158lkRGRKL06/cBAAtmXS4q4kIr397RiVVrNrD1tHfYkRCvYf/9LcLzCmdehh2fbuBt414DALuPWR993hhcfquPyfQDjIL8EvM4A21liw59J2qAhHo0IT4WD9yxCNrICN6DhQJIAB5ACutmQGXOZfZ9serVEFAsQDCXPPgwVXG8FoWX3wgAaGhuxZHDdbyW5IIqfPvWmJoUtD4SawA5jcIFkWGnL2aGzTUawotW1npTpqeO5H6rnQBZ2Xr+htNYGACZ0lh1MixA+gUmU8bNXYDU/NlojE/xnKGA4vw48jJ52nSMnyc9DcX4eTfwfkyZd8vdosvegOPqSiGQCfEaaGIzYK0okQwvTxbvJicD7MKQ3QqvP/ckySvIgrWiGfpkDdRUPFLajvl859Ha40Jxq9PrpVLMWWiqqURSugWEELTW12DcpMloqalCWnYeGirKPM7Z/O5rLMBbdn2L68YkgIIbtTWdyDDTvu3aTVt5QN+x6ApEGjKhshR4dbcuXXAjVXZ0N/H3lUDZB29d+xExj0pDbdkpZI5KQ+3RGoxO7kL9iTpJYzSkIihsq+lHeu4o1J0sgSlnBOrLS5GWmQtb7wCiI1Xo7ndCp6Gn6O1z8IkxOpeO04WgbvzmGPb+cJRd33D/LLb7oaaeTj6bTakeOpxQKrSbJqCjsxvxsdEe2S7LqLTwOu2zb7iJGjluJmUZlQaF047Y1uPQOHrZl+ylJiYhoNDh1sCcR89yrUvJ4P0DQPfgl98ffel99DkInl9B+6bPr/gQz6/4EMdPVuPH4pNIy85DWnYemvqBpn5g/6ESQZJk6PnNplSYTakeHgYAVJ1swoF1a1kdaR5p8AhLTwYQUgbd79H21XKfF213R+D3b27BHbfcwAIFAH9cuohdj9JS6Okj7DIAdp0p/3jlEQDAr+95xuMaz944EQUZ8l+zrmvtwZLVe9Hf3Y8D3+6mAGD7ujXk0gU3BowJFU4QueXO1XtR19YbNqv991umIj1R3lddKsvboI6PwJ3vFrE+R9HWr4avQ01Y/J14qWcgvN/47bY7ZB+blaNHt92B/q4+9Hf1eX7Te7jB5DLT2wSl7T0DuGr5VrT32P2qnxF1ueWdHSWyGMkuN3UhcnA6yYHufkycMp1MnDwtKFQD/tiu3eGCRq30asUBYHuxNaD6hfoyVGX7USte+bIYeakx6O/qQ2SMlv0PlqEBM9Nw5R+GbSYrOaWkoRObD9XC1mPHFz/WQkpqLs034p7LxqLsFD2ZQH9XH/vf39WHCUGwMyhAfBmhZ9b/iG9PNg8boBol/Tjr7p3lAeSukgZsLGlAX2cfHIJhkgw7ASAiOhJF27ZQw8pMALhq+Vb02p3otXsal7JTnahq6R4WEBkg7C6CK0em4arlW7Ho9V14bXsxq4b++V05Ojt6WSAjOdPvMudz9ScATJ01lwwbMy+aTV9szbKZ0GlUw+YGcUHgsoqn/wb3zx5jxNZj0nqbe76wRERrUbRNvssUEjA1KprguamxSI2lH2Tn8YawM1HILm/A+Fu4DRIRrcVAVy/2f7eHCmsExIgElxVcdoiJUmSMNmSs9MbUYIAUvV8C7PXCVFUogJRqVTnMEoIiti5kilR9UvtDwXw51FOEWvR8sSgyRisJjNBN4R7PbOPWE0q2C8+XuseLZs0hYQdTChTujUmJoK+GkHONYBkp1TCe7KRw0aw5ZKoIqFSoRVyupRQ7TvgvxRRvx4WKnWI6mU0rDn4WTZggocKhM32JkC8ApEAKNXiB6HshqABYJz/kYIoxyBcQUseJ+Y3hBtIbI32BGjYx9yWWUqIcbsBCwUpeRosEqTMnDAJJ+aEzvS2LuUvDCa6/jIyKBAgFbN3wlbyvrsgBlJLZ0v4YIbkNEmo2+gSTMH9EMhGiCmeLC29QzDf05toYYiPRQYCxOSkoLm86jSJOsFdGJkkVbhHyZkzEdGZfZy8WTMjEZQUZbMansrwNjim5uH8DPWNhZroeVXVtePnGydh2nJ4KbdOhOnoIt5fB/35HPAyQW+Wl5AIX88nTiLdX5Lz5ilJM3D/YS8jkSsVG1nFzlD0DDkRFqHlfVZk4ZTrZ/+1uSo6BFAOREPiVKQptomPydLL/uyEQJkyeRkDR82XfcUUBmho6sbmsSVLXjUmLw3UTspBuiccFv3qSooF8kdDAtfPYKVxm70HwiRq59zx19hxStHXL8E+sJ1W4QALAge/2UNroSPxh7nhMTIzDXdeMx8zRadj6xNVQKxWIHfymZEIiPanpjNH0kGgGyP0rHyLCAbNSzAz2nkMJZEiYKXnDKx8m3r5R2dlvxzflTVhy9TjeB5D2r3yI57lJfeuCC/Bwfe8n7MyUFKW7nqWkvsmblaPH+LEGLLl6nMd5WTl6TLzrOYoBkrudATaQz9kMRwlri8oZ9cEFnGHY/pUPERosSvIjycx2f/XlT5KZ+1c+TBgWiX38WAikkJ1MO0t9hTrQr7L8ZMVcqOe462JASjFZSveG6lO3PwlmCse5CwHyh1lCQM80IMMKplx2cQujM/VzH6Sk6gi0Mc4Kay4EQA6zGKddymBxG2b/yofJOcFMrnskBNDXp2q8MZz7f05YcylDwbXk3O1niuN9xoMpJurC8JCx5LSIk58kmKrTxUwpUdfPfZDyd4j3OcNMMcDEQXxAvGPlf2B6B08stv6psnHYwAzObSH/A1PMNRKLfsR8TYadUk77/wyQF1EPxGn/n87k5CG5OtN7RCSPnGeSrg0rmNwH5YInZeF9xebnNDP1cx+g5MTjQsc9mEY7J3SmN715JnZBnHFg+mKMEERGzP9ngCTEPJAkLq0zPfFMiKHOXTDbvlpO/BFhObqPAZQL7Fnf1Rsuo9DeRXj/Z5IBUoRTxMMF5Jkq7mEVc387wDwbgHgF9Zyy5mI9ivJ16E/Pbw+7nym3Ey2Y2PysN0By/MozEZCfDJhOl0t0e21jqwgrxclZZW1BlbXl3BRzAOjoot89v/+vH+GZpdfjVFsnmlptSIiLgrW+E//YvBvzJuaQzfvLKQBYsWYblt44iz2/oq4J678+gAPHq3j1Lr5mOi6ZNObcAfM3j74NAJhz4VgAwAMvf+xxjFZLf8d8xhgLWbFmGwCg1daNd9fTn+X+sbRGtO4UfSwWPfIGLj8/l0RqVPhP0YnTqirCevGV9y4km/b8GPD5BAQU5xZ7ex3Q6dTsMlN0OjW+2HfytOvcsN3A04svJy47wXcnytgHZ4AItnBBFa6fTlDDF0629gYEJJdxvb0OEBCPbUJ2cuu+/PxcctaBeaCskvegXEDEwBMCJsXCM7mETSRmjLGQYESbAVSrVbFTOYoBKwX26RD3sDGTy0gx9vkCUadTQ6tVeWwT1nEmsTYsYMrVW0KQGZZJNYDYsmgDEXL2gMmAoRtklhh7xADk/hNCGx6KotjzdTq16LF8UAm+GHT+zyo/k2GplJhKiWhvrwORWhUUFCUp1pKGiZylYM4YbaaNUJTGq74UsgwA3ISgv9cBXZTGq38pBPl0+plhDSe/Pl5DAcDlE3OI1KvLNJB2nq4TMmvGaDMRnisKLDm9SePTHoLNGGMhXx+rpgJVIUPAqvDFvvLT+jyK0w1moEBy/UmdTiXL7Qp3+X+f18gAmd4DFgAAAABJRU5ErkJggg=="}, {"w": 71, "h": 182, "feet": 176, "src": "data:image/png;base64,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"}];
+const KIDIMG=KIDS.map(k=>{ const im=new Image(); im.src=k.src; return im; }); let kidsOn=true, FOC=1;
+const order=[];
+const cfg={p:12,s:70,u:60,z:12,c:0,d:45,ds:50,k:50,f:40,t:35}; let MKA=null, MKB=null, DA=null, DB=null, dirty=true;
+const calfCfg=()=>({p:cfg.p+50,s:cfg.s*0.6,u:cfg.u,d:cfg.d*0.6,ds:cfg.ds,k:cfg.k,f:cfg.f*0.6,t:cfg.t*0.7});
+// where this whale's dots go: head knobs, chin dots, white ovals along the edge of the white, white flecks on flank, stock and flippers
+function dotsFor(c,few){ const b=[], f=[], q0=c.p, R=(i,salt)=>hsh(q0+0.37,i,salt,1.7), dz=0.5+c.ds/100*1.3; let n;
+  n=Math.round(c.k/100*24*few); for(let i=0;i<n;i++) b.push({s:0.025+0.2*R(i,1),th:0.12+1.05*R(i,2),sg:R(i,3)<0.5?1:-1,r:0.006+0.005*R(i,4),col:'k'});
+  n=Math.round(c.k/100*12*few); for(let i=0;i<n;i++){ const sv=0.03+0.18*R(i,5); b.push({s:sv,yl:-(mouth(sv)+0.02+0.035*R(i,6)),sg:R(i,7)<0.5?1:-1,r:0.005+0.004*R(i,8),col:'c'}); }
+  n=Math.round(c.f/100*11*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const sv=0.43+0.4*(i+R(i,9+sg))/n; b.push({s:sv,yl:-(palTop(sv)-0.016),sg,r:(0.006+0.005*R(i,11+sg))*(0.7+0.7*c.f/100),ax:2.3,col:'w'}); }
+  n=Math.round(c.d/100*50*few); for(let i=0;i<n;i++){ const sv=0.3+0.62*R(i,13), a=R(i,14); b.push({s:sv,yl:-(palTop(sv)-0.012-0.08*a*a),sg:R(i,15)<0.5?1:-1,r:(0.003+0.006*R(i,16)*R(i,17))*dz,col:'w'}); }
+  n=Math.round(c.d/100*9*few); for(let i=0;i<n;i++) b.push({s:0.74+0.21*R(i,18),th:0.25*R(i,19),sg:R(i,20)<0.5?1:-1,r:(0.004+0.004*R(i,21))*dz,col:'w'});
+  n=Math.round(c.d/100*60*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const u=0.2+0.76*Math.pow(R(i,22+sg),0.6), side=R(i,24+sg)-0.5, e=Math.abs(side)*2;
+    if(R(i,26+sg)>0.25+0.75*Math.max(u*u,e*e)) continue; f.push({sg,u,v:clamp(0.5+side*0.86,0.07,0.93),r:(0.0035+0.008*R(i,28+sg)*R(i,30+sg))*dz}); }
+  const T=c.t/100, tail={notch:(R(1,40)*1.6-0.5)*T, bow:(R(2,40)*2-1)*T, amp:(0.25+0.75*R(3,40))*T, freq:9+16*R(4,40), ph:6.28*R(5,40), ph2:6.28*R(6,40)};   // the back curve of the tail fin, this whale's own
+  const ge=[], gs=[]; for(let r=0;r<M;r++){ const e=Math.abs(r-(K1+K2))/K2;   // e: 0 along the middle of the belly, 1 up at the edge of the white
+    ge[r]=0.6-0.27*Math.pow(e,1.6)+0.05*(R(r,50)-0.5); gs[r]=0.02+0.07*e*e+0.015*R(r,51); }
+  return {b,f,tail,ge,gs}; }
+function draw(dt){
+  T+=dt; TB+=dt*2.1*(+document.getElementById('beat').value/100);
+  if(yawTo!==null){ const k=1-Math.exp(-dt*6); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; pitch+=(pitchTo-pitch)*k; if(Math.abs(d)<0.002 && Math.abs(pitchTo-pitch)<0.002) yawTo=null; }
+  if(INIT) build(T);
+  if(dirty){ if(!MKA){ MKA=new Float32Array(QUADS.length*3); MKB=new Float32Array(QUADS.length*3); } marksFor(cfg,MKA); marksFor(calfCfg(),MKB); DA=dotsFor(cfg,1); DB=dotsFor(calfCfg(),0.55); dirty=false; }
+  // the whale's own place and heading
+  const P={px:0,py:0,pz:0,head:0,roll:0,tip:0.03*Math.sin(TB*0.5)*calm};
+  if(swim){ swimA+=dt*0.22*calm; const R=2.3; P.px=R*Math.sin(swimA); P.pz=R*Math.cos(swimA); P.py=0.3*Math.sin(swimA*1.7); P.head=swimA; P.roll=-0.2; P.tip+=0.13*Math.cos(swimA*1.7); }
+  // size: with the kids showing, the whale is drawn as many kid-heights long as its size says; a giant shrinks the whole picture, kids and all, to fit
+  const D0=swim?8.5:5, kidH0=clamp(H*0.085,26,50), shr=Math.min(1,0.9*W/(cfg.z*kidH0)), zoom=+document.getElementById('size').value/100;
+  FOC=kidsOn? cfg.z*kidH0*shr*D0/2 : 0.36*Math.min(W,H*2)*5*zoom/(swim?1.25:1);
+  const sc=1, mom={sc,o:[0,0,0],mk:MKA,dots:DA,ph:0}, list=[mom];
+  if(cfg.c) list.push({sc:sc*0.42,o:[-0.6*sc,(-0.56+0.03*Math.sin(T*0.7))*sc,0.36*sc],mk:MKB,dots:DB,ph:1.3});   // the calf keeps under her and a little back
+  const ca=Math.cos(yaw), sa=Math.sin(yaw);
+  const depth=w=>{ const ch=Math.cos(P.head), sh=Math.sin(P.head); return (w.o[0]*ch+w.o[2]*sh+P.px)*sa+(-w.o[0]*sh+w.o[2]*ch+P.pz)*ca; };
+  list.sort((A,B)=>depth(B)-depth(A));
+  for(const w of list) pass(w,P);
+  if(kidsOn){ const hk=kidH0*shr, by=H-8;   // the kids, flat on a layer in front: the big one's height is the measure
+    for(let i=0;i<2;i++){ const im=KIDIMG[i]; if(!im.complete || !im.naturalWidth) continue; const kk=KIDS[i], scl=hk/KIDS[0].h*(i?1/1.15:1), w=kk.w*scl, h=kk.h*scl, x=W*0.5+(i?0.15:-0.75)*hk;
+      ctx.fillStyle='rgba(20,24,50,0.16)'; ctx.beginPath(); ctx.ellipse(x+w/2,by-1,w*0.42,Math.max(1.5,h*0.035),0,0,6.2832); ctx.fill();
+      ctx.drawImage(im,x,by-h,w,h); } }
+}
+function pass(w,P){
+  const tb=TB; TB+=w.ph; CUR=w.dots; build(T+w.ph*2); TB=tb;
+  const px=P.px,py=P.py,pz=P.pz, sc=w.sc, ox=w.o[0], oy=w.o[1], oz=w.o[2];
+  const ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
+  const ca=Math.cos(yaw), sa=Math.sin(yaw), cp=Math.cos(-pitch), sp=Math.sin(-pitch);
+  const D=swim?8.5:5, f=FOC, cx=W/2, cy=kidsOn?H*0.44:H/2;
+  const n=vi/3, MK=w.mk, GE=w.dots.ge, GS=w.dots.gs;
+  for(let i=0;i<n;i++){
+    let x=MV[i*3]*sc+ox, y=MV[i*3+1]*sc+oy, z=MV[i*3+2]*sc+oz;
+    let y1=y*cr-z*sr, z1=y*sr+z*cr;                 // bank
+    let x2=x*ct-y1*stp, y2=x*stp+y1*ct;             // nose up or down
+    let x3=x2*ch+z1*sh+px, z3=-x2*sh+z1*ch+pz, y3=y2+py;   // heading and place
+    const xc=x3*ca-z3*sa, zc=x3*sa+z3*ca;           // the camera's turn
+    SV[i*3]=xc; SV[i*3+1]=y3*cp-zc*sp; SV[i*3+2]=y3*sp+zc*cp+D;
+  }
+  // light from above and a little toward the viewer, carried into the camera's space
+  const L0=norm([0.3,0.9,-0.3]), lx0=L0[0]*ca-L0[2]*sa, lz0=L0[0]*sa+L0[2]*ca, lx=lx0, ly=L0[1]*cp-lz0*sp, lz=L0[1]*sp+lz0*cp;
+  order.length=0;
+  for(let q=0;q<QUADS.length;q++){
+    const Q=QUADS[q], a=Q[0]*3,b=Q[1]*3,c=Q[2]*3,d=Q[3]*3;
+    const ux=SV[c]-SV[a],uy=SV[c+1]-SV[a+1],uz=SV[c+2]-SV[a+2], vx=SV[d]-SV[b],vy=SV[d+1]-SV[b+1],vz=SV[d+2]-SV[b+2];
+    let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const nl=Math.hypot(nx,ny,nz); if(nl<1e-12) continue; nx/=nl; ny/=nl; nz/=nl;
+    const mx=(SV[a]+SV[b]+SV[c]+SV[d])/4, my=(SV[a+1]+SV[b+1]+SV[c+1]+SV[d+1])/4, mz=(SV[a+2]+SV[b+2]+SV[c+2]+SV[d+2])/4;
+    const ml=Math.hypot(mx,my,mz), face=-(nx*mx+ny*my+nz*mz)/ml; if(face<=0 || mz<0.2) continue;   // turned away from us
+    const lam=(nx*lx+ny*ly+nz*lz)*0.5+0.5;
+    order.push([mz,q,0.72*lam+0.3*face]);
+  }
+  for(const d of decs){ const p=d[0]*3, o=d[1]*3; if(SV[o+2]<SV[p+2]-0.003*sc) order.push([SV[p+2]-d[7]*sc,-2,d]); }
+  for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[o+2]<SV[p+2]-0.004*sc) order.push([SV[p+2]-0.06*sc,-1,e]); }
+  order.sort((A,B)=>B[0]-A[0]);
+  const night=bg==='night', gcol=night?'#6c86a0':'#8fb1c0';
+  ctx.lineJoin='round';
+  for(const it of order){
+    if(it[1]===-2){   // a dot lying on the skin
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3);
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=E[6]==='w'?(night?'#dfe6f2':'#ffffff'):E[6]==='k'?(night?'#5b6090':'#7d83b0'):(night?'#3a3f6a':'#474c7c');
+      ctx.beginPath(); ctx.ellipse(0,0,E[4]*E[5],E[4],0,0,6.2832); ctx.fill(); ctx.restore(); continue; }
+    if(it[1]<0){   // the eye, drawn lying on the skin: a dark almond with a fine pale rim, a soft paler lid round it and two creases arching over it
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3), R=0.014;   // (the three points are 0.02 apart on the whale itself, so the drawing scales with it)
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=night?'#2a2f68':'#3a4088'; ctx.beginPath(); ctx.ellipse(0,R*0.25,R*2.5,R*1.75,0,0,6.2832); ctx.fill();
+      ctx.lineCap='round'; ctx.strokeStyle=night?'#4a5196':'#5a63ad'; ctx.lineWidth=R*0.3;
+      ctx.beginPath(); ctx.moveTo(R*2.3,R*0.5); ctx.quadraticCurveTo(R*0.3,R*2.5,-R*2.4,R*0.9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.5,R*1.9); ctx.quadraticCurveTo(-R*0.2,R*3.2,-R*2.2,R*2.0); ctx.stroke();
+      ctx.lineWidth=R*0.22; ctx.beginPath(); ctx.moveTo(-R*2.4,-R*0.2); ctx.quadraticCurveTo(-R*3.1,-R*0.9,-R*3.0,-R*1.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.55,0); ctx.quadraticCurveTo(0,R*1.75,-R*1.55,0); ctx.quadraticCurveTo(0,-R*1.45,R*1.55,0); ctx.closePath();
+      ctx.fillStyle=night?'#090a1a':'#0c0e22'; ctx.fill(); ctx.strokeStyle=night?'#7b86c4':'#8f9bd6'; ctx.lineWidth=R*0.2; ctx.stroke();
+      ctx.fillStyle='rgba(235,240,255,0.8)'; ctx.beginPath(); ctx.arc(R*0.35,R*0.3,R*0.2,0,6.2832); ctx.fill();
+      ctx.restore(); continue; }
+    const Q=QUADS[it[1]], col=shade(Q[4],it[2],Math.max(Q[6],MK[it[1]*3+2]),MK[it[1]*3],MK[it[1]*3+1]); let X=[],Y=[];
+    for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
+    ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if(Q[5]){ const G=Q[5], sq=Q[10], lw=Math.max(0.5,0.004*sc*f/it[0]); ctx.strokeStyle=gcol;   // the grooves end on a curve: longest along the middle of the belly, shorter out to the sides, thinning out at both ends
+      for(let k=0;k<G.length;k+=3){ const r=G[k+2], wv=Math.min(1,(GE[r]-sq)/0.07,(sq-GS[r])/0.025); if(wv<=0) continue;
+        const i1=G[k]*3, i2=G[k+1]*3, z1=SV[i1+2], z2=SV[i2+2]; ctx.lineWidth=lw*(0.35+0.65*wv); ctx.globalAlpha=Math.min(1,wv*2.5);
+        ctx.beginPath(); ctx.moveTo(cx+SV[i1]*f/z1,cy-SV[i1+1]*f/z1); ctx.lineTo(cx+SV[i2]*f/z2,cy-SV[i2+1]*f/z2); ctx.stroke(); }
+      ctx.globalAlpha=1; }
+  }
+}
+let last=0;
+function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0); last=now; ctx.setTransform(DPR,0,0,DPR,0,0); drawBg(); draw(dt); requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+
+/* ---- controls ---- */
+let dragging=false, lx=0, ly=0;
+cv.addEventListener('pointerdown',e=>{ dragging=true; lx=e.clientX; ly=e.clientY; yawTo=null; cv.classList.add('drag'); try{ cv.setPointerCapture(e.pointerId); }catch(_){} mark(null); });
+cv.addEventListener('pointermove',e=>{ if(!dragging) return; yaw-=(e.clientX-lx)*0.008; pitch=clamp(pitch+(e.clientY-ly)*0.008,-1.55,1.55); lx=e.clientX; ly=e.clientY; });
+const up=()=>{ dragging=false; cv.classList.remove('drag'); }; cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+const vb=[...document.querySelectorAll('[data-view]')];
+function mark(v){ vb.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===v))); }
+vb.forEach(b=>b.addEventListener('click',()=>{ const v=VIEWS[b.dataset.view]; yawTo=v[0]; pitchTo=v[1]; mark(b.dataset.view); })); mark(null);
+const sb=document.getElementById('swim'); sb.addEventListener('click',()=>{ swim=!swim; sb.setAttribute('aria-pressed',String(swim)); });
+const bgs={blank:'bgBlank',day:'bgDay',night:'bgNight'};
+for(const k in bgs) document.getElementById(bgs[k]).addEventListener('click',()=>{ bg=k; for(const j in bgs) document.getElementById(bgs[j]).setAttribute('aria-pressed',String(j===k)); });
+
+/* ---- this whale's settings, the calf, and the ten save slots ---- */
+const $=id=>document.getElementById(id), IN={p:'pat',s:'str',u:'pur',z:'wsize',d:'dots',ds:'dsz',k:'knob',f:'flank',t:'tailm'};
+function show(){ for(const k in IN) $(IN[k]).value=cfg[k]; $('patO').textContent=cfg.p; $('sizeO').textContent=cfg.z+' kids long'; $('calf').setAttribute('aria-pressed',String(!!cfg.c)); $('calf').textContent=cfg.c?'Remove calf':'Add calf'; dirty=true; }
+for(const k in IN) $(IN[k]).addEventListener('input',()=>{ cfg[k]=+$(IN[k]).value; $('patO').textContent=cfg.p; $('sizeO').textContent=cfg.z+' kids long'; dirty=true; });
+$('rand').addEventListener('click',()=>{ const r=(a,b)=>Math.round(a+Math.random()*(b-a)); cfg.p=r(1,99); cfg.s=r(45,100); cfg.u=r(15,100); cfg.z=Math.random()<0.25?r(24,70):r(7,18); cfg.d=r(0,100); cfg.ds=r(20,90); cfg.k=r(20,100); cfg.f=r(0,100); cfg.t=r(0,90); show(); });
+$('calf').addEventListener('click',()=>{ cfg.c=cfg.c?0:1; show(); });
+const KEY='whale-slots-v1'; let slots=new Array(10).fill(null), armed=false;
+try{ const v=JSON.parse(localStorage.getItem(KEY)||'null'); if(Array.isArray(v)) for(let i=0;i<10;i++) if(v[i] && typeof v[i].p==='number') { const w=v[i], g=(k,dflt)=>typeof w[k]==='number'?w[k]:dflt; slots[i]={p:w.p,s:g('s',70),u:g('u',60),z:w.v===2?g('z',12):Math.round(g('z',100)/100*12),v:2,c:w.c?1:0,d:g('d',0),ds:g('ds',50),k:g('k',0),f:g('f',0),t:g('t',0)}; } }catch(_){}
+const keep=()=>{ try{ localStorage.setItem(KEY,JSON.stringify(slots)); return true; }catch(_){ return false; } };
+const say=t=>{ $('hint').textContent=t; };
+const text=()=>{ const L=[]; slots.forEach((w,i)=>{ if(w) L.push('slot '+(i+1)+': pattern '+w.p+', strength '+w.s+', purple '+w.u+', size '+w.z+' kids long, dots '+w.d+', dot size '+w.ds+', knobs '+w.k+', flank '+w.f+', tail '+w.t+', calf '+(w.c?'yes':'no')); }); return L.length?L.join('\n'):'No whales saved yet.'; };
+function slotRow(){ const row=$('slots'); row.textContent='';
+  slots.forEach((w,i)=>{ const b=document.createElement('button'); b.type='button'; b.textContent=String(i+1); if(w){ b.dataset.full='1'; b.title='Pattern '+w.p+(w.c?', with calf':''); }
+    b.setAttribute('aria-label','Slot '+(i+1)+(w?', pattern '+w.p+(w.c?' with calf':''):', empty'));
+    b.addEventListener('click',()=>{
+      if(armed){ slots[i]=Object.assign({v:2},cfg); armed=false; $('save').setAttribute('aria-pressed','false'); const ok=keep(); slotRow(); say(ok?'Saved in slot '+(i+1)+'.':'Saved for now, but this browser will not remember it. Use Show list to keep a copy.'); }
+      else if(slots[i]){ Object.assign(cfg,slots[i]); show(); say('Showing the whale from slot '+(i+1)+'.'); }
+      else say('Slot '+(i+1)+' is empty. Press Save, then a slot.'); });
+    row.appendChild(b); });
+  $('listtxt').value=text(); }
+$('save').addEventListener('click',()=>{ armed=!armed; $('save').setAttribute('aria-pressed',String(armed)); say(armed?'Now pick a slot for this whale.':''); });
+$('list').addEventListener('click',()=>{ const open=$('listbox').hidden; $('listbox').hidden=!open; $('list').setAttribute('aria-pressed',String(open)); $('list').textContent=open?'Hide list':'Show list'; $('listtxt').value=text(); });
+$('copy').addEventListener('click',()=>{ const t=$('listtxt'); const fall=()=>{ t.focus(); t.select(); say('Text selected. Copy it with your keyboard.'); };
+  try{ navigator.clipboard.writeText(t.value).then(()=>say('Copied.'),fall); }catch(_){ fall(); } });
+slotRow(); show();
+$('kidsB').addEventListener('click',()=>{ kidsOn=!kidsOn; $('kidsB').setAttribute('aria-pressed',String(kidsOn)); $('size').disabled=kidsOn; });
+$('size').disabled=true;
+</script>
