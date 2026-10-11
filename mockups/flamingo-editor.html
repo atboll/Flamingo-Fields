@@ -316,8 +316,16 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       const q=[]; for(let i=0;i<=10;i++){ const t=2.6*i/10; q.push(Wp(t,LE(t))); } for(let i=10;i>=0;i--){ const t=2.6*i/10; q.push(Wp(t,LE(t)-4.4*(1-0.5*i/10))); } poly(q,C.pale); }   // paler along the leading edge
     // Folded, the pink feathers of the back and shoulder lie over the black band and most of the flight feathers, so only the dark tips
     // show beneath and behind them. This cover has a toothed lower edge and a thin outline, and it draws back as the wing opens.
-    if(QA>0.3){ const pts=[], N=16; for(let i=0;i<=N;i++){ const t=3.3*i/N; pts.push(Wp(t,LE(t))); } for(let i=5;i>=1;i--){ const t=3.3*i/5; pts.push(Wp(t+0.1,-17.5+3*i/5)); pts.push(Wp(t-0.52,-8.5+1.5*i/5)); } pts.push(Wp(0,-8.5));
-      ctx.globalAlpha=clamp((QA-0.3)/0.3,0,1); poly(pts,'#ff9dbf'); ctx.strokeStyle='#ec78a5'; ctx.lineWidth=Math.max(0.6,0.3*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.stroke(); ctx.globalAlpha=1; }
+    if(QA>0.3){ const N=16, al=clamp((QA-0.3)/0.3,0,1);
+      // three layers of feathers, each a row of pointed feather shapes: two darker rows reaching further down and back, and the bright row over them
+      const row=(col,tip,val,dt,edge)=>{ const pts=[]; for(let i=0;i<=N;i++){ const t=3.3*i/N; pts.push(Wp(t,LE(t))); }
+        for(let i=5;i>=1;i--){ const t=3.3*i/5+dt; pts.push(Wp(t+0.1,tip+3*i/5)); pts.push(Wp(t-0.52,val+1.5*i/5)); } pts.push(Wp(0,val));
+        poly(pts,col); if(edge){ ctx.strokeStyle=edge; ctx.lineWidth=Math.max(0.6,0.3*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.stroke(); } };
+      ctx.globalAlpha=al; row('#d85f90',-11.5,-5.5,0.22,null); row('#ec78a5',-10,-4.2,0.11,null); row('#ff9dbf',-8.5,-3,0,'#ec78a5');
+      // and the feathers painted on the bright row: a line up from each notch, and a second, shorter row of feather tips higher on the wing
+      for(let i=1;i<=5;i++){ const t=3.3*i/5-0.52, v=-3+1.5*i/5; ln([Wp(t,v),Wp(t-0.25,v+5)],'#ec78a5',0.35); }
+      for(let i=1;i<=6;i++){ const t=3.1*i/6-0.2; ln([Wp(t-0.42,5),Wp(t+0.05,2),Wp(t-0.05,5.3)],'#ec78a5',0.35); }
+      ctx.globalAlpha=1; }
     if(QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
                                                 // rows of covert feathers
     { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
