@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 10:35 door</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 10:55 door</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -165,7 +165,7 @@ const DOOR_W=255, DOOR_H=545;
 const BOXFRONT=[]; let boxFrontNow=false;   // whatever is drawn in front of the box this frame, kept so it can be painted again over the door's light
 function skyLimit(x,d){ if(!STRN || SD[STRN-1]>=d-4) return 1e9; let lo=0, hi=STRN-1; while(lo<hi){ const m=(lo+hi)>>1; if(SD[m]<d-4) hi=m; else lo=m+1; } return skyAt(lo,x); }
 let gcv=null, gctx=null, gcv2=null, gctx2=null;
-function frontOverLight(lx0,ly0,lx1,ly1){   // everything standing or flying in front of the box, painted again in the colours of the hour over the light just laid down
+function frontOverLight(lx0,ly0,lx1,ly1,sil){   // everything standing or flying in front of the box, painted again in the colours of the hour over the light just laid down
   const n=night, L=[]; let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
   for(const q of BOXFRONT){ const ax=q[1]-q[3]*1.3, bx=q[1]+q[3]*1.3, ay=q[2]-q[4]*1.3, by=q[2]+q[4]*1.3; if(bx<lx0 || ax>lx1 || by<ly0 || ay>ly1) continue; L.push(q[0]); if(ax<x0)x0=ax; if(bx>x1)x1=bx; if(ay<y0)y0=ay; if(by>y1)y1=by; }
   if(!L.length) return;
@@ -175,27 +175,46 @@ function frontOverLight(lx0,ly0,lx1,ly1){   // everything standing or flying in 
   if(gcv.width!==w || gcv.height!==h){ gcv.width=gcv2.width=w; gcv.height=gcv2.height=h; }
   gctx.setTransform(1,0,0,1,0,0); gctx.globalCompositeOperation='source-over'; gctx.globalAlpha=1; gctx.clearRect(0,0,w,h); gctx.setTransform(DPR,0,0,DPR,-x0*DPR,-y0*DPR);
   const main=ctx; ctx=gctx; try{ for(const fn of L) fn(); } finally { ctx=main; }
-  if(n>0.005){ gctx2.setTransform(1,0,0,1,0,0); gctx2.globalCompositeOperation='copy'; gctx2.drawImage(gcv,0,0);
-    const c = n<0.5 ? mix([255,255,255],[168,128,166],n*2) : mix([168,128,166],[44,74,158],(n-0.5)*2);
-    gctx.setTransform(1,0,0,1,0,0); gctx.globalAlpha=1; gctx.globalCompositeOperation='multiply'; gctx.fillStyle=c; gctx.fillRect(0,0,w,h);
-    gctx.globalCompositeOperation='screen'; gctx.fillStyle='rgba(4,8,30,'+n+')'; gctx.fillRect(0,0,w,h);
+  sil=sil||0;
+  if(n>0.005 || sil>0.004){ gctx2.setTransform(1,0,0,1,0,0); gctx2.globalCompositeOperation='copy'; gctx2.drawImage(gcv,0,0);
+    gctx.setTransform(1,0,0,1,0,0); gctx.globalAlpha=1;
+    if(n>0.005){ const c = n<0.5 ? mix([255,255,255],[168,128,166],n*2) : mix([168,128,166],[44,74,158],(n-0.5)*2);
+      gctx.globalCompositeOperation='multiply'; gctx.fillStyle=c; gctx.fillRect(0,0,w,h);
+      gctx.globalCompositeOperation='screen'; gctx.fillStyle='rgba(4,8,30,'+n+')'; gctx.fillRect(0,0,w,h); }
+    if(sil>0.004){ const k=Math.pow(sil,0.8), v=(a,b)=>Math.round(a+(b-a)*k);            // nearer the door they lose their colours and stand dark against the light
+      gctx.globalCompositeOperation='multiply'; gctx.fillStyle='rgb('+v(255,36)+','+v(255,32)+','+v(255,50)+')'; gctx.fillRect(0,0,w,h);
+      gctx.globalCompositeOperation='source-over'; gctx.fillStyle='rgba(30,26,44,'+(0.55*k).toFixed(3)+')'; gctx.fillRect(0,0,w,h); }
     gctx.globalCompositeOperation='destination-in'; gctx.drawImage(gcv2,0,0); gctx.globalCompositeOperation='source-over'; }
-  ctx.save(); ctx.globalAlpha=1; ctx.globalCompositeOperation='source-over'; ctx.drawImage(gcv,x0,y0,w/DPR,h/DPR); ctx.restore();
+  const s0=clamp((sil-0.82)/0.18,0,1), fa=1-0.8*s0*s0*(3-2*s0);                           // in the full white they are left as faint shapes
+  ctx.save(); ctx.globalAlpha=fa; ctx.globalCompositeOperation='source-over'; ctx.drawImage(gcv,x0,y0,w/DPR,h/DPR); ctx.restore();
+}
+let doorNear=0;
+function doorNearNow(){   // how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it
+  let tg=0; if(BOX && coast && level===1 && coastA>0.5){ const c=boxC(), dx=lead.x-c[0], dz=lead.z-c[1], u=dx*SUNDZ-dz*SUNDX, v=dx*SUNDX+dz*SUNDZ;
+    if(v<-BOX_HALF && lead.y<DOOR_H*1.6){ const d=Math.hypot(-v-BOX_HALF, Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7), facing=clamp((fwdX*SUNDX+fwdZ*SUNDZ-0.15)/0.6,0,1); tg=clamp(1-(d-95)/1700,0,1)*facing; } }
+  doorNear+=(tg-doorNear)*0.1; if(doorNear<0.002 && tg===0) doorNear=0; return doorNear;
 }
 function drawDoorLight(){
-  const B=BOXV; if(!B || level!==1) return; const f=B.faces[0]; if(!f.vis) return;
-  const c=B.c, g=B.g, ux=SUNDZ, uz=-SUNDX, vx=SUNDX, vz=SUNDZ, A0=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3)); if(A0<=0.02) return;
+  const n=doorNearNow(), r=doorLightBody(n);
+  if(n>0.004){ ctx.save(); ctx.globalCompositeOperation='source-over';   // the light takes the whole view as the kids come up to the door
+    const X=r?r.cx:W/2, Y=r?r.cy:H*0.45, R=Math.max(W,H)*(0.25+1.1*n), g=ctx.createRadialGradient(X,Y,0,X,Y,R); g.addColorStop(0,'rgba(255,255,250,'+(0.9*n).toFixed(3)+')'); g.addColorStop(0.5,'rgba(255,254,244,'+(0.5*n*n).toFixed(3)+')'); g.addColorStop(1,'rgba(255,254,244,0)');
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='rgba(255,254,246,'+Math.pow(n,2.6).toFixed(3)+')'; ctx.fillRect(0,0,W,H); ctx.restore(); }
+  if(n>0.004) frontOverLight(-1e9,-1e9,1e9,1e9,n); else if(r) frontOverLight(r.cx-r.R2*1.5,-1e9,r.cx+r.R2*1.5,1e9,0);
+}
+function doorLightBody(near){
+  const B=BOXV; if(!B || level!==1) return null; const f=B.faces[0]; if(!f.vis) return null;
+  const c=B.c, g=B.g, ux=SUNDZ, uz=-SUNDX, vx=SUNDX, vz=SUNDZ, A0=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3)); if(A0<=0.02) return null;
   const at=(u,v,h)=>{ const x=c[0]+ux*u+vx*v, z=c[1]+uz*u+vz*v, p=proj(x,z); if(p[1]<45) return null; const s=focal/p[1]; return [W/2+p[0]*s, horizon+(camY-(h===null?ground(x,z):h))*s, p[1]]; };
   const gd=(u)=>ground(c[0]+ux*u+vx*(-BOX_HALF), c[1]+uz*u+vz*(-BOX_HALF)), ga=gd(-DOOR_W/2), gb=gd(DOOR_W/2), dt=Math.max(ga,gb)+DOOR_H;   // the door stands on the sand where the wall meets it, not on the level the box was set at
-  const a0=at(-DOOR_W/2,-BOX_HALF,ga), b0=at(DOOR_W/2,-BOX_HALF,gb), b1=at(DOOR_W/2,-BOX_HALF,dt), a1=at(-DOOR_W/2,-BOX_HALF,dt); if(!a0||!b0||!a1||!b1) return;
+  const a0=at(-DOOR_W/2,-BOX_HALF,ga), b0=at(DOOR_W/2,-BOX_HALF,gb), b1=at(DOOR_W/2,-BOX_HALF,dt), a1=at(-DOOR_W/2,-BOX_HALF,dt); if(!a0||!b0||!a1||!b1) return null;
   const cx=(a0[0]+b0[0]+a1[0]+b1[0])/4, cy=(a0[1]+b0[1]+a1[1]+b1[1])/4, dh=Math.abs(a0[1]-a1[1]), dw=Math.max(1,Math.abs(b0[0]-a0[0])), depth=(a0[2]+b0[2])/2;
-  const lim=skyLimit(cx,depth)+1.5; if(lim<Math.min(a1[1],b1[1])) return;                           // a dune stands in front of the whole doorway
+  const lim=skyLimit(cx,depth)+1.5; if(lim<Math.min(a1[1],b1[1])) return null;                           // a dune stands in front of the whole doorway
   const edge=clamp((f.nx*(camPx-f.mx)+f.nz*(camPz-f.mz))/Math.hypot(camPx-f.mx,camPz-f.mz)*3,0.25,1), A=A0;   // seen edge-on the light thins
   ctx.save(); ctx.globalCompositeOperation='source-over';
   // its light on the sand: laid in thin bands outward from the door, each brightest down its middle and gone at its sides,
   // and each a little fainter than the one before, so the light has no edge anywhere and dies away over the dunes
-  { const NS=44, LEN=2300, rows=[]; for(let i=0;i<=NS;i++){ const t=i/NS, v=-BOX_HALF-LEN*t, hw=DOOR_W*0.9+900*Math.pow(t,0.8), l=at(-hw,v,null), r=at(hw,v,null), m=at(0,v,null); if(!l||!r||!m) break; rows.push([l,r,m]); }
-    for(let i=-1;i+2<rows.length;i++){ const i0=Math.max(0,i), i1=i+2, t=(i+1)/NS, al=0.3*A*Math.pow(1-t,2.3); if(al<0.002) break; const l0=rows[i0][0], r0=rows[i0][1], l1=rows[i1][0], r1=rows[i1][1];   // each band laps half over the next, so no seam shows between them
+  { const NS=44, LEN=2300*(1+0.4*near), rows=[]; for(let i=0;i<=NS;i++){ const t=i/NS, v=-BOX_HALF-LEN*t, hw=DOOR_W*0.9+900*Math.pow(t,0.8), l=at(-hw,v,null), r=at(hw,v,null), m=at(0,v,null); if(!l||!r||!m) break; rows.push([l,r,m]); }
+    for(let i=-1;i+2<rows.length;i++){ const i0=Math.max(0,i), i1=i+2, t=(i+1)/NS, al=0.3*A*(1+1.6*near)*Math.pow(1-t,2.3); if(al<0.002) break; const l0=rows[i0][0], r0=rows[i0][1], l1=rows[i1][0], r1=rows[i1][1];   // each band laps half over the next, so no seam shows between them
       // the light must run even along the length of the fan, so the shading is laid square to that direction as it appears on the screen
       const m0=rows[i0][2], m1=rows[i1][2], mx=(m0[0]+m1[0])/2, my=(m0[1]+m1[1])/2; let dx=m1[0]-m0[0], dy=m1[1]-m0[1]; const dl=Math.hypot(dx,dy); if(dl<0.01) continue; dx/=dl; dy/=dl;
       const nx=-dy, ny=dx, tL=((l0[0]+l1[0])/2-mx)*nx+((l0[1]+l1[1])/2-my)*ny, tR=((r0[0]+r1[0])/2-mx)*nx+((r0[1]+r1[1])/2-my)*ny; if(Math.abs(tR-tL)<2) continue;
@@ -208,7 +227,7 @@ function drawDoorLight(){
   ctx.beginPath(); ctx.moveTo(a0[0],a0[1]); ctx.lineTo(b0[0],b0[1]); ctx.lineTo(b1[0],b1[1]); ctx.lineTo(a1[0],a1[1]); ctx.closePath();
   ctx.fillStyle='rgba(255,255,250,'+A+')'; ctx.fill(); ctx.restore();
   // bloom: a tight white core, a wide soft haze, and a low wide flare, none smaller than a beacon should be from far off
-  const R1=Math.max(10,dh*0.95), R2=Math.max(34,dh*3.4), q=H/650;
+  const R1=Math.max(10,dh*0.95)*(1+1.2*near), R2=Math.max(34,dh*3.4)*(1+1.2*near), q=H/650;
   let gr=ctx.createRadialGradient(cx,cy,0,cx,cy,R1); gr.addColorStop(0,'rgba(255,255,252,'+(0.85*A*edge)+')'); gr.addColorStop(0.45,'rgba(255,253,240,'+(0.42*A*edge)+')'); gr.addColorStop(1,'rgba(255,253,240,0)');
   ctx.fillStyle=gr; ctx.beginPath(); ctx.arc(cx,cy,R1,0,7); ctx.fill();
   gr=ctx.createRadialGradient(cx,cy,0,cx,cy,R2); gr.addColorStop(0,'rgba(248,250,240,'+(0.26*A*edge)+')'); gr.addColorStop(0.5,'rgba(244,248,238,'+(0.1*A*edge)+')'); gr.addColorStop(1,'rgba(244,248,238,0)');
@@ -220,8 +239,8 @@ function drawDoorLight(){
     ctx.fillStyle=gr2; ctx.beginPath(); ctx.moveTo(cx-wd,cy); ctx.lineTo(cx+wd,cy); ctx.lineTo(cx+wd*0.12,y1); ctx.lineTo(cx-wd*0.12,y1); ctx.closePath(); ctx.fill();
     const gr3=ctx.createLinearGradient(0,cy,0,y1); gr3.addColorStop(0,'rgba(255,255,250,'+(0.22*A*edge)+')'); gr3.addColorStop(1,'rgba(255,255,250,0)');
     ctx.fillStyle=gr3; ctx.beginPath(); ctx.moveTo(cx-wd*4,cy); ctx.lineTo(cx+wd*4,cy); ctx.lineTo(cx+wd*0.6,y1); ctx.lineTo(cx-wd*0.6,y1); ctx.closePath(); ctx.fill(); }
-  frontOverLight(cx-R2*1.5,-1e9,cx+R2*1.5,1e9);
   ctx.restore();
+  return {cx,cy,R2};
 }
 function drawBoxShine(){
   const B=BOXV; if(!B || level!==1) return; const top=B.g+BOX_H, A=clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*clamp(coastA*1.5,0,1); if(camY<=top+4 || A<=0.02) return;
