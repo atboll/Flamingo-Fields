@@ -348,7 +348,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
   const legs=(side,mode)=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
-    for(const o of [3.2*side]){ const d=0, farL=(-o*cfx>0), dk=farL?'#e06a99':'#ec78a5', lt=farL?'#ec80a8':'#f68fb5', kb=farL?'#c95485':'#d85f90';   // the legs take the colour of the body's underside
+    for(const o of [3.2*side]){ const d=0, farL=(-o*cfx>0), dk=farL?'#d25888':'#e06492', lt=farL?'#de6f9b':'#ec7fa8', kb=farL?'#b94674':'#c95080';   // the legs take the colour of the body's underside
       const J=[[-1,0.2+bob,o*0.8],[-22.5,-13.6-d*0.5+bob*0.6+lag*0.4,o*0.82],[-43,-21.2-d+bob*0.3+lag,o*0.36]], ft=[-50.4,-20.6-d+bob*0.25+lag*1.25,o*0.2];   // spread a little apart, bent at the knee, the foot turned back and up at the ankle so the toes trail
       const JV=[[J[0][0]+(J[1][0]-J[0][0])*0.45,J[0][1]+(J[1][1]-J[0][1])*0.45,J[0][2]+(J[1][2]-J[0][2])*0.45],J[1],J[2]];   // the bare leg starts inside the thigh
       if(!mode){ ln(JV.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(JV.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8); }                          // the leg: dark, with a light line along its top. It is drawn first, so its upper part lies inside the thigh and it comes out at the thigh's end
@@ -473,7 +473,7 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   // and the bare leg coming out of the end of the thigh. mode 1 draws only the thigh's shape (it belongs to the skin), mode 0 the bare leg.
   const leg=(sd,mode)=>{
     const p2=wp+(sd>0?Math.PI:0), stride=(7+12*run)*mv, sw=Math.sin(p2)*stride, swing=Math.max(0,Math.cos(p2)), lift=swing*(3+9*run)*mv;
-    const farLeg=(-sd*cfx>0), dk=farLeg?'#e06a99':'#ec78a5', lt=farLeg?'#ec80a8':'#f68fb5', kb=farLeg?'#c95485':'#d85f90', x=sd*2.3;
+    const farLeg=(-sd*cfx>0), dk=farLeg?'#d25888':'#e06492', lt=farLeg?'#de6f9b':'#ec7fa8', kb=farLeg?'#b94674':'#c95080', x=sd*2.3;
     const R=sd===(m.restSide||1)?(m.rest||0):0, Re=R*R*(3-2*R);                                // resting: this leg is drawn up and tucked under the body
     const hipF=-1, hipU=36.5+bob, kneeF=lerp(hipF+0.5+1.7*mv+sw*0.12,-2.6,Re), kneeU=lerp(hipU-8,31.2,Re);   // resting: the leg turns backward from the body at about 45 degrees
     const fF=lerp(sw,10.5,Re), fU=lerp(lift,19.5,Re);   // and from the joint behind, the lower leg comes forward again, the foot hanging loose in front of the standing leg
