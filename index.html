@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:45</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:52</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -378,7 +378,10 @@ function updateMates(dt){
     const tight=1-0.35*pathAlign, back=((air?112:85)+row*(air?84:52))*tight, lat=(side*((air?105:58)+row*(air?77:26))+wob)*tight;   // in the air they keep well apart, like the wild flock
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
     const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1900:400,d*2.2), e=1-Math.exp(-dt*3.5);
-    m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
+    // Landing, a bird touches down still moving and runs its speed off; taking off, it runs first, opening its wings as it goes.
+    // Either way it keeps running straight ahead for a moment, whatever its place in the flock would ask.
+    const runOut=m.landT===undefined?0:Math.max(0,1-(time-m.landT)/1.1), runUp=(m.y<2&&m.open>0.02&&m.rising)?1:0, drive=Math.max(runOut*runOut*300,runUp*320);
+    m.vx+=(((d>2?dx/d*want:0)+m.hx*drive)-m.vx)*e; m.vz+=(((d>2?dz/d*want:0)+m.hz*drive)-m.vz)*e;
     m.x+=m.vx*dt; m.z+=m.vz*dt;
     const sp=m.sp=Math.hypot(m.vx,m.vz);
     if(sp>15){ const eh=1-Math.exp(-dt*5); m.hx+=(m.vx/sp-m.hx)*eh; m.hz+=(m.vz/sp-m.hz)*eh; const hm=Math.hypot(m.hx,m.hz)||1; m.hx/=hm; m.hz/=hm; }
@@ -387,8 +390,12 @@ function updateMates(dt){
     m.wp+=dt*(2+sp*0.035)*(sp>10?1:0);
     // in the air with the kids, down in the grass otherwise; a bird left far behind flies to catch up
     const tgt=(air||d>900)?Math.max(40,(air?lead.y:120)+12+row*10):0;
-    m.open=clamp((m.open||0)+(tgt>0?dt/0.9:(m.y<28?-dt/0.8:0)),0,1);
-    m.vy+=((tgt-m.y)*3-m.vy*2.8)*dt; m.y=Math.max(0,m.y+m.vy*dt); if(tgt===0&&m.y<1.5){ m.y=0; m.vy=0; }
+    // The wings open on the ground at a run before the bird lifts, and stay spread on the way down until it is running on the ground again; only then do they fold.
+    const wasUp=m.y>1.5; m.rising=tgt>0;
+    m.open=clamp((m.open||0)+(tgt>0?dt/0.55:(m.y<1.5?-dt/0.6:0)),0,1);
+    if(tgt>0 && m.y<1.5 && m.open<0.85){ m.y=0; m.vy=0; }                       // still on its run-up: no lift until the wings are nearly spread
+    else { m.vy+=((tgt-m.y)*3-m.vy*2.8)*dt; m.y=Math.max(0,m.y+m.vy*dt); if(tgt===0&&m.y<1.5){ m.y=0; m.vy=0; } }
+    if(wasUp && m.y<=1.5 && tgt===0) m.landT=time;                              // touchdown: the run-out starts here
   });
 }
 function spawnFlock(){
@@ -1561,8 +1568,9 @@ function drawWorld(){
     if(e.hid && boxDrawn && !e.inClip){ e.inClip=true; ctx.save(); ctx.clip(BOXV.clip,'evenodd'); ki--; kidsBeyond(e.key); ctx.restore(); continue; }
     if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
       if(m.beach && m.y<=6 && m.open<=0.03 && s<0.09){ drawBirdTiny(m,X,horizon+(camY-g)*s,s); continue; }
-      if(m.y>6||m.open>0.03) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
-      const dr=(m.y>6||m.open>0.03) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s) : ()=>drawBirdWalk(m, X, horizon+(camY-g)*s, s);
+      if(m.y>6) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
+      const dr=(m.y>6) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,legDown:clamp((40-m.y)/34,0,1),roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s)
+        : ()=>drawBirdWalk(m.open>0.01 ? Object.assign({},m,{phase:time*4.2+m.ph,dY:-1.3*Math.sin(Math.PI*m.open)}) : m, X, horizon+(camY-g)*s, s);   // on the ground it is the ground bird, running with its wings opening or folding
       dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); if(!m.beach) REDO.push(dr); }
     else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
       const fade=clamp((s-focal/FLOCK_GONE)/0.03,0,1); if(fade<=0.01) continue;
@@ -1816,7 +1824,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     for(const o of [3.2*side]){ const d=0, farL=(-o*cfx>0), dk=farL?'#d25888':'#e06492', lt=farL?'#de6f9b':'#ec7fa8', kb=farL?'#b94674':'#c95080';   // the legs take the colour of the body's underside
       const J=[[-1,0.2+bob,o*0.8],[-22.5,-13.6-d*0.5+bob*0.6+lag*0.4,o*0.82],[-43,-21.2-d+bob*0.3+lag,o*0.36]], ft=[-50.4,-20.6-d+bob*0.25+lag*1.25,o*0.2];   // spread a little apart, bent at the knee, the foot turned back and up at the ankle so the toes trail
       // The whole leg, thigh and all, is swung up about the hip, so it trails at a shallow angle close to the line of the body; gliding, it lifts a few degrees more.
-      { const th=0.16+0.07*glide, cq=Math.cos(th), sq=Math.sin(th); for(const q of [J[1],J[2],ft]){ const df=q[0]-J[0][0], du=q[1]-J[0][1]; q[0]=J[0][0]+df*cq+du*sq; q[1]=J[0][1]-df*sq+du*cq; } }
+      { const th=0.16+0.07*glide-(o.legDown||0)*1.0, cq=Math.cos(th), sq=Math.sin(th);   /* coming in to land (or just lifted off) the legs swing down to reach for the ground */ for(const q of [J[1],J[2],ft]){ const df=q[0]-J[0][0], du=q[1]-J[0][1]; q[0]=J[0][0]+df*cq+du*sq; q[1]=J[0][1]-df*sq+du*cq; } }
       const JV=[[J[0][0]+(J[1][0]-J[0][0])*0.45,J[0][1]+(J[1][1]-J[0][1])*0.45,J[0][2]+(J[1][2]-J[0][2])*0.45],J[1],J[2]];   // the bare leg starts inside the thigh
       if(!mode){ ln(JV.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(JV.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8); }                          // the leg: dark, with a light line along its top. It is drawn first, so its upper part lies inside the thigh and it comes out at the thigh's end
       // the feathered thigh: a full teardrop in the dark pink of the body's underside, starting inside the belly and narrowing down to the leg at the knee,
