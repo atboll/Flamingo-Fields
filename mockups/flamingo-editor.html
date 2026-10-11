@@ -397,10 +397,11 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   { const above=elev>0;
     if(above) legs();                                   // seen from above, the legs are under the body
     if(cfz>0) neck();                                   // flying away: the neck is the far end
+    wing(far);                                          // the far wing is on the other side of the body, so the body hides it wherever the two overlap
     body();
     if(cfz<=0) neck();
     if(!above) legs();                                  // seen from underneath, the legs are the nearest thing
-    wing(far); wing(-far); }                            // both wings lie over everything, the near one last: no part of the body ever shows through a wing
+    wing(-far); }                                       // the near wing lies over everything: nothing shows through it
 }
 
 /* ---- the editor ---- */
