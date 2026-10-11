@@ -86,9 +86,9 @@ function put(x,y,z){ MV[vi++]=x; MV[vi++]=y; MV[vi++]=z; return vi/3-1; }
 function bent(x,yl,z){ const s=(1-x)/2; frame(s); return put(x+FR[1]*yl, FR[0]+FR[2]*yl, z); }                                   // each point follows the spine where it sits
 function bentAt(sr,x,yl,z){ const xr=1-2*sr; frame(sr); return put(xr+FR[2]*(x-xr)+FR[1]*yl, FR[0]-FR[1]*(x-xr)+FR[2]*yl, z); }   // a stiff part follows the spine at its root
 const DARK=0, PALE=1;
-const FLIP_S=0.365, FLIP_Y=-0.165;   // the flipper's root, low on the flank
-// a broad tongue of the dark back runs down the flank behind the eye and becomes the flipper
-const palTop=sv=>{ const b=palBase(sv), q=clamp(1-(Math.abs(sv-FLIP_S)-0.036)/0.05,0,1), g=q*q*(3-2*q); return b+(Math.max(b,-FLIP_Y+0.04)-b)*g; };
+const FLIP_S=0.34, FLIP_Y=-0.06;   // the flipper's root: where the drawing has it, in the dark of the flank behind and below the eye
+// the border as drawn, plus the dark dipping down round the eye into the pale
+const palTop=sv=>{ const b=palBase(sv), e=(sv-0.281)/0.026; return e*e<1?Math.max(b,0.048+0.04*Math.sqrt(1-e*e)):b; };
 function quad(a,b,c,d,kind,hint,groove,mix){   // hint: roughly which way the patch faces, so the corners get wound the right way
   const P=i=>[MV[i*3],MV[i*3+1],MV[i*3+2]], A=P(a),B=P(b),C=P(c),D=P(d);
   const ux=C[0]-A[0],uy=C[1]-A[1],uz=C[2]-A[2], vx=D[0]-B[0],vy=D[1]-B[1],vz=D[2]-B[2];
@@ -96,7 +96,7 @@ function quad(a,b,c,d,kind,hint,groove,mix){   // hint: roughly which way the pa
   if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null,mix||0]); else QUADS.push([a,b,c,d,kind,groove||null,mix||0]);
 }
 
-const NR=74, K1=7, K2=7, M=2*(K1+K2);
+const NR=100, K1=7, K2=7, M=2*(K1+K2);
 function body(){
   const first=vi/3;
   for(let i=-1;i<=NR+1;i++){
@@ -136,13 +136,13 @@ const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
 function flipper(sg,t){
   const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
-  let c=[xr,FLIP_Y,sg*zr*0.5]; const S=36, L=0.68, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
+  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=36, L=0.72, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
   for(let k=0;k<=S;k++){ const u=k/S;
-    const a=0.5+0.14*u+0.1*sw, d=0.42+0.12*u+0.5*u*sw;   // swept back, drooping, and curling slowly along its length
-    const dir=[-Math.sin(a)*Math.cos(d),-Math.sin(d),sg*Math.cos(a)*Math.cos(d)];
-    const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]<0) n=[-n[0],-n[1],-n[2]];
-    const root=Math.pow(clamp(1-u/0.24,0,1),2), hw=0.088*Math.pow(1-Math.pow(u,5),0.5)*(0.84+0.16*Math.sin(Math.PI*Math.min(1,u/0.7)))*(1+0.15*root), bump=1+0.09*Math.sin(u*21+0.5)*Math.min(1,u*5), bumpB=1+0.06*Math.sin(u*15+2)*Math.min(1,u*5);   // a long broad paddle with a round end and knobbly edges
-    st.push({A:[c[0]+ch[0]*hw*0.9*bump,c[1]+ch[1]*hw*0.9*bump,c[2]+ch[2]*hw*0.9*bump], B:[c[0]-ch[0]*hw*1.1*bumpB,c[1]-ch[1]*hw*1.1*bumpB,c[2]-ch[2]*hw*1.1*bumpB], n, t:(0.006+0.014*(1-u)+0.03*root)*Math.min(1,Math.sqrt((1-u)*14)), mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
+    const be=0.5+0.34*u+0.12*sw, out=0.8-0.25*u+0.5*u*sw;   // as drawn: hanging down and back, curving a little more back toward the tip; it also stands out from the body
+    const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
+    const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), wd=0.165*Math.pow(Math.sin(Math.PI*Math.pow(clamp(u*0.86+0.06,0,1),0.62)),0.9)+0.012*(1-u), hw=wd*0.5*Math.pow(1-Math.pow(u,8),0.5)*(1+0.25*root), bump=1+0.05*Math.sin(u*21+0.5)*Math.min(1,u*5), bumpB=1;   // the drawing's own width: broad a third of the way out, narrowing gently to a slim rounded tip
+    st.push({A:[c[0]+ch[0]*hw*0.84*bump,c[1]+ch[1]*hw*0.84*bump,c[2]+ch[2]*hw*0.84*bump], B:[c[0]-ch[0]*hw*1.16,c[1]-ch[1]*hw*1.16,c[2]-ch[2]*hw*1.16], n, t:(0.006+0.014*(1-u)+0.03*root)*Math.min(1,Math.sqrt((1-u)*14)), mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
     c=[c[0]+dir[0]*L/S,c[1]+dir[1]*L/S,c[2]+dir[2]*L/S];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
@@ -159,10 +159,10 @@ function backFin(){
     st.push({A:[xa,TOP((1-xa)/2)*0.9+0.056*v,0], B:[xb,TOP((1-xb)/2)*0.9+0.056*v,0], n:[0,0,1], t:0.002+0.012*(1-v)}); }
   blade(st,DARK,DARK,bent);
 }
-const EYE_S=0.272; let eyes=[];
+const EYE_S=0.283; let eyes=[];
 function build(t){
   vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
-  const yl=-(mouth(EYE_S)-0.006), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
+  const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
   eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); eyes.push([p,q]); }
   INIT=false;
 }
@@ -223,9 +223,8 @@ function draw(dt){
   ctx.lineJoin='round';
   for(const it of order){
     if(it[1]<0){ const p=it[2], z=SV[p+2], r=0.0085*f/z, ex=cx+SV[p]*f/z, ey=cy-SV[p+1]*f/z;
-      ctx.fillStyle=night?'#4a5290':'#6a73b4'; ctx.beginPath(); ctx.ellipse(ex,ey,r*2,r*1.55,0,0,6.2832); ctx.fill();   // a pale lid around a small dark eye
-      ctx.fillStyle=night?'#0d0f22':'#12142c'; ctx.beginPath(); ctx.arc(ex,ey,r,0,6.2832); ctx.fill();
-      ctx.fillStyle='rgba(255,255,255,0.75)'; ctx.beginPath(); ctx.arc(ex-r*0.3,ey-r*0.35,r*0.28,0,6.2832); ctx.fill(); continue; }
+      ctx.fillStyle=night?'#dfe6f2':'#ffffff'; ctx.beginPath(); ctx.ellipse(ex,ey,r*1.65,r*1.4,0,0,6.2832); ctx.fill();   // as drawn: a white ring with a dark centre
+      ctx.fillStyle=night?'#0d0f22':'#12142c'; ctx.beginPath(); ctx.arc(ex,ey,r,0,6.2832); ctx.fill(); continue; }
     const Q=QUADS[it[1]], col=shade(Q[4],it[2],Q[6]); let X=[],Y=[];
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
