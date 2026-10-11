@@ -374,8 +374,13 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     };
     if(cfz>0.15){ if(cfz<0.72) bill(); head(); }                                                                               // from behind: the bill is hidden past the head and no eyes show
     else { head(); bill(); }
-    { const eye=o=>{ const e=Q(-0.3,0.45,o); dot(e,0.95*hk,'#fff3c8'); dot(e,0.52*hk,DARK); };   // the eye in its pale ring: both from in front, only the near one from the side, none from behind
-      if(cfz<=0.15 && Math.abs(cfx)<=0.35){ eye(-2.1); eye(2.1); } else if(Math.abs(cfx)>0.35 && cfz<0.72) eye(-far*2.2); }
+    // The eyes are painted flat on the two sides of the head. Each is seen full only from its own side; as the head turns it narrows
+    // to a sliver at the edge of the head, and from the other side it is not seen at all.
+    { const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfx; if(fo<-0.15 || cfz>0.8) return;
+        const w=clamp((fo+0.15)/1.0,0.16,1), e=Q(-0.3,0.45,o), e1=Q(-0.3,0.45,o+sg), an=Math.atan2(e1[1]-e[1],e1[0]-e[0]);
+        const el=(r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(e[0],e[1],Math.max(0.35,r*S*hk*w),Math.max(0.45,r*S*hk),an,0,7); ctx.fill(); };
+        el(0.95,'#fff3c8'); el(0.52,DARK); };
+      eye(-2.0); eye(2.0); }
   };
   const far=cfx>0?-1:1;
   ctx.lineCap='round'; ctx.lineJoin='round';
