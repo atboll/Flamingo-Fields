@@ -320,8 +320,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
-  const legs=()=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
-    for(const o of [-3.2,3.2]){ const d=o>0?0:0.5, farL=(-o*cfx>0), dk=farL?'#e06a99':'#ec78a5', lt=farL?'#ec80a8':'#f68fb5', kb=farL?'#c95485':'#d85f90';   // the legs take the colour of the body's underside
+  const legs=(side)=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
+    for(const o of [3.2*side]){ const d=0, farL=(-o*cfx>0), dk=farL?'#e06a99':'#ec78a5', lt=farL?'#ec80a8':'#f68fb5', kb=farL?'#c95485':'#d85f90';   // the legs take the colour of the body's underside
       const J=[[-7,-2.8+bob,o],[-22.5,-13.6-d*0.5+bob*0.6+lag*0.4,o*0.82],[-43,-21.2-d+bob*0.3+lag,o*0.36]], ft=[-50.4,-20.6-d+bob*0.25+lag*1.25,o*0.2];   // spread a little apart, bent at the knee, the foot turned back and up at the ankle so the toes trail
       // the feathered thigh: a full teardrop in the dark pink of the body's underside, starting inside the belly and narrowing down to the leg at the knee,
       // so the leg grows out of the body instead of being pinned to it
@@ -396,12 +396,13 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   const far=cfx>0?-1:1;
   ctx.lineCap='round'; ctx.lineJoin='round';
   { const above=elev>0;
-    if(above) legs();                                   // seen from above, the legs are under the body
+    legs(far);                                          // the far leg is always behind the body, so it never shows on the near side
+    if(above) legs(-far);                               // seen from above, the near leg is under the body too
     if(cfz>0) neck();                                   // flying away: the neck is the far end
     wing(far);                                          // the far wing is on the other side of the body, so the body hides it wherever the two overlap
     body();
     if(cfz<=0) neck();
-    if(!above) legs();                                  // seen from underneath, the legs are the nearest thing
+    if(!above) legs(-far);                                  // seen from underneath, the legs are the nearest thing
     wing(-far); }                                       // the near wing lies over everything: nothing shows through it
 }
 
