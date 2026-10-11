@@ -86,11 +86,11 @@ function put(x,y,z){ MV[vi++]=x; MV[vi++]=y; MV[vi++]=z; return vi/3-1; }
 function bent(x,yl,z){ const s=(1-x)/2; frame(s); return put(x+FR[1]*yl, FR[0]+FR[2]*yl, z); }                                   // each point follows the spine where it sits
 function bentAt(sr,x,yl,z){ const xr=1-2*sr; frame(sr); return put(xr+FR[2]*(x-xr)+FR[1]*yl, FR[0]-FR[1]*(x-xr)+FR[2]*yl, z); }   // a stiff part follows the spine at its root
 const DARK=0, PALE=1;
-function quad(a,b,c,d,kind,hint,groove){   // hint: roughly which way the patch faces, so the corners get wound the right way
+function quad(a,b,c,d,kind,hint,groove,mix){   // hint: roughly which way the patch faces, so the corners get wound the right way
   const P=i=>[MV[i*3],MV[i*3+1],MV[i*3+2]], A=P(a),B=P(b),C=P(c),D=P(d);
   const ux=C[0]-A[0],uy=C[1]-A[1],uz=C[2]-A[2], vx=D[0]-B[0],vy=D[1]-B[1],vz=D[2]-B[2];
   const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
-  if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null]); else QUADS.push([a,b,c,d,kind,groove||null]);
+  if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null,mix||0]); else QUADS.push([a,b,c,d,kind,groove||null,mix||0]);
 }
 
 const NR=74, K1=7, K2=7, M=2*(K1+K2);
@@ -126,21 +126,21 @@ function blade(st,kTop,kBot,map){
   const row=2*(Mx+1);
   for(let k=0;k<st.length-1;k++) for(let side=0;side<2;side++) for(let m=0;m<Mx;m++){
     const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1;
-    quad(o,o+1,o+row+1,o+row,side?kBot:kTop,[n[0]*sg,n[1]*sg,n[2]*sg]);
+    quad(o,o+1,o+row+1,o+row,side?kBot:kTop,[n[0]*sg,n[1]*sg,n[2]*sg],null,side?((st[k].mix||0)+(st[k+1].mix||0))/2:0);
   }
 }
 const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
 const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
-const FLIP_S=0.34, FLIP_Y=-0.086;
+const FLIP_S=0.34, FLIP_Y=-0.036;   // the root sits well up in the dark of the flank
 function flipper(sg,t){
   const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
-  let c=[xr,FLIP_Y,sg*zr*0.5]; const S=16, L=0.72, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
+  let c=[xr,FLIP_Y,sg*zr*0.5]; const S=32, L=0.72, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
   for(let k=0;k<=S;k++){ const u=k/S;
-    const a=0.42+0.28*u+0.1*sw, d=0.22+0.22*u+0.5*u*sw;   // swept back, drooping, and curling slowly along its length
+    const a=0.42+0.28*u+0.1*sw, d=0.34+0.2*u+0.5*u*sw;   // swept back, drooping, and curling slowly along its length
     const dir=[-Math.sin(a)*Math.cos(d),-Math.sin(d),sg*Math.cos(a)*Math.cos(d)];
     const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]<0) n=[-n[0],-n[1],-n[2]];
-    const hw=0.068*Math.pow(1-Math.pow(u,2.4),0.75)*(0.8+0.2*Math.sin(Math.PI*Math.min(1,u/0.55))), bump=1+0.07*Math.sin(u*24)*(1-u);
-    st.push({A:[c[0]+ch[0]*hw*0.9*bump,c[1]+ch[1]*hw*0.9*bump,c[2]+ch[2]*hw*0.9*bump], B:[c[0]-ch[0]*hw*1.1,c[1]-ch[1]*hw*1.1,c[2]-ch[2]*hw*1.1], n, t:0.004+0.018*Math.pow(1-u,0.8)});
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), hw=0.068*Math.pow(1-Math.pow(u,2.4),0.75)*(0.8+0.2*Math.sin(Math.PI*Math.min(1,u/0.55)))*(1+0.4*root), bump=1+0.07*Math.sin(u*24)*(1-u);
+    st.push({A:[c[0]+ch[0]*hw*0.9*bump,c[1]+ch[1]*hw*0.9*bump,c[2]+ch[2]*hw*0.9*bump], B:[c[0]-ch[0]*hw*1.1,c[1]-ch[1]*hw*1.1,c[2]-ch[2]*hw*1.1], n, t:0.004+0.018*Math.pow(1-u,0.8)+0.03*root, mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
     c=[c[0]+dir[0]*L/S,c[1]+dir[1]*L/S,c[2]+dir[2]*L/S];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
@@ -171,8 +171,10 @@ const VIEWS={side:[0,0.06], above:[0,1.5], below:[0,-1.5], front:[-Math.PI/2,0.1
 const SV=[];   // points after the camera: x, y, depth
 const COL={ day:[[[0x20,0x22,0x52],[0x2e,0x31,0x68],[0x44,0x49,0x90]],[[0xa9,0xc4,0xd3],[0xcf,0xe0,0xe8],[0xf7,0xfa,0xfb]]],
             night:[[[0x15,0x17,0x3c],[0x1f,0x22,0x50],[0x30,0x35,0x72]],[[0x74,0x8c,0xa8],[0x9d,0xb2,0xc8],[0xdc,0xe5,0xf1]]] };
-function shade(kind,l){ const c=COL[bg==='night'?'night':'day'][kind], u=clamp(l,0,1)*2, a=c[u<1?0:1], b=c[u<1?1:2], f=u<1?u:u-1;
-  return 'rgb('+Math.round(a[0]+(b[0]-a[0])*f)+','+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+')'; }
+function tone(kind,l,k){ const c=COL[bg==='night'?'night':'day'][kind], u=clamp(l,0,1)*2, a=c[u<1?0:1], b=c[u<1?1:2], f=u<1?u:u-1; return a[k]+(b[k]-a[k])*f; }
+function shade(kind,l,mix){ let r=tone(kind,l,0), g=tone(kind,l,1), b=tone(kind,l,2);
+  if(mix>0){ r+=(tone(DARK,l,0)-r)*mix; g+=(tone(DARK,l,1)-g)*mix; b+=(tone(DARK,l,2)-b)*mix; }
+  return 'rgb('+Math.round(r)+','+Math.round(g)+','+Math.round(b)+')'; }
 function drawBg(){
   if(bg==='blank'){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--paper'); ctx.fillRect(0,0,W,H); return; }
   const g=ctx.createLinearGradient(0,0,0,H);
@@ -219,7 +221,7 @@ function draw(dt){
   ctx.lineJoin='round';
   for(const it of order){
     if(it[1]<0){ const p=it[2], z=SV[p+2], r=0.0125*f/z; ctx.fillStyle=night?'#0d0f22':'#12142c'; ctx.beginPath(); ctx.arc(cx+SV[p]*f/z,cy-SV[p+1]*f/z,r,0,6.2832); ctx.fill(); continue; }
-    const Q=QUADS[it[1]], col=shade(Q[4],it[2]); let X=[],Y=[];
+    const Q=QUADS[it[1]], col=shade(Q[4],it[2],Q[6]); let X=[],Y=[];
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
     ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill(); ctx.stroke();
