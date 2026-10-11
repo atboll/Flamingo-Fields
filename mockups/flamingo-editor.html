@@ -286,7 +286,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     const LE=t=>t<2?5.2+4.3*(1-(1-t/2)*(1-t/2)):9.5-4.4*(t-2)-0.5*(t-2)*(t-2);
     // Toward the body the wing narrows to a small shoulder from behind: the front edge keeps its line, and the back edge rises to meet it,
     // every layer drawing up together, so the wing is a long triangle where it joins the body.
-    const Wp=(t,f0)=>{ const tp=clamp(t/0.95,0,1), A=LE(Math.max(0,t)), f=A-(A-f0)*(0.3+0.7*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
+    const Wp=(t,f0)=>{ const tp=clamp(t/0.7,0,1), A=LE(Math.max(0,t)), f=A-(A-f0)*(0.5+0.5*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
     // which face of the wing is turned toward us
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=QA>0.5||((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
@@ -297,7 +297,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     // only their rounded tips stand apart, a little on the arm and deeply out at the wing tip, where they spread like fingers.
     const NF=17, F=[];
     for(let j=0;j<NF;j++){ const u=j/(NF-1), tb=0.1+3.55*u, fb=-2.5+1.5*u, sweep=Math.pow(clamp((u-0.45)/0.55,0,1),1.6);
-      const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.42,0.62,0.82][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
+      const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.8,0.9,0.97][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
       F.push({tb,fb,tt:tb+sweep*0.9,ft:fb-len*(1-0.6*sweep),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
     const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.68-0.24*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
