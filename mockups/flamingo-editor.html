@@ -540,7 +540,7 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
   // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
   // so the same wing unfolds from lying along the flank to full spread.
-  const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,3.5,42.4+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
+  const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,0.2,40.2+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
     drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:op,phase:m.phase||0,glide:op<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round'; };
   const thighs=()=>{ leg(far,1); leg(-far,1); }, bodyS=()=>body('shape');
   ctx.lineCap='round'; ctx.lineJoin='round';
