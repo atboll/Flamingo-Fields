@@ -281,8 +281,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k; return P(sd*(xs[k]+(xs[k+1]-xs[k])*r), f*chord+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r); };
     // which face of the wing is turned toward us
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
-    const C=top?{cov:isFar?'#c22f58':'#d93a63',pale:isFar?'#de6a8d':'#f08aa6',line:'#a9254b',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:isFar?'#ee9db4':'#fbc3d0'}
-               :{cov:isFar?'#f1b4c5':'#f9cbd7',pale:isFar?'#f6cdd8':'#fde3ea',line:'#e79db3',band:null,f1:'#6a2d3f',f2:'#8f465b',edge:'#fde3ea'};
+    const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
+               :{cov:'#ec78a5',pale:'#ff9dbf',line:'#d85f90',band:null,f1:'#6a2d3f',f2:'#8f465b',edge:'#ff9dbf'};
     const LE=t=>t<2?9-0.75*t:t<3?7.5-2*(t-2):5.5-7.5*(t-3);                                   // the leading edge: full at the shoulder, running down to a point at the tip
     // the flight feathers: straight back from the arm, swinging round toward the tip on the hand, the outermost pointing along the wing
     // They are painted as one dark mass with fine lines between the feathers, so the wing reads as a surface, not a fence;
