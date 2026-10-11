@@ -297,11 +297,11 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     // the flight feathers: straight back from the arm, swinging round toward the tip on the hand, the outermost pointing along the wing
     // They are painted as one dark mass with fine lines between the feathers, so the wing reads as a surface, not a fence;
     // only their rounded tips stand apart, a little on the arm and deeply out at the wing tip, where they spread like fingers.
-    const NF=17, F=[];
+    const NF=19, F=[];   // seventeen, and two more big ones at the very outside that close the gap to the pink wing tip
     // The feathers stand in two fans, as in the wing drawing: those on the arm spread from the elbow, leaning in toward the body on its inner side
     // and outward on its outer side; those on the hand spread from the wrist, swinging round until the outermost points along the wing.
     // They are longest out at the tip.
-    for(let j=0;j<NF;j++){ const u=j/(NF-1), tb=0.1+3.55*u, fb=-2.5+1.5*u, an=tb<2?0.36*(tb-1):0.36+0.86*Math.pow((tb-2)/1.65,1.1);
+    for(let j=0;j<NF;j++){ const u=Math.min(1,j/16), ex=Math.max(0,j-16), tb=0.1+3.55*u+0.13*ex, fb=-2.5+1.5*u+0.3*ex, an=(tb<2?0.36*(tb-1):0.36+0.86*Math.pow(Math.min(1,(tb-2)/1.65),1.1))+0.13*ex;
       const len=(17+7*clamp((tb-1.5)/1.7,0,1))*(j<3?[0.8,0.9,0.97][j]:1)*(1+0.05*Math.sin(j*2.3))*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
       F.push({tb,fb,tt:tb+len*Math.sin(an)/14.5,ft:fb-len*Math.cos(an),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
