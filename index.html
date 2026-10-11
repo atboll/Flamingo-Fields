@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:50</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 22:00</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -2294,7 +2294,8 @@ function nightGrade(){
 /* ---------- test buttons: shown only when the address ends in #test ---------- */
 { const box=document.getElementById('test'), show=()=>{ box.hidden=location.hash!=='#test'; };
   show(); addEventListener('hashchange',show);
-  const give=(n)=>{ startSound(); for(let i=0;i<n && mates.length<MATES_MAX;i++){ const k=mates.length; addMate(lead.x-headX*(90+k*30)+headZ*(k%2?50:-50), lead.z-headZ*(90+k*30)-headX*(k%2?50:-50), 0, headX, headZ); mateMsgT=time; } cv.focus(); };
+  // on the clouds of level 2 the level 1 test buttons do nothing: no flamingos, no jump back to night
+  const give=(n)=>{ if(level===2){ cv.focus(); return; } startSound(); for(let i=0;i<n && mates.length<MATES_MAX;i++){ const k=mates.length; addMate(lead.x-headX*(90+k*30)+headZ*(k%2?50:-50), lead.z-headZ*(90+k*30)-headX*(k%2?50:-50), 0, headX, headZ); mateMsgT=time; } cv.focus(); };
   // the first button switches the whole flock on and off; switching it off also rewinds the music so it can start again
   const fb=document.getElementById('testFlock'), label=()=>{ fb.textContent=mates.length>=MATES_MAX?'Test: remove flock':'Test: full flock'; };
   const clear=()=>{ mates.length=0; mateMsgT=-99; if(lead.fly){ flyStart=-9; land(); } if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(e){} } padPlayed=false; cv.focus(); };
@@ -2303,7 +2304,7 @@ function nightGrade(){
   { const bs=document.getElementById('buildStamp'), b0=bs.textContent; setInterval(()=>{ if(!box.hidden) bs.textContent=b0+' · flock '+mates.length+' · clock '+Math.round((((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN)+(nightOn?'':' (waiting)')+' · night '+night.toFixed(2)+(whales?' · whales '+whMs.toFixed(0)+' ms':''); },500); }
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
-  document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); nightOn=true; dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
+  document.getElementById('testRoad').addEventListener('click',()=>{ if(level===2){ cv.focus(); return; } give(MATES_MAX); label(); nightOn=true; dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast){ makeCoast(5200); coastA=1; } });
   document.getElementById('testDoor').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) makeCoast(5200);
     setTimeout(()=>{ if(!coast||level!==1) return; coastA=1; sea=1; const c=boxC(); for(const k of kids){ k.x=c[0]-SUNDX*(BOX_HALF+1500)+(k===lead?0:40); k.z=c[1]-SUNDZ*(BOX_HALF+1500); k.fly=false; k.glide=false; k.vy=0; k.y=0; } focX=lead.x; focZ=lead.z; camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; },300); cv.focus(); });
