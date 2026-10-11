@@ -141,8 +141,9 @@ function flipper(sg,t){
     const be=0.5+0.34*u+0.12*sw, out=0.8-0.25*u+0.5*u*sw;   // as drawn: hanging down and back, curving a little more back toward the tip; it also stands out from the body
     const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
     const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
-    const root=Math.pow(clamp(1-u/0.24,0,1),2), wd=0.165*Math.pow(Math.sin(Math.PI*Math.pow(clamp(u*0.86+0.06,0,1),0.62)),0.9)+0.012*(1-u), hw=wd*0.5*Math.pow(1-Math.pow(u,8),0.5)*(1+0.25*root), bump=1+0.05*Math.sin(u*21+0.5)*Math.min(1,u*5), bumpB=1;   // the drawing's own width: broad a third of the way out, narrowing gently to a slim rounded tip
-    st.push({A:[c[0]+ch[0]*hw*0.84*bump,c[1]+ch[1]*hw*0.84*bump,c[2]+ch[2]*hw*0.84*bump], B:[c[0]-ch[0]*hw*1.16,c[1]-ch[1]*hw*1.16,c[2]-ch[2]*hw*1.16], n, t:(0.006+0.014*(1-u)+0.03*root)*Math.min(1,Math.sqrt((1-u)*14)), mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), wd=0.165*Math.pow(Math.sin(Math.PI*Math.pow(clamp(u*0.86+0.06,0,1),0.62)),0.9)+0.012*(1-u), rq=clamp(u/0.25,0,1), hw=wd*0.5*Math.pow(1-Math.pow(u,8),0.5)*(0.55+0.45*rq*rq*(3-2*rq)), tr=(0.032*(1-u)+0.088*Math.pow(Math.sin(Math.PI*Math.pow(u,0.55)),0.8))*Math.pow(1-Math.pow(u,8),0.5),   // slim where it leaves the body; the back edge bulges toward the tail below the root, then sweeps in to the tip
+      bump=1+0.05*Math.sin(u*21+0.5)*Math.min(1,u*5), bumpB=1;   // the drawing's own width: broad a third of the way out, narrowing gently to a slim rounded tip
+    st.push({A:[c[0]+ch[0]*hw*0.84*bump,c[1]+ch[1]*hw*0.84*bump,c[2]+ch[2]*hw*0.84*bump], B:[c[0]-ch[0]*tr,c[1]-ch[1]*tr,c[2]-ch[2]*tr], n, t:(0.006+0.014*(1-u)+0.016*root)*Math.min(1,Math.sqrt((1-u)*14)), mix:1-Math.pow(clamp((u-0.13)/0.2,0,1),2)*(3-2*clamp((u-0.13)/0.2,0,1))});   // the root swells into the body, and the white underside turns dark over the last short bit
     c=[c[0]+dir[0]*L/S,c[1]+dir[1]*L/S,c[2]+dir[2]*L/S];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
