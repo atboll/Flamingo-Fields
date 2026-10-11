@@ -175,7 +175,7 @@ const EYE_S=0.283; let eyes=[];
 function build(t){
   vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
   const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
-  eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); eyes.push([p,q]); }
+  eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); const r=bent(1-2*EYE_S+0.02,yl,sg*z), w=bent(1-2*EYE_S,yl+0.02,sg*z); eyes.push([p,q,r,w]); }
   INIT=false;
 }
 
@@ -229,14 +229,23 @@ function draw(dt){
     const lam=(nx*lx+ny*ly+nz*lz)*0.5+0.5;
     order.push([mz,q,0.72*lam+0.3*face]);
   }
-  for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[o+2]<SV[p+2]-0.004) order.push([SV[p+2]-0.06,-1,p]); }
+  for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[o+2]<SV[p+2]-0.004) order.push([SV[p+2]-0.06,-1,e]); }
   order.sort((A,B)=>B[0]-A[0]);
   const night=bg==='night', gcol=night?'#6c86a0':'#8fb1c0';
   ctx.lineJoin='round';
   for(const it of order){
-    if(it[1]<0){ const p=it[2], z=SV[p+2], r=0.0085*f/z, ex=cx+SV[p]*f/z, ey=cy-SV[p+1]*f/z;
-      ctx.fillStyle=night?'#dfe6f2':'#ffffff'; ctx.beginPath(); ctx.ellipse(ex,ey,r*1.65,r*1.4,0,0,6.2832); ctx.fill();   // as drawn: a white ring with a dark centre
-      ctx.fillStyle=night?'#0d0f22':'#12142c'; ctx.beginPath(); ctx.arc(ex,ey,r,0,6.2832); ctx.fill(); continue; }
+    if(it[1]<0){   // the eye, drawn lying on the skin: a dark almond with a fine pale rim, a soft paler lid round it and two creases arching over it
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3), R=0.014;
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=night?'#2a2f68':'#3a4088'; ctx.beginPath(); ctx.ellipse(0,R*0.25,R*2.5,R*1.75,0,0,6.2832); ctx.fill();
+      ctx.lineCap='round'; ctx.strokeStyle=night?'#4a5196':'#5a63ad'; ctx.lineWidth=R*0.3;
+      ctx.beginPath(); ctx.moveTo(R*2.3,R*0.5); ctx.quadraticCurveTo(R*0.3,R*2.5,-R*2.4,R*0.9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.5,R*1.9); ctx.quadraticCurveTo(-R*0.2,R*3.2,-R*2.2,R*2.0); ctx.stroke();
+      ctx.lineWidth=R*0.22; ctx.beginPath(); ctx.moveTo(-R*2.4,-R*0.2); ctx.quadraticCurveTo(-R*3.1,-R*0.9,-R*3.0,-R*1.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.55,0); ctx.quadraticCurveTo(0,R*1.75,-R*1.55,0); ctx.quadraticCurveTo(0,-R*1.45,R*1.55,0); ctx.closePath();
+      ctx.fillStyle=night?'#090a1a':'#0c0e22'; ctx.fill(); ctx.strokeStyle=night?'#7b86c4':'#8f9bd6'; ctx.lineWidth=R*0.2; ctx.stroke();
+      ctx.fillStyle='rgba(235,240,255,0.8)'; ctx.beginPath(); ctx.arc(R*0.35,R*0.3,R*0.2,0,6.2832); ctx.fill();
+      ctx.restore(); continue; }
     const Q=QUADS[it[1]], col=shade(Q[4],it[2],Q[6]); let X=[],Y=[];
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
