@@ -283,7 +283,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
                :{cov:'#ec78a5',pale:'#ff9dbf',line:'#d85f90',band:null,f1:'#6a2d3f',f2:'#8f465b',edge:'#ff9dbf'};
-    const LE=t=>t<2?9-0.75*t:t<3?7.5-2*(t-2):5.5-7.5*(t-3);                                   // the leading edge: full at the shoulder, running down to a point at the tip
+    const LE=t=>t<2?9-0.75*t:t<3?7.5-2*(t-2):5.5-7.5*(t-3);
+                                      // the leading edge: full at the shoulder, running down to a point at the tip
     // the flight feathers: straight back from the arm, swinging round toward the tip on the hand, the outermost pointing along the wing
     // They are painted as one dark mass with fine lines between the feathers, so the wing reads as a surface, not a fence;
     // only their rounded tips stand apart, a little on the arm and deeply out at the wing tip, where they spread like fingers.
@@ -305,7 +306,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       else { for(let i=28;i>=0;i--){ const t=3.9*i/28; pts.push(Wp(t,Math.min(LE(t)-0.3,-3.2-(i%2?1.9:0)+1.6*i/28))); } }               // underneath, their edge is scalloped
       poly(pts,C.cov);
       const q=[]; for(let i=0;i<=10;i++){ const t=2.6*i/10; q.push(Wp(t,LE(t))); } for(let i=10;i>=0;i--){ const t=2.6*i/10; q.push(Wp(t,LE(t)-4.4*(1-0.5*i/10))); } poly(q,C.pale); }   // paler along the leading edge
-    for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.16,-1.2)],C.line,0.45); }                                             // rows of covert feathers
+    for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
+                                                // rows of covert feathers
     { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
     // The inner wing: a pink part in the body's own colour where the wing joins the body. It is broad against the body and draws out
     // along the wing in a curve like the body's own droplet, its outer end melting into the wing. The three innermost flight feathers
@@ -313,8 +315,9 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     // It has no edge: it is laid down in thin see-through layers, each reaching a little further out along the wing and a little further
     // back over the feathers than the one before, so the wing's own colours pass gradually into the body's pink.
     { for(let k=9;k>=0;k--){ const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
-        const T0=-0.34;   // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
-        for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,LE(Math.max(0,t)))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,Math.max(edge(t),LE(0)-dep*1.2))); }
+        const T0=-0.34, mdl=LE(0)-dep*0.55, rnd=t=>t>=0?1:Math.sqrt(Math.max(0,1-Math.pow(t/T0,2)));   // inside the body it closes in a round end, so no corner pokes out past the shoulder
+          // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
+        for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(LE(Math.max(0,t))-mdl)*rnd(t))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(Math.max(edge(t),LE(0)-dep*1.2)-mdl)*rnd(t))); }
         ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
     }
   };
