@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:05</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:10</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -2004,9 +2004,12 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
       const el=(r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(e[0],e[1],Math.max(0.35,r*S*hk*w),Math.max(0.45,r*S*hk),an,0,7); ctx.fill(); };
       el(0.6,DARK);   /* the eye is a plain dark spot, with no pale ring */ };
     eye(-2.0); eye(2.0); };
-  // the tail: a tuft of pointed feathers drooping behind, in the body's pinks
-  const TSH=[[-8,43],[-15,41.4],[-25,33.6],[-19.4,35.6],[-22,29.4],[-15.6,33.8],[-16.2,29.6],[-9.6,35.6]];
-  const tail=()=>{ for(const o of [far*2.2,0,-far*2.2]) poly(TSH.map(p=>P(o,p[0],p[1]+bob)), o===far*2.2?'#c95485':o===0?LINE:DK); };
+  // The tail is the flying bird's: a small fan of seven feathers at the tip of the body, the outer ones shorter and spread a little to the sides,
+  // each a rounded blade in the body's bright pink with a very thin outline, the middle feathers lying over the outer ones. On the ground it droops a little.
+  const tail=()=>{ for(const j of [3,-3,2,-2,1,-1,0]){ const a=Math.abs(j), l0=j*0.75, l1=j*2.25, f0=-14, f1=-25.5+a*1.9, u0=38.4+bob, u1=36.3-a*0.35+bob*0.8, hw=1.25-a*0.08;
+      const B=(t,side)=>P(l0+(l1-l0)*t+side*hw*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.15))), f0+(f1-f0)*t, u0+(u1-u0)*t);
+      const pts=[B(0,-1),B(0.35,-1),B(0.75,-1),B(0.94,-0.75),P(l1,f1,u1),B(0.94,0.75),B(0.75,1),B(0.35,1),B(0,1)];
+      poly(pts,TOP); ctx.strokeStyle=LINE; ctx.lineWidth=Math.max(0.5,0.22*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); } };
   // The skin: the given parts are painted plain on a spare canvas, the dark underside is laid over all of them at once, and the result is set into the picture.
   const skin=parts=>{ const t=MAIN.getTransform(), CW=MAIN.canvas.width, CH=MAIN.canvas.height;
     const x0=Math.max(0,Math.floor((sx-55*S)*t.a+t.e)), y0=Math.max(0,Math.floor((sy-95*S)*t.d+t.f)), x1=Math.min(CW,Math.ceil((sx+55*S)*t.a+t.e)), y1=Math.min(CH,Math.ceil((sy+12*S)*t.d+t.f));
