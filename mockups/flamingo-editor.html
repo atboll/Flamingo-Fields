@@ -288,7 +288,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     const LE=t=>(t<2?5.2+4.3*(1-(1-t/2)*(1-t/2))-1.2*Math.sin(Math.PI*t/2):9.5-4.4*(t-2)-0.5*(t-2)*(t-2))-ZG(t);
     // Toward the body the wing narrows to a small shoulder from behind: the front edge keeps its line, and the back edge rises to meet it,
     // every layer drawing up together, so the wing is a long triangle where it joins the body.
-    const Wp=(t,f0)=>{ const tp=clamp(t/0.7,0,1), A=LE(Math.max(0,t)), f=A-(A-f0)*(0.5+0.5*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
+    const Wp=(t,f0)=>{ const tp=clamp(t/0.7,0,1), A=LE(Math.max(0,t)), f=A-(A-f0)*(0.5+0.5*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)-(1-q)*(f<0?2.6*(f/20)*(f/20):0.6*(f/9)*(f/9))); };   // the spread wing is arched from front to back: the feathers droop a little behind the arm, so it is never a flat sheet
     // which face of the wing is turned toward us
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=QA>0.5||((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
@@ -332,7 +332,11 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
         for(let i=1;i<n;i++){ const t=ta+(tz-ta)*i/n; ln([Wp(t,edge(t)+0.4),Wp(t-0.05,edge(t)+7.5)],'#ec78a5',0.35); }   // the feathers painted on it: a line up from between each pair of ends
         ctx.globalAlpha=1; }
       if(L===2 && QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; if(t>ta && t<=tz) ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // rows of covert feathers; they stop inside the pink, short of the black band
-      if(L===2) ln(rng(Math.max(ta,0),Math.min(tz,3.95),6).map(t=>Wp(t,LE(t))),C.edge,1.0);                                                                // light leading edge
+      // The arm itself: a rounded limb along the front of the wing, thickest at the shoulder and tapering to the tip, with a little shade along its
+      // underside. It gives the wing a solid front edge, so seen edge-on it is a limb with feathers trailing from it, not a sheet of paper.
+      if(L===2){ const T=rng(Math.max(ta,0),Math.min(tz,3.95),6), wd=t=>3.1-0.6*t, pt=t=>Wp(t,LE(t)-0.45*wd(t));
+        for(let i=0;i<6;i++){ const a=pt(T[i]), b=pt(T[i+1]), w=wd((T[i]+T[i+1])/2); ln([[a[0],a[1]+0.5*S],[b[0],b[1]+0.5*S]],top?'#ec78a5':'#d85f90',w); }
+        for(let i=0;i<6;i++){ const a=pt(T[i]), b=pt(T[i+1]), w=wd((T[i]+T[i+1])/2); ln([a,b],top?'#ff9dbf':'#ec78a5',w*0.86); } }                                                                // light leading edge
     };
     { const SC=[[1.98,3.95,9,NF-1,0],[0.98,2,5,9,9],[0,1,0,5,10]];
       if(!top) SC.reverse(); if(QA<0.5){ for(let L=0;L<3;L++) for(const c of SC) sect(c[0],c[1],c[2],c[3],c[4],L); }   // spread: layer by layer along the whole wing, so it is one unbroken surface
