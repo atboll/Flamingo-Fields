@@ -342,7 +342,6 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
         for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(LE(Math.max(0,t))-mdl)*rnd(t))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(Math.max(edge(t),LE(0)-dep*1.2)-mdl)*rnd(t))); }
         ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
     }
-    dot(Wp(0,2),2.5,top?'#ff9dbf':'#ec78a5');   // the shoulder: a small round patch of the body's own pink over the root, so the wing grows out from under the body feathers
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
