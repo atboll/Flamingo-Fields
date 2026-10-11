@@ -297,9 +297,9 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       const len=(19+4.5*Math.sin(u*Math.PI))*(j<3?[0.42,0.62,0.82][j]:1)*(1+0.05*Math.sin(j*2.3))*(1-0.22*sweep)*(0.8+0.25*down)*(u>0.5?0.82+0.18*OP[3]:0.88+0.12*OP[1]);
       F.push({tb,fb,tt:tb+sweep*0.9,ft:fb-len*(1-0.6*sweep),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
-    const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.86-0.4*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
+    const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.68-0.24*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
     ctx.fillStyle=C.f1; ctx.beginPath(); { const p=at(F[NF-1],0,1); ctx.moveTo(p[0],p[1]); }
-    for(let j=NF-1;j>=0;j--){ const q=F[j], r0=at(q,0.84,1), tp=at(q,1,0.25), l0=at(q,0.86,-1), c1=at(q,1.03,1), c2=at(q,1.0,-1);
+    for(let j=NF-1;j>=0;j--){ const q=F[j], r0=at(q,0.8,1), tp=at(q,1,0.15), l0=at(q,0.82,-1), c1=at(q,0.95,0.85), c2=at(q,0.94,-0.55);   // each feather ends in a point, like a leaf
       ctx.lineTo(r0[0],r0[1]); ctx.quadraticCurveTo(c1[0],c1[1],tp[0],tp[1]); ctx.quadraticCurveTo(c2[0],c2[1],l0[0],l0[1]);   // a rounded tip, fuller on its outer side
       if(j>0){ const n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)); ctx.lineTo(n[0],n[1]); } }
     // the mass is closed along the roots of the feathers, following the bend of the wing and reaching forward under the coverts,
