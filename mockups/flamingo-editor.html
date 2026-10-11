@@ -315,8 +315,8 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     { for(let k=9;k>=0;k--){ const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
         const T0=-0.34;   // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
         for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,LE(Math.max(0,t)))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,Math.max(edge(t),LE(0)-dep*1.2))); }
-        ctx.fillStyle=k?'rgba(255,95,160,0.2)':'rgb(255,95,160)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
-      if(top){ const hl=[]; for(let i=0;i<=5;i++){ const t=0.5*i/5; hl.push(Wp(t,LE(t)-1.6)); } ln(hl,'#ff9dbf',1.1); } }   // a light streak along its front, as on the back
+        ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
+    }
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
@@ -327,7 +327,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       // so the leg grows out of the body instead of being pinned to it
       { const A=[-1,0.2+bob,o*0.8], B=[J[1][0]+2.5,J[1][1]+1.6,J[1][2]], a=P(A[2],A[0],A[1]), b=P(B[2],B[0],B[1]), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], R=[];
         for(let i=0;i<=10;i++){ const t=i/10, hw=(3.7*Math.pow(1-t,0.75)*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.7+0.25)))+0.95)*S; L.push([a[0]+dx*t+nx*hw,a[1]+dy*t+ny*hw]); R.push([a[0]+dx*t-nx*hw,a[1]+dy*t-ny*hw]); }
-        poly(L.concat(R.reverse()),farL?'#d8497f':'#ff5fa0'); ln([P(A[2],A[0]-4,A[1]-2.6),P(B[2],B[0]+3,B[1]+0.2)],farL?'#b9306a':'#b12c69',1.2); }   // with a darker line along its underside
+        poly(L.concat(R.reverse()),farL?'#d8497f':'#ff9dbf'); ln([P(A[2],A[0]-4,A[1]-2.6),P(B[2],B[0]+3,B[1]+0.2)],farL?'#b9306a':'#b12c69',1.2); }   // with a darker line along its underside
       ln(J.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(J.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8);                          // the leg: dark, with a light line along its top
       dot(P(J[1][2],J[1][0],J[1][1]),1.45,kb); dot(P(J[1][2],J[1][0]+0.3,J[1][1]+0.4),0.55,lt);                           // the knob of the joint, with a small highlight
       const a=P(J[2][2],J[2][0],J[2][1]), t0=P(ft[2],ft[0],ft[1]), t1=P(ft[2]-2.1,ft[0]+1.4,ft[1]+0.4), t2=P(ft[2]+2.1,ft[0]+1.4,ft[1]+0.4);
@@ -340,7 +340,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       for(const j of [3,-3,2,-2,1,-1,0]){ const a=Math.abs(j), l0=j*0.75, l1=j*2.25, f0=-15.5, f1=-27.5+a*1.9, u0=1.1+bob, u1=0.2-a*0.35+bob*0.75+sway2, hw=1.25-a*0.08;
         const B=(t,side)=>P(l0+(l1-l0)*t+side*hw*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.15))), f0+(f1-f0)*t, u0+(u1-u0)*t);
         const pts=[B(0,-1),B(0.35,-1),B(0.75,-1),B(0.94,-0.75),P(l1,f1,u1),B(0.94,0.75),B(0.75,1),B(0.35,1),B(0,1)];
-        poly(pts,'#ff5fa0'); ctx.strokeStyle='#b9306a'; ctx.lineWidth=Math.max(0.5,0.22*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); } };
+        poly(pts,'#ff9dbf'); ctx.strokeStyle='#b9306a'; ctx.lineWidth=Math.max(0.5,0.22*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); } };
     if(cfz<=0) tail();
     { const f=P(0,12.5,0.9+bob), r=P(0,-19.5,0.5+bob), dx=r[0]-f[0], dy=r[1]-f[1], L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, w=6.3*S;
       const prof=u=>Math.pow(Math.sin(Math.PI*Math.pow(u,0.58)),0.85);                               // widest a third of the way back, then a long taper
@@ -353,13 +353,12 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       // their tips trailing back and down. Looked at from above the bright takes the whole body; from underneath, the dark.
       drop(1.3,1,'#b12c69');
       { const sT=ny<0?1:-1, c=clamp(-0.1-elev*0.95,-0.92,0.85), X=(u,b)=>{ const q=prof(u)*w*sT*b; return [f[0]+dx*u+nx*q, f[1]+dy*u+ny*q]; };
-        ctx.fillStyle='#ff5fa0'; ctx.beginPath(); { const p=X(0,1); ctx.moveTo(p[0],p[1]); }
+        ctx.fillStyle='#ff9dbf'; ctx.beginPath(); { const p=X(0,1); ctx.moveTo(p[0],p[1]); }
         for(let i=1;i<=22;i++){ const p=X(i/22,1); ctx.lineTo(p[0],p[1]); }
         for(let i=66;i>=0;i--){ const u=i/66, fr=(u*6.2+0.3)%1, on=clamp((u-0.1)/0.08,0,1)*clamp((0.94-u)/0.08,0,1), p=X(u,clamp(c-0.36*Math.pow(fr,1.5)*on,-1,1)); ctx.lineTo(p[0],p[1]); }
         ctx.closePath(); ctx.fill();
         if(elev>-0.1){ ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28, w*0.98, Math.PI, 0); ctx.closePath(); ctx.fill(); } }   // seen end-on, the top of the round breast is bright too
     }
-    if(elev>0.05) ln([P(0,-10,2.3+bob),P(0,-2,3.5+bob),P(0,8,3.5+bob)],'#ff9dbf',3.4);                                  // the pale back
     if(cfz>0) tail();                                                                             // flying away: the tail is the nearest part of the body
   };
   const neck=()=>{ const HU=2.2, HF=4.5;   // how much higher, and how much further forward, the head is carried than before
@@ -369,12 +368,12 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
         for(let i=0;i<=n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, t=i/n;
           const hw=Math.max(0.5,(1.75+3.1*Math.pow(1-t,2.6))*S), nx=-dy/l*hw, ny=dx/l*hw; L.push([pts[i][0]+nx,pts[i][1]+ny]); R.push([pts[i][0]-nx,pts[i][1]-ny]); }   // nearly three times as broad at the breast as at the head
         const NP=L.concat(R.reverse()); poly(NP.map((q,k)=>{ const t=k<=n?k/n:(2*n+1-k)/n; return [q[0],q[1]+1.15*S*Math.min(1,t*3.5)]; }),'#b12c69');   // darker along its underside, from just clear of the breast
-        poly(NP,'#ff5fa0'); dot(pts[n],1.75,'#ff5fa0'); dot(pts[0],4.85,'#ff5fa0'); }   // in the body's own pink, its broad end rounded and sunk inside the breast, so no edge shows
+        poly(NP,'#ff9dbf'); dot(pts[n],1.75,'#ff9dbf'); dot(pts[0],4.85,'#ff9dbf'); }   // in the body's own pink, its broad end rounded and sunk inside the breast, so no edge shows
       ln(pts.slice(2).map(q=>[q[0],q[1]-0.55*S]),'#ff9dbf',1.1); }
     // The head, from the reference picture: a small smooth oval carried on the end of the neck, and a big bill that runs forward
     // from it, pale pink for most of its length, then bends down into a black tip. A pale patch lies between the eye and the bill.
     const HFc=37.5+HF, HUc=2.8+HU, hk=1-0.0065*HFc*cfz, Q=(df,du,lat)=>P(lat||0,HFc+df,HUc+du);
-    const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),'#b12c69'); poly(pts,'#ff5fa0'); dot(Q(0.2,0),2.7*hk,'#ff5fa0'); dot(Q(-0.2,1.1),1.3*hk,'#ff9dbf'); };
+    const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),'#b12c69'); poly(pts,'#ff9dbf'); dot(Q(0.2,0),2.7*hk,'#ff9dbf'); dot(Q(-0.2,1.1),1.3*hk,'#ff9dbf'); };
     const bill=()=>{
       ln([Q(4.7,-0.1),Q(6.2,-0.2),Q(8.2,-1.2)],'#fbd9d6',2.9*hk); ln([Q(8.4,-1.4),Q(9.5,-2.6),Q(9.7,-3.9)],DARK,2.0*hk);          // its bulk, so it has width from in front as well
       poly([Q(3.2,1.45),Q(6.4,1.05),Q(8.3,0.2),Q(7.5,-2.2),Q(5.0,-1.5),Q(3.2,-1.6)],'#fbd9d6');                                  // the pale base
