@@ -318,14 +318,20 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
       dot(P(J[1][2],J[1][0],J[1][1]),1.45,kb); dot(P(J[1][2],J[1][0]+0.3,J[1][1]+0.4),0.55,lt);                           // the knob of the joint, with a small highlight
       const a=P(J[2][2],J[2][0],J[2][1]), t0=P(ft[2],ft[0],ft[1]), t1=P(ft[2]-2.1,ft[0]+1.4,ft[1]+0.4), t2=P(ft[2]+2.1,ft[0]+1.4,ft[1]+0.4);
       poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); dot(a,1.1,kb); } };       // the webbed foot, toes trailing
+  // The body is a droplet: full and round at the breast, drawing out to a point at the tail, darker along the belly and pale along the back.
   const body=()=>{
-    const tail=()=>poly([P(-3.6,-8,1.5+bob),P(3.6,-8,1.5+bob),P(1.6,-19,0.8+bob*0.8),P(0,-22,1+bob*0.75),P(-1.6,-19,0.8+bob*0.8)],'#e2557f');
+    const tail=()=>poly([P(-2.4,-15,1.3+bob),P(2.4,-15,1.3+bob),P(2.1,-22.5,0.3+bob*0.8),P(0.8,-20.6,0.7+bob*0.8),P(0,-25,0.5+bob*0.75),P(-0.8,-20.6,0.7+bob*0.8),P(-2.1,-22.5,0.3+bob*0.8)],'#e2557f');   // a few short tail feathers at its tip
     if(cfz<=0) tail();
-    { const a=P(0,-10.5,0.2+bob), b=P(0,11,0.9+bob), cx=(a[0]+b[0])/2, cy=(a[1]+b[1])/2, L=Math.hypot(b[0]-a[0],b[1]-a[1])/2, rot=Math.atan2(b[1]-a[1],b[0]-a[0]), w=5.6*S, R=Math.max(L,w);   // a full rounded body, darker along the belly
-      const el=(dy,k,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(cx,cy+dy*S,R*k,w*k,rot,0,7); ctx.fill(); };
-      el(1.3,1,'#e46f99'); el(-0.5,0.96,'#f58fb0'); }
-    ln([P(0,-5,2.9+bob),P(0,7,3.4+bob)],'#fcc6d5',3.2);                                                    // the pale back
-    if(cfz>0) tail();                                                                           // flying away: the tail is the nearest part of the body
+    { const f=P(0,12.5,0.9+bob), r=P(0,-19.5,0.5+bob), dx=r[0]-f[0], dy=r[1]-f[1], L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, w=6.3*S;
+      const prof=u=>Math.pow(Math.sin(Math.PI*Math.pow(u,0.58)),0.85);                               // widest a third of the way back, then a long taper
+      const drop=(oy,k,col)=>{ ctx.fillStyle=col; ctx.beginPath();
+        for(let i=0;i<=22;i++){ const u=i/22, q=prof(u)*w*k, x=f[0]+dx*u+nx*q, y=f[1]+dy*u+ny*q+oy*S; if(i) ctx.lineTo(x,y); else ctx.moveTo(x,y); }
+        for(let i=22;i>=0;i--){ const u=i/22, q=prof(u)*w*k; ctx.lineTo(f[0]+dx*u-nx*q, f[1]+dy*u-ny*q+oy*S); }
+        ctx.closePath(); ctx.fill();
+        ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28+oy*S, w*k*0.98, 0, 7); ctx.fill(); };          // the breast stays round however the bird is turned
+      drop(1.3,1,'#e46f99'); drop(-0.5,0.95,'#f58fb0'); }
+    ln([P(0,-10,2.3+bob),P(0,-2,3.5+bob),P(0,8,3.5+bob)],'#fcc6d5',2.8);                                  // the pale back
+    if(cfz>0) tail();                                                                             // flying away: the tail is the nearest part of the body
   };
   const neck=()=>{
     { const cl=[0,sway*0.5,sway,sway*0.4], cf=[9,18,27,35.5], cu=[1.5+bob,5.2+bob*0.62,4.2+bob*0.25,2.7], pts=[];   // one smooth line, stretched out ahead
