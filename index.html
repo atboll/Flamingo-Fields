@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 19:50</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 20:15</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1460,17 +1460,18 @@ return {look,draw,clear,quads:()=>QUADS.length};
 /* ---- the ten whales of the cloud field: who they are, and how they move ---- */
 // Made on the mockup page and pasted in from its list: p pattern, s strength, u purple, z length in kid-heights, d white dots, ds dot size,
 // k head knobs, f flank patches, t tail edge, bs belly spots, bt belly tint, wr how far the white reaches, c calf.
+// sn its sounds, sp pitch, sw pause between calls in seconds, sv volume, tb tail beat.
 const WHALE_CFG=[
-  {p:43,s:75,u:16,z:30,d:100,ds:20,k:50, f:27,t:41,bs:5,  bt:27,wr:9, c:1},
-  {p:29,s:76,u:79,z:21,d:70, ds:87,k:73, f:64,t:16,bs:52, bt:11,wr:88,c:1},
-  {p:99,s:94,u:84,z:49,d:84, ds:60,k:100,f:54,t:95,bs:100,bt:0, wr:29,c:0},
-  {p:76,s:60,u:48,z:8, d:34, ds:44,k:25, f:34,t:34,bs:32, bt:78,wr:40,c:0},
-  {p:6, s:55,u:23,z:23,d:17, ds:54,k:96, f:80,t:19,bs:22, bt:0, wr:34,c:0},
-  {p:40,s:92,u:71,z:79,d:72, ds:67,k:32, f:62,t:66,bs:66, bt:26,wr:89,c:0},
-  {p:84,s:76,u:0, z:43,d:68, ds:32,k:26, f:72,t:81,bs:32, bt:68,wr:32,c:1},
-  {p:59,s:47,u:75,z:60,d:68, ds:42,k:100,f:55,t:88,bs:100,bt:98,wr:94,c:1},
-  {p:12,s:65,u:93,z:7, d:53, ds:20,k:83, f:5, t:74,bs:43, bt:88,wr:79,c:0},
-  {p:53,s:81,u:34,z:14,d:78, ds:60,k:65, f:42,t:30,bs:65, bt:28,wr:51,c:0}];
+  {p:52,s:55,u:54,z:17,d:34,ds:30,k:68,f:19,t:76,bs:81,bt:38,wr:69,c:0,sn:['s1','s4','s6','s8','s9','s10'],sp:100,sw:10,sv:100,tb:62},
+  {p:29,s:76,u:79,z:21,d:70,ds:87,k:73,f:64,t:16,bs:52,bt:11,wr:88,c:1,sn:['s1','s2','s12','s6','s7','s13'],sp:95,sw:11,sv:100,tb:73},
+  {p:99,s:94,u:84,z:25,d:84,ds:60,k:100,f:54,t:95,bs:100,bt:0,wr:29,c:0,sn:['b1','b2','b3','b5','b6','s11'],sp:103,sw:8,sv:100,tb:62},
+  {p:76,s:60,u:48,z:8,d:34,ds:44,k:25,f:34,t:34,bs:32,bt:78,wr:40,c:0,sn:['b0','s0','s1','b5','b6','s11'],sp:135,sw:31,sv:100,tb:174},
+  {p:68,s:87,u:72,z:16,d:72,ds:78,k:26,f:22,t:26,bs:71,bt:0,wr:80,c:0,sn:['s0','s9','s10','s1','s2','s11'],sp:100,sw:14,sv:100,tb:80},
+  {p:45,s:33,u:62,z:23,d:100,ds:100,k:96,f:52,t:62,bs:74,bt:46,wr:41,c:1,sn:['s0','s11','s3','s13','s6','s1'],sp:80,sw:7,sv:100,tb:81},
+  {p:41,s:53,u:0,z:26,d:48,ds:34,k:51,f:36,t:82,bs:99,bt:0,wr:49,c:1,sn:['s0','s1','s2','s3','s12','s5'],sp:100,sw:9,sv:100,tb:100},
+  {p:59,s:47,u:93,z:62,d:68,ds:42,k:100,f:55,t:88,bs:100,bt:98,wr:94,c:0,sn:['b1','b2','b3','b4','b5','s1'],sp:94,sw:8,sv:118,tb:30},
+  {p:12,s:65,u:93,z:7,d:53,ds:20,k:83,f:5,t:74,bs:43,bt:88,wr:79,c:0,sn:['s0','s10','s3','s4','s6','s8'],sp:116,sw:25,sv:100,tb:181},
+  {p:53,s:81,u:34,z:14,d:78,ds:60,k:65,f:42,t:30,bs:65,bt:28,wr:51,c:0,sn:['s1','s11','s4','s6','s7','s8'],sp:100,sw:10,sv:100,tb:100}];
 const KID_H=98;              // the big kid's height in the world: a whale "30 kids long" is 30 of these
 const WH_GAP=45;             // how far a whale's lowest point keeps above the highest cloud under it
 const WH_CROSS_FIRST=14, WH_CROSS_EVERY=30;
