@@ -6,7 +6,9 @@
       "Bash(git commit -qm 'Flamingo Editor: first page, the game'\\\\''s flamingo in every pose beside a reference picture *)",
       "Bash(git push *)",
       "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/72c4e1da-image.png mockups/flamingo-ref-2-flying.png)",
-      "Bash(git commit -qm 'Flamingo Editor: rebuilt flying wing from the reference, freeze and wing-position controls *)"
+      "Bash(git commit -qm 'Flamingo Editor: rebuilt flying wing from the reference, freeze and wing-position controls *)",
+      "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/a4e4f033-image.png mockups/wing-structure-ref.png)",
+      "Bash(git commit -q -m 'Flamingo Editor: longer brown feathers nearest the body; add wing structure reference *)"
     ]
   }
 }
