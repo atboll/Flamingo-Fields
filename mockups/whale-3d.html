@@ -1,0 +1,245 @@
+<title>Whale 3D</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* layout: one screen — a slim title row, the canvas taking all spare height, a wrapping row of controls beneath */
+:root{
+  --paper:#f6f4ee; --ink:#27303f; --soft:#6d7686; --line:#d6d2c6; --panel:#ece9df; --accent:#3f5f8f;
+  --display:"Klee One","Hiragino Maru Gothic ProN","Trebuchet MS",sans-serif; --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark } }
+:root[data-theme="dark"]{ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);display:flex;flex-direction:column;gap:10px;padding-inline:16px;padding-block:12px;box-sizing:border-box}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font:600 20px/1.2 var(--display);margin:0;text-wrap:balance}
+header p{margin:0;color:var(--soft);font-size:13px}
+#stage{flex:1 1 auto;min-height:220px;border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.drag{cursor:grabbing}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.controls label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--soft);min-width:0}
+.controls input[type=range]{width:120px;max-width:38vw;accent-color:var(--accent)}
+.seg{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:6px 10px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--paper)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tog{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+.tog[aria-pressed=true]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+</style>
+
+<header>
+  <h1>Whale 3D</h1>
+  <p>The base humpback as a solid shape. Drag the picture to turn it. Nothing here is in the game yet.</p>
+</header>
+<div id="stage"><canvas id="cv" aria-label="A solid humpback whale that can be turned by dragging"></canvas></div>
+<div class="controls">
+  <div class="seg" role="group" aria-label="View">
+    <button type="button" data-view="side">Side</button>
+    <button type="button" data-view="above">Above</button>
+    <button type="button" data-view="below">Below</button>
+    <button type="button" data-view="front">Front</button>
+    <button type="button" data-view="behind">Behind</button>
+  </div>
+  <button type="button" class="tog" id="swim" aria-pressed="false">Swim around</button>
+  <label for="size">Zoom <input id="size" type="range" min="40" max="200" value="100"></label>
+  <label for="beat">Tail beat <input id="beat" type="range" min="0" max="200" value="100"></label>
+  <div class="seg" role="group" aria-label="Background">
+    <button type="button" id="bgBlank" aria-pressed="true">Blank</button>
+    <button type="button" id="bgDay" aria-pressed="false">Day sky</button>
+    <button type="button" id="bgNight" aria-pressed="false">Night sky</button>
+  </div>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), ctx=cv.getContext('2d'), stage=document.getElementById('stage');
+let W=0,H=0,DPR=1;
+function fit(){ const r=stage.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2); W=Math.max(50,r.width); H=Math.max(50,r.height); cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); }
+new ResizeObserver(fit).observe(stage); fit();
+const calm=matchMedia('(prefers-reduced-motion: reduce)').matches?0.35:1;
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+
+/* ---- the whale's shape: nose at x=+1, tail stock at x=-1, y up, z out to its sides ---- */
+// The same outline as the flat whale: heights above and below a straight line from jaw tip to tail stock, by s (0 nose .. 1 stock).
+const PT=[[0,0.012],[0.012,0.03],[0.05,0.054],[0.11,0.08],[0.17,0.098],[0.21,0.108],[0.24,0.112],[0.32,0.13],[0.45,0.15],[0.56,0.142],[0.63,0.14],[0.7,0.112],[0.8,0.07],[0.9,0.04],[1,0.026]];
+const PB=[[0,0.012],[0.012,0.05],[0.045,0.11],[0.09,0.17],[0.16,0.235],[0.26,0.288],[0.36,0.27],[0.47,0.215],[0.58,0.16],[0.7,0.105],[0.82,0.06],[0.92,0.036],[1,0.026]];
+// New for the solid whale: how wide it is, seen from above. A broad rounded head, widest behind the flippers, a stock that is taller than it is wide.
+const PW=[[0,0.035],[0.015,0.07],[0.05,0.112],[0.11,0.15],[0.2,0.186],[0.3,0.203],[0.42,0.194],[0.55,0.155],[0.68,0.1],[0.8,0.052],[0.9,0.025],[0.96,0.021],[1,0.03]];
+function prof(T,s){ s=clamp(s,0,1); let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
+  return Math.max(0.003,(2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1); }
+const TOP=s=>prof(PT,s), BOT=s=>prof(PB,s), WID=s=>prof(PW,s);
+// where the dark back ends and the pale underside begins, as a depth below the middle line (taken from the flat whale)
+const mouth=s=>0.006+0.04*Math.pow(Math.sin(clamp(s/0.29,0,1)*Math.PI*0.5),1.3);
+const edge=s=>{ if(s<0.258) return mouth(s); const d0=clamp((s-0.258)/0.03,0,1), d=d0*d0*(3-2*d0), low=0.096+0.018*Math.sin(s*14)*clamp((s-0.4)/0.06,0,1)+(s-0.27)*-0.03+Math.pow(clamp((s-0.5)/0.3,0,1),1.5)*0.02; return mouth(s)+(low-mouth(s))*d; };
+const palTop=sv=>{ if(sv<=0.56) return edge(sv); const back=BOT(sv)*(0.6-0.3*(sv-0.6)), m=clamp((sv-0.56)/0.1,0,1); const m2=clamp((sv-0.78)/0.13,0,1), top=edge(sv)+(back-edge(sv))*m; return Math.min(top+(BOT(sv)+0.01-top)*m2*m2, BOT(sv)*0.7); };   // unlike the flat whale, a strip of white stays under the stock right to the tail
+
+/* ---- movement: the whole body bends up and down along its length, more toward the tail ---- */
+let TB=0, INIT=true;   // tail-beat clock
+const spineY=s=>INIT?0:(0.012+0.2*s*s)*Math.sin(TB-s*3.3)*calm;   // laid out straight the first time, so every patch can be told which way is out
+const FR=[0,0,0,0,0];   // scratch: the spine's place and its "up" at s
+function frame(s){ const y=spineY(s), dy=(spineY(s+0.004)-spineY(s-0.004))/0.008, l=Math.hypot(dy,2); FR[0]=y; FR[1]=dy/l; FR[2]=2/l; }   // up = (FR[1], FR[2]), toward the nose = (FR[2], -FR[1])
+
+/* ---- the mesh: points written fresh every frame, four-cornered patches listed once ---- */
+const MV=[]; let vi=0; const QUADS=[];
+function put(x,y,z){ MV[vi++]=x; MV[vi++]=y; MV[vi++]=z; return vi/3-1; }
+function bent(x,yl,z){ const s=(1-x)/2; frame(s); return put(x+FR[1]*yl, FR[0]+FR[2]*yl, z); }                                   // each point follows the spine where it sits
+function bentAt(sr,x,yl,z){ const xr=1-2*sr; frame(sr); return put(xr+FR[2]*(x-xr)+FR[1]*yl, FR[0]-FR[1]*(x-xr)+FR[2]*yl, z); }   // a stiff part follows the spine at its root
+const DARK=0, PALE=1;
+function quad(a,b,c,d,kind,hint,groove){   // hint: roughly which way the patch faces, so the corners get wound the right way
+  const P=i=>[MV[i*3],MV[i*3+1],MV[i*3+2]], A=P(a),B=P(b),C=P(c),D=P(d);
+  const ux=C[0]-A[0],uy=C[1]-A[1],uz=C[2]-A[2], vx=D[0]-B[0],vy=D[1]-B[1],vz=D[2]-B[2];
+  const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+  if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null]); else QUADS.push([a,b,c,d,kind,groove||null]);
+}
+
+const NR=74, K1=7, K2=7, M=2*(K1+K2);
+function body(){
+  const first=vi/3;
+  for(let i=-1;i<=NR+1;i++){
+    const s=i<0?-0.003:i>NR?1.004:Math.pow(i/NR,1.2), cap=(i<0||i>NR)?0.02:1, sc=clamp(s,0,1);
+    const t=TOP(sc)*cap, b=BOT(sc)*cap, w=WID(sc)*cap, tb=Math.acos(clamp(-palTop(sc)/BOT(sc),-1,0));
+    for(let j=0;j<M;j++){
+      const side=j<=K1+K2?1:-1, jj=side>0?j:M-j;   // down the right side, back up the left
+      const th=jj<=K1? tb*jj/K1 : tb+(Math.PI-tb)*(jj-K1)/K2, c=Math.cos(th);
+      bent(1-2*s, c>0?t*c:b*c, side*w*Math.sin(th));
+    }
+  }
+  if(!INIT) return;
+  for(let i=0;i<NR+2;i++) for(let j=0;j<M;j++){
+    const a=first+i*M+j, b=first+i*M+(j+1)%M, c=first+(i+1)*M+(j+1)%M, d=first+(i+1)*M+j;
+    const pale=j>=K1 && j<K1+2*K2, s=Math.pow(clamp((i-0.5)/NR,0,1),1.2);
+    const row=r=>r>K1 && r<K1+2*K2 && s>0.035 && s<0.5;   // throat grooves run along the lines between pale patches
+    const cy=(MV[a*3+1]+MV[c*3+1])/2, cz=(MV[a*3+2]+MV[c*3+2])/2;
+    const g=[]; if(row(j+1)) g.push(b,c); if(row(j)) g.push(a,d);
+    quad(a,b,c,d,pale?PALE:DARK,[i===0?0.4:i>NR?-0.4:0,cy,cz],g.length?g:null);
+  }
+}
+// a thin lens-shaped blade through a row of stations, each with a leading point A, a trailing point B, an "up" n and a half thickness
+function blade(st,kTop,kBot,map){
+  const Mx=4, first=vi/3;
+  for(const q of st) for(let side=1;side>=-1;side-=2) for(let m=0;m<=Mx;m++){
+    const u=m/Mx, bulge=Math.pow(Math.sin(Math.PI*u),0.7)*q.t*side;
+    map(q.A[0]+(q.B[0]-q.A[0])*u+q.n[0]*bulge, q.A[1]+(q.B[1]-q.A[1])*u+q.n[1]*bulge, q.A[2]+(q.B[2]-q.A[2])*u+q.n[2]*bulge);
+  }
+  if(!INIT) return;
+  const row=2*(Mx+1);
+  for(let k=0;k<st.length-1;k++) for(let side=0;side<2;side++) for(let m=0;m<Mx;m++){
+    const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1;
+    quad(o,o+1,o+row+1,o+row,side?kBot:kTop,[n[0]*sg,n[1]*sg,n[2]*sg]);
+  }
+}
+const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+const FLIP_S=0.34, FLIP_Y=-0.086;
+function flipper(sg,t){
+  const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
+  let c=[xr,FLIP_Y,sg*zr*0.5]; const S=16, L=0.72, st=[], sw=Math.sin(t*0.8+(sg>0?0:0.6))*calm;
+  for(let k=0;k<=S;k++){ const u=k/S;
+    const a=0.42+0.28*u+0.1*sw, d=0.22+0.22*u+0.5*u*sw;   // swept back, drooping, and curling slowly along its length
+    const dir=[-Math.sin(a)*Math.cos(d),-Math.sin(d),sg*Math.cos(a)*Math.cos(d)];
+    const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]<0) n=[-n[0],-n[1],-n[2]];
+    const hw=0.068*Math.pow(1-Math.pow(u,2.4),0.75)*(0.8+0.2*Math.sin(Math.PI*Math.min(1,u/0.55))), bump=1+0.07*Math.sin(u*24)*(1-u);
+    st.push({A:[c[0]+ch[0]*hw*0.9*bump,c[1]+ch[1]*hw*0.9*bump,c[2]+ch[2]*hw*0.9*bump], B:[c[0]-ch[0]*hw*1.1,c[1]-ch[1]*hw*1.1,c[2]-ch[2]*hw*1.1], n, t:0.004+0.018*Math.pow(1-u,0.8)});
+    c=[c[0]+dir[0]*L/S,c[1]+dir[1]*L/S,c[2]+dir[2]*L/S];
+  }
+  blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
+}
+function fluke(sg){   // one half of the tail: flat, lying level, swept back to a point; it bends with the stock
+  const S=12, st=[];
+  for(let k=0;k<=S;k++){ const v=k/S, z=sg*0.38*v;
+    st.push({A:[-0.875-0.305*Math.pow(v,1.3),0,z], B:[-1.075-0.105*Math.pow(Math.sin(v*Math.PI/2),0.8),0,z], n:[0,1,0], t:0.003+0.034*Math.pow(1-v,1.6)}); }
+  blade(st,DARK,PALE,bent);
+}
+function backFin(){
+  const S=5, st=[], xL=1-2*0.632, xT=1-2*0.716;
+  for(let k=0;k<=S;k++){ const v=k/S, xa=xL-0.132*Math.pow(v,0.8), xb=xT+0.036*v*v;
+    st.push({A:[xa,TOP((1-xa)/2)*0.9+0.056*v,0], B:[xb,TOP((1-xb)/2)*0.9+0.056*v,0], n:[0,0,1], t:0.002+0.012*(1-v)}); }
+  blade(st,DARK,DARK,bent);
+}
+const EYE_S=0.283; let eyes=[];
+function build(t){
+  vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
+  const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
+  eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); eyes.push([p,q]); }
+  INIT=false;
+}
+
+/* ---- looking at it ---- */
+let yaw=0.6, pitch=0.28, yawTo=null, pitchTo=null, bg='blank', swim=false, T=0, swimA=0;
+const VIEWS={side:[0,0.06], above:[0,1.5], below:[0,-1.5], front:[-Math.PI/2,0.1], behind:[Math.PI/2,0.1]};
+const SV=[];   // points after the camera: x, y, depth
+const COL={ day:[[[0x20,0x22,0x52],[0x2e,0x31,0x68],[0x44,0x49,0x90]],[[0xa9,0xc4,0xd3],[0xcf,0xe0,0xe8],[0xf7,0xfa,0xfb]]],
+            night:[[[0x15,0x17,0x3c],[0x1f,0x22,0x50],[0x30,0x35,0x72]],[[0x74,0x8c,0xa8],[0x9d,0xb2,0xc8],[0xdc,0xe5,0xf1]]] };
+function shade(kind,l){ const c=COL[bg==='night'?'night':'day'][kind], u=clamp(l,0,1)*2, a=c[u<1?0:1], b=c[u<1?1:2], f=u<1?u:u-1;
+  return 'rgb('+Math.round(a[0]+(b[0]-a[0])*f)+','+Math.round(a[1]+(b[1]-a[1])*f)+','+Math.round(a[2]+(b[2]-a[2])*f)+')'; }
+function drawBg(){
+  if(bg==='blank'){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--paper'); ctx.fillRect(0,0,W,H); return; }
+  const g=ctx.createLinearGradient(0,0,0,H);
+  if(bg==='day'){ g.addColorStop(0,'#8fc3e8'); g.addColorStop(0.6,'#cfe6f2'); g.addColorStop(1,'#f4efe2'); }
+  else{ g.addColorStop(0,'#0c1030'); g.addColorStop(0.7,'#232a5c'); g.addColorStop(1,'#3a3f74'); }
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  if(bg==='night'){ ctx.fillStyle='#e8ecff'; for(let i=0;i<70;i++){ let n=Math.sin(i*127.1)*43758.5453; n-=Math.floor(n); let m=Math.sin(i*311.7)*43758.5453; m-=Math.floor(m); ctx.globalAlpha=0.3+0.6*n; ctx.fillRect(m*W,n*H*0.85,1.4,1.4); } ctx.globalAlpha=1; }
+}
+const order=[];
+function draw(dt){
+  T+=dt; TB+=dt*2.1*(+document.getElementById('beat').value/100);
+  if(yawTo!==null){ const k=1-Math.exp(-dt*6); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; pitch+=(pitchTo-pitch)*k; if(Math.abs(d)<0.002 && Math.abs(pitchTo-pitch)<0.002) yawTo=null; }
+  build(T);
+  // the whale's own place and heading
+  let px=0,py=0,pz=0,head=0,roll=0,tip=0.03*Math.sin(TB*0.5)*calm;
+  if(swim){ swimA+=dt*0.22*calm; const R=2.3; px=R*Math.sin(swimA); pz=R*Math.cos(swimA); py=0.3*Math.sin(swimA*1.7); head=swimA; roll=-0.2; tip+=0.13*Math.cos(swimA*1.7); }
+  const ch=Math.cos(head), sh=Math.sin(head), cr=Math.cos(roll), sr=Math.sin(roll), ct=Math.cos(tip), stp=Math.sin(tip);
+  const ca=Math.cos(yaw), sa=Math.sin(yaw), cp=Math.cos(-pitch), sp=Math.sin(-pitch);
+  const D=swim?8.5:5, zoom=+document.getElementById('size').value/100, f=0.36*Math.min(W,H*2)*5*zoom/(swim?1.25:1), cx=W/2, cy=H/2;
+  const n=vi/3;
+  for(let i=0;i<n;i++){
+    let x=MV[i*3], y=MV[i*3+1], z=MV[i*3+2];
+    let y1=y*cr-z*sr, z1=y*sr+z*cr;                 // bank
+    let x2=x*ct-y1*stp, y2=x*stp+y1*ct;             // nose up or down
+    let x3=x2*ch+z1*sh+px, z3=-x2*sh+z1*ch+pz, y3=y2+py;   // heading and place
+    const xc=x3*ca-z3*sa, zc=x3*sa+z3*ca;           // the camera's turn
+    SV[i*3]=xc; SV[i*3+1]=y3*cp-zc*sp; SV[i*3+2]=y3*sp+zc*cp+D;
+  }
+  // light from above and a little toward the viewer, carried into the camera's space
+  const L0=norm([0.3,0.9,-0.3]), lx0=L0[0]*ca-L0[2]*sa, lz0=L0[0]*sa+L0[2]*ca, lx=lx0, ly=L0[1]*cp-lz0*sp, lz=L0[1]*sp+lz0*cp;
+  order.length=0;
+  for(let q=0;q<QUADS.length;q++){
+    const Q=QUADS[q], a=Q[0]*3,b=Q[1]*3,c=Q[2]*3,d=Q[3]*3;
+    const ux=SV[c]-SV[a],uy=SV[c+1]-SV[a+1],uz=SV[c+2]-SV[a+2], vx=SV[d]-SV[b],vy=SV[d+1]-SV[b+1],vz=SV[d+2]-SV[b+2];
+    let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const nl=Math.hypot(nx,ny,nz); if(nl<1e-12) continue; nx/=nl; ny/=nl; nz/=nl;
+    const mx=(SV[a]+SV[b]+SV[c]+SV[d])/4, my=(SV[a+1]+SV[b+1]+SV[c+1]+SV[d+1])/4, mz=(SV[a+2]+SV[b+2]+SV[c+2]+SV[d+2])/4;
+    const ml=Math.hypot(mx,my,mz), face=-(nx*mx+ny*my+nz*mz)/ml; if(face<=0 || mz<0.2) continue;   // turned away from us
+    const lam=(nx*lx+ny*ly+nz*lz)*0.5+0.5;
+    order.push([mz,q,0.72*lam+0.3*face]);
+  }
+  for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[o+2]<SV[p+2]-0.004) order.push([SV[p+2]-0.06,-1,p]); }
+  order.sort((A,B)=>B[0]-A[0]);
+  const night=bg==='night', gcol=night?'#6c86a0':'#8fb1c0';
+  ctx.lineJoin='round';
+  for(const it of order){
+    if(it[1]<0){ const p=it[2], z=SV[p+2], r=0.0125*f/z; ctx.fillStyle=night?'#0d0f22':'#12142c'; ctx.beginPath(); ctx.arc(cx+SV[p]*f/z,cy-SV[p+1]*f/z,r,0,6.2832); ctx.fill(); continue; }
+    const Q=QUADS[it[1]], col=shade(Q[4],it[2]); let X=[],Y=[];
+    for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
+    ctx.fillStyle=col; ctx.strokeStyle=col; ctx.lineWidth=0.8;
+    ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill(); ctx.stroke();
+    if(Q[5]){ ctx.strokeStyle=gcol; ctx.lineWidth=Math.max(0.6,0.004*f/it[0]); ctx.beginPath();
+      for(let k=0;k<Q[5].length;k++){ const i=Q[5][k]*3, z=SV[i+2], x=cx+SV[i]*f/z, y=cy-SV[i+1]*f/z; if(k&1) ctx.lineTo(x,y); else ctx.moveTo(x,y); } ctx.stroke(); }
+  }
+}
+let last=0;
+function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0); last=now; ctx.setTransform(DPR,0,0,DPR,0,0); drawBg(); draw(dt); requestAnimationFrame(tick); }
+requestAnimationFrame(tick);
+
+/* ---- controls ---- */
+let dragging=false, lx=0, ly=0;
+cv.addEventListener('pointerdown',e=>{ dragging=true; lx=e.clientX; ly=e.clientY; yawTo=null; cv.classList.add('drag'); try{ cv.setPointerCapture(e.pointerId); }catch(_){} mark(null); });
+cv.addEventListener('pointermove',e=>{ if(!dragging) return; yaw-=(e.clientX-lx)*0.008; pitch=clamp(pitch+(e.clientY-ly)*0.008,-1.55,1.55); lx=e.clientX; ly=e.clientY; });
+const up=()=>{ dragging=false; cv.classList.remove('drag'); }; cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+const vb=[...document.querySelectorAll('[data-view]')];
+function mark(v){ vb.forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.view===v))); }
+vb.forEach(b=>b.addEventListener('click',()=>{ const v=VIEWS[b.dataset.view]; yawTo=v[0]; pitchTo=v[1]; mark(b.dataset.view); })); mark(null);
+const sb=document.getElementById('swim'); sb.addEventListener('click',()=>{ swim=!swim; sb.setAttribute('aria-pressed',String(swim)); });
+const bgs={blank:'bgBlank',day:'bgDay',night:'bgNight'};
+for(const k in bgs) document.getElementById(bgs[k]).addEventListener('click',()=>{ bg=k; for(const j in bgs) document.getElementById(bgs[j]).setAttribute('aria-pressed',String(j===k)); });
+</script>
