@@ -52,7 +52,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the box</button>
     <button type="button" id="testDoor">Test: stand before the door</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 11:45 door</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 13:50</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -357,7 +357,7 @@ let feathers=0, flightLeft=0, lastGot=-9, lift=0, camBack=CAM_BACK;
 // while they are with the flock the flight clock stops.
 const FLOCK_EVERY=45, FLOCK_SPEED=230, FLOCK_FIRST=30;
 let flock=null, nextFlock=FLOCK_FIRST, flockN=0;
-const FLOCK_RING=4500, FLOCK_FIX=8000;   // how far to the side a flock's line may pass, and how far off it stops minding where the kids are
+const FLOCK_RING=6000, FLOCK_FIX=8000;   // how far to the side a flock's line may pass, and how far off it stops minding where the kids are
 const FLOCK_GONE=19000;   // farther than this a bird is under two pixels wide and fully faded
 const FLOCK_FAR=24000, FLOCK_NEAR=2700;   // they set out FLOCK_FAR away, too small to see; within FLOCK_NEAR they slow to cruising speed
 const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*80,-r*60]); if(r<=4) BIRDS.push([r*80,-r*60]); }
