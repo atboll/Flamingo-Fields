@@ -312,11 +312,10 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
     // are shorter the nearer they sit to the body, so the wing's back edge curves in to meet it.
     // It has no edge: it is laid down in thin see-through layers, each reaching a little further out along the wing and a little further
     // back over the feathers than the one before, so the wing's own colours pass gradually into the body's pink.
-    { for(const k of [5]){ const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
+    { for(let k=9;k>=0;k--){ const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
         const T0=-0.34;   // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
         for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,LE(Math.max(0,t)))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,Math.max(edge(t),LE(0)-dep*1.2))); }
-        ctx.fillStyle='rgb(255,157,191)';   // one solid shape with a clean edge, no see-through layers
-         ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
+        ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
     }
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
