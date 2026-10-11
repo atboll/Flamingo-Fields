@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:25</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:40</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -192,8 +192,8 @@ function frontOverLight(lx0,ly0,lx1,ly1,sil){   // everything standing or flying
   ctx.save(); ctx.globalAlpha=fa; ctx.globalCompositeOperation='source-over'; ctx.drawImage(gcv,x0,y0,w/DPR,h/DPR); ctx.restore();
 }
 // On the clouds the door is a doorway of the box's silver, with real depth: posts, a lintel, and the light set back in the opening.
-// the frame's posts and lintel: a slim 9.2 (they were 46)
-const D2_POST=9.2, D2_DEPTH=170; let D2=null;
+// the frame's posts and lintel: a slim 9.2 (they were 46). Frame and light are one slab, 30 deep, the light filling it from face to face.
+const D2_POST=9.2, D2_DEPTH=30; let D2=null;
 function door2Setup(){
   D2=null; if(level!==2 || !coast) return; const c=boxC(), ux=SUNDZ, uz=-SUNDX, vx=SUNDX, vz=SUNDZ, v0=-BOX_HALF, dmx=c[0]+vx*v0, dmz=c[1]+vz*v0;
   const camU=(camPx-dmx)*ux+(camPz-dmz)*uz, camV=(camPx-dmx)*vx+(camPz-dmz)*vz, sg=camV<0?-1:1, vn=v0+sg*D2_DEPTH/2, vf=v0-sg*D2_DEPTH/2, g=ground(dmx,dmz)-8, uo=DOOR_W/2+D2_POST, ui=DOOR_W/2, hi=g+DOOR_H, top=hi+D2_POST;
@@ -203,9 +203,7 @@ function door2Setup(){
   if(Math.abs(camU)>uo){ const su=camU>0?1:-1, f=Q([[su*uo,vn,g],[su*uo,vf,g],[su*uo,vf,top],[su*uo,vn,top]]); if(f) faces.push([f,'#a9b0bd']); }
   if(camY>top){ const f=Q([[-uo,vn,top],[uo,vn,top],[uo,vf,top],[-uo,vf,top]]); if(f) faces.push([f,'#e8ecf2']); }
   faces.push([near,'#cdd3dc']);
-  if(camU>-ui){ const f=Q([[-ui,vn,g],[-ui,v0,g],[-ui,v0,hi],[-ui,vn,hi]]); if(f) jambs.push(f); }      // the inside of the far post, lit by the door
-  if(camU<ui){ const f=Q([[ui,vn,g],[ui,v0,g],[ui,v0,hi],[ui,vn,hi]]); if(f) jambs.push(f); }
-  if(camY<hi){ const f=Q([[-ui,vn,hi],[ui,vn,hi],[ui,v0,hi],[-ui,v0,hi]]); if(f) jambs.push(f); }       // and the underside of the lintel
+  // (the light is flush with the frame's faces now, so no inner sides of the posts are seen)
   D2={faces,open,jambs,key:proj(dmx,dmz)[1]};
 }
 function polyPath(ct,pg){ ct.beginPath(); ct.moveTo(pg[0][0],pg[0][1]); for(let i=1;i<pg.length;i++) ct.lineTo(pg[i][0],pg[i][1]); ct.closePath(); }
