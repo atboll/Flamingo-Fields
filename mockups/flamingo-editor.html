@@ -275,7 +275,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   // Seen from underneath, the coverts are pale pink with a scalloped edge and the flight feathers a dusky maroon.
   const wing=sd=>{
     const isFar=(-sd*cfx>0);
-    const xs=[6.2], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
+    const xs=[4.4], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
     for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
     const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k; return P(sd*(xs[k]+(xs[k+1]-xs[k])*r), f*chord+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r); };
