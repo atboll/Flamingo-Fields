@@ -52,7 +52,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the box</button>
     <button type="button" id="testDoor">Test: stand before the door</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 11:20 door</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 11:45 door</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -186,10 +186,38 @@ function frontOverLight(lx0,ly0,lx1,ly1,sil){   // everything standing or flying
       gctx.globalCompositeOperation='multiply'; gctx.fillStyle='rgb('+v(255,36)+','+v(255,32)+','+v(255,50)+')'; gctx.fillRect(0,0,w,h);
       gctx.globalCompositeOperation='source-over'; gctx.fillStyle='rgba(30,26,44,'+(0.55*k).toFixed(3)+')'; gctx.fillRect(0,0,w,h); }
     gctx.globalCompositeOperation='destination-in'; gctx.drawImage(gcv2,0,0); gctx.globalCompositeOperation='source-over'; }
-  const s0=clamp((sil-0.82)/0.18,0,1), fa=1-0.8*s0*s0*(3-2*s0);                           // in the full white they are left as faint shapes
+  const s0=clamp((sil-0.4)/0.6,0,1), fa=1-0.8*s0*s0*(3-2*s0);                           // in the full white they are left as faint shapes
   ctx.save(); ctx.globalAlpha=fa; ctx.globalCompositeOperation='source-over'; ctx.drawImage(gcv,x0,y0,w/DPR,h/DPR); ctx.restore();
 }
-let doorNear=0, doorT=0;
+// On the clouds the door is a doorway of the box's silver, with real depth: posts, a lintel, and the light set back in the opening.
+const D2_POST=46, D2_DEPTH=170; let D2=null;
+function door2Setup(){
+  D2=null; if(level!==2 || !coast) return; const c=boxC(), ux=SUNDZ, uz=-SUNDX, vx=SUNDX, vz=SUNDZ, v0=-BOX_HALF, dmx=c[0]+vx*v0, dmz=c[1]+vz*v0;
+  const camU=(camPx-dmx)*ux+(camPz-dmz)*uz, camV=(camPx-dmx)*vx+(camPz-dmz)*vz, sg=camV<0?-1:1, vn=v0+sg*D2_DEPTH/2, vf=v0-sg*D2_DEPTH/2, g=ground(dmx,dmz)-8, uo=DOOR_W/2+D2_POST, ui=DOOR_W/2, hi=g+DOOR_H, top=hi+D2_POST;
+  const P=(u,v,h)=>{ const x=c[0]+ux*u+vx*v, z=c[1]+uz*u+vz*v, p=proj(x,z); if(p[1]<45) return null; const sc=focal/p[1]; return [W/2+p[0]*sc, horizon+(camY-h)*sc]; };
+  const Q=(a)=>{ const o=a.map(q=>P(q[0],q[1],q[2])); return o.some(q=>!q)?null:o; }, faces=[], jambs=[];
+  const near=Q([[-uo,vn,g],[uo,vn,g],[uo,vn,top],[-uo,vn,top]]), open=Q([[-ui,vn,g],[ui,vn,g],[ui,vn,hi],[-ui,vn,hi]]); if(!near || !open) return;
+  if(Math.abs(camU)>uo){ const su=camU>0?1:-1, f=Q([[su*uo,vn,g],[su*uo,vf,g],[su*uo,vf,top],[su*uo,vn,top]]); if(f) faces.push([f,'#a9b0bd']); }
+  if(camY>top){ const f=Q([[-uo,vn,top],[uo,vn,top],[uo,vf,top],[-uo,vf,top]]); if(f) faces.push([f,'#e8ecf2']); }
+  faces.push([near,'#cdd3dc']);
+  if(camU>-ui){ const f=Q([[-ui,vn,g],[-ui,v0,g],[-ui,v0,hi],[-ui,vn,hi]]); if(f) jambs.push(f); }      // the inside of the far post, lit by the door
+  if(camU<ui){ const f=Q([[ui,vn,g],[ui,v0,g],[ui,v0,hi],[ui,vn,hi]]); if(f) jambs.push(f); }
+  if(camY<hi){ const f=Q([[-ui,vn,hi],[ui,vn,hi],[ui,v0,hi],[-ui,v0,hi]]); if(f) jambs.push(f); }       // and the underside of the lintel
+  D2={faces,open,jambs,key:proj(dmx,dmz)[1]};
+}
+function polyPath(ct,pg){ ct.beginPath(); ct.moveTo(pg[0][0],pg[0][1]); for(let i=1;i<pg.length;i++) ct.lineTo(pg[i][0],pg[i][1]); ct.closePath(); }
+function drawDoor2(){
+  if(!D2) return; ctx.save(); ctx.lineJoin='round';
+  for(const f of D2.faces){ polyPath(ctx,f[0]); ctx.fillStyle=f[1]; ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.5)'; ctx.lineWidth=1; ctx.stroke(); }
+  polyPath(ctx,D2.open); ctx.fillStyle='#fffdf2'; ctx.fill();                                        // the opening, filled with light
+  ctx.save(); polyPath(ctx,D2.open); ctx.clip(); for(const j of D2.jambs){ polyPath(ctx,j); ctx.fillStyle='#e9e6d6'; ctx.fill(); ctx.strokeStyle='rgba(150,150,160,.5)'; ctx.lineWidth=1; ctx.stroke(); } ctx.restore();
+  ctx.restore();
+}
+function door2Clip(){   // keeps the light to what is seen of it through the opening, past the posts
+  if(!D2) return; const p=new Path2D(); p.moveTo(D2.open[0][0],D2.open[0][1]); for(let i=1;i<4;i++) p.lineTo(D2.open[i][0],D2.open[i][1]); p.closePath(); ctx.clip(p);
+  for(const j of D2.jambs){ const q=new Path2D(); q.rect(-20,-20,W+40,H+40); q.moveTo(j[0][0],j[0][1]); for(let i=1;i<j.length;i++) q.lineTo(j[i][0],j[i][1]); q.closePath(); ctx.clip(q,'evenodd'); }
+}
+let doorNear=0, doorT=0, bl1=null, bx1=null, bl2=null, bx2=null;
 function throughDoor(){   // the step through, hidden in the white: the desert and the box are left behind, and the kids stand on cloud just beyond the door
   const c=boxC(); doorT=0; level=2; fogT=0; skyOpen=false; skyT=0; skyA=0; pathA=0; pathAlign=0; flock=null; got.clear(); mates.length=0; shore.length=0; landed2=false; doorNear=1;
   for(const k of kids){ const dx=k.x-c[0], dz=k.z-c[1], u=clamp(dx*SUNDZ-dz*SUNDX,-DOOR_W*0.4,DOOR_W*0.4), v=-BOX_HALF+120; k.x=c[0]+SUNDZ*u+SUNDX*v; k.z=c[1]-SUNDX*u+SUNDZ*v; k.y=0; k.vy=0; k.fl=0; k.fly=false; k.glide=false; k.vx=SUNDX*120; k.vz=SUNDZ*120; k.gh=undefined; k.climb=0; }
@@ -197,7 +225,7 @@ function throughDoor(){   // the step through, hidden in the white: the desert a
 }
 function doorNearNow(){   // how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it
   let tg=0, atDoor=false; if(BOX && coast && coastA>0.5 && (level===1 || level===2)){ const c=boxC(), dx=lead.x-c[0], dz=lead.z-c[1], u=dx*SUNDZ-dz*SUNDX, v=dx*SUNDX+dz*SUNDZ, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7;
-    if(level===2){ if(lead.y<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/1700,0,1); }                 // on the clouds the light is the same from either side
+    if(level===2){ if(lead.y<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/(landed2?520:1700),0,1); }   // a long way out of the white on first coming through; after that only right at the door                 // on the clouds the light is the same from either side
     else if(v<-BOX_HALF && lead.y<DOOR_H*1.6){ const d=Math.hypot(-v-BOX_HALF,lat), facing=clamp((fwdX*SUNDX+fwdZ*SUNDZ-0.15)/0.6,0,1); tg=clamp(1-(d-95)/1700,0,1)*facing;
       atDoor=-v-BOX_HALF<130 && Math.abs(u)<DOOR_W*0.5 && lead.y<40 && !lead.fly; } }
   doorNear+=(tg-doorNear)*0.1; if(doorNear<0.002 && tg===0) doorNear=0;
@@ -206,9 +234,15 @@ function doorNearNow(){   // how near the kids stand in front of the door, and f
 }
 function drawDoorLight(){
   const n=doorNearNow(), r=doorLightBody(n);
+  if(n>0.45){ const b0=clamp((n-0.45)/0.4,0,1), b=b0*b0*(3-2*b0);   // near the door the picture goes soft, so no edge is left to show through the white: it is shrunk small and drawn back large
+    if(!bl1){ bl1=document.createElement('canvas'); bx1=bl1.getContext('2d'); bl2=document.createElement('canvas'); bx2=bl2.getContext('2d'); }
+    const w1=Math.max(8,cv.width>>2), h1=Math.max(8,cv.height>>2), w2=Math.max(4,Math.round(cv.width/14)), h2b=Math.max(4,Math.round(cv.height/14));
+    if(bl1.width!==w1 || bl1.height!==h1){ bl1.width=w1; bl1.height=h1; } if(bl2.width!==w2 || bl2.height!==h2b){ bl2.width=w2; bl2.height=h2b; }
+    bx1.imageSmoothingEnabled=true; bx1.globalCompositeOperation='copy'; bx1.drawImage(cv,0,0,w1,h1); bx2.imageSmoothingEnabled=true; bx2.globalCompositeOperation='copy'; bx2.drawImage(bl1,0,0,w2,h2b);
+    ctx.save(); ctx.globalCompositeOperation='source-over'; ctx.globalAlpha=b; ctx.imageSmoothingEnabled=true; ctx.drawImage(bl2,0,0,W,H); ctx.restore(); }
   if(n>0.004){ ctx.save(); ctx.globalCompositeOperation='source-over';   // the light takes the whole view as the kids come up to the door
     const X=r?r.cx:W/2, Y=r?r.cy:H*0.45, R=Math.max(W,H)*(0.25+1.1*n), g=ctx.createRadialGradient(X,Y,0,X,Y,R); g.addColorStop(0,'rgba(255,255,250,'+(0.9*n).toFixed(3)+')'); g.addColorStop(0.5,'rgba(255,254,244,'+(0.5*n*n).toFixed(3)+')'); g.addColorStop(1,'rgba(255,254,244,0)');
-    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='rgba(255,254,246,'+Math.pow(n,2.6).toFixed(3)+')'; ctx.fillRect(0,0,W,H); ctx.restore(); }
+    ctx.fillStyle=g; ctx.fillRect(0,0,W,H); ctx.fillStyle='rgba(255,254,246,'+Math.pow(clamp(n/0.93,0,1),2.6).toFixed(3)+')'; ctx.fillRect(0,0,W,H); ctx.restore(); }
   if(n>0.004) frontOverLight(-1e9,-1e9,1e9,1e9,n); else if(r) frontOverLight(r.cx-r.R2*1.5,-1e9,r.cx+r.R2*1.5,1e9,0);
 }
 function doorLightBody(near){
@@ -224,7 +258,7 @@ function doorLightBody(near){
   // its light on the sand: laid in thin bands outward from the door, each brightest down its middle and gone at its sides,
   // and each a little fainter than the one before, so the light has no edge anywhere and dies away over the dunes
   { const NS=44, LEN=2300*(1+0.4*near), rows=[]; for(let i=0;i<=NS;i++){ const t=i/NS, v=-BOX_HALF+sgn*LEN*t, hw=DOOR_W*0.9+900*Math.pow(t,0.8), l=at(-hw,v,null), r=at(hw,v,null), m=at(0,v,null); if(!l||!r||!m) break; rows.push([l,r,m]); }
-    for(let i=-1;i+2<rows.length;i++){ const i0=Math.max(0,i), i1=i+2, t=(i+1)/NS, al=0.3*A*(1+1.6*near)*Math.pow(1-t,2.3); if(al<0.002) break; const l0=rows[i0][0], r0=rows[i0][1], l1=rows[i1][0], r1=rows[i1][1];   // each band laps half over the next, so no seam shows between them
+    for(let i=-1;i+2<rows.length;i++){ const i0=Math.max(0,i), i1=i+2, t=(i+1)/NS, al=0.3*A*edge*edge*(1+1.6*near)*Math.pow(1-t,2.3); if(al<0.002) break; const l0=rows[i0][0], r0=rows[i0][1], l1=rows[i1][0], r1=rows[i1][1];   // each band laps half over the next, so no seam shows between them
       // the light must run even along the length of the fan, so the shading is laid square to that direction as it appears on the screen
       const m0=rows[i0][2], m1=rows[i1][2], mx=(m0[0]+m1[0])/2, my=(m0[1]+m1[1])/2; let dx=m1[0]-m0[0], dy=m1[1]-m0[1]; const dl=Math.hypot(dx,dy); if(dl<0.01) continue; dx/=dl; dy/=dl;
       const nx=-dy, ny=dx, tL=((l0[0]+l1[0])/2-mx)*nx+((l0[1]+l1[1])/2-my)*ny, tR=((r0[0]+r1[0])/2-mx)*nx+((r0[1]+r1[1])/2-my)*ny; if(Math.abs(tR-tL)<2) continue;
@@ -233,7 +267,7 @@ function doorLightBody(near){
       for(let k=0;k<=8;k++){ const e=k/8, f=Math.pow(0.5+0.5*Math.cos(Math.PI*(1-e)),1.6)*al; gr.addColorStop(tc*e,c+f.toFixed(4)+')'); if(k<8) gr.addColorStop(1-u*e,c+f.toFixed(4)+')'); }   // a smooth rise to the middle and fall away, with no kinks to show as lines
       ctx.fillStyle=gr; ctx.beginPath(); ctx.moveTo(l0[0],l0[1]); ctx.lineTo(r0[0],r0[1]); ctx.lineTo(r1[0],r1[1]); ctx.lineTo(l1[0],l1[1]); ctx.closePath(); ctx.fill(); } }
   // the doorway itself, cut off by any ground that stands in front of its foot
-  ctx.save(); ctx.beginPath(); ctx.rect(-10,-10,W+20,lim+10); ctx.clip();
+  ctx.save(); ctx.beginPath(); ctx.rect(-10,-10,W+20,lim+10); ctx.clip(); if(L2) door2Clip();
   ctx.beginPath(); ctx.moveTo(a0[0],a0[1]); ctx.lineTo(b0[0],b0[1]); ctx.lineTo(b1[0],b1[1]); ctx.lineTo(a1[0],a1[1]); ctx.closePath();
   ctx.fillStyle='rgba(255,255,250,'+A+')'; ctx.fill(); ctx.restore();
   // bloom: a tight white core, a wide soft haze, and a low wide flare, none smaller than a beacon should be from far off
@@ -1165,6 +1199,7 @@ function drawWorld(){
     for(let j=Math.floor((al-1100)/ROAD_STEP), j1=Math.floor((al+ROAD_END)/ROAD_STEP); j<=j1; j++){ const q=trailFeather(j,al); if(!q) continue; const p=proj(q.x,q.z); if(p[1]>60 && Math.abs(p[0])<p[1]*(W/2)/focal+300) kd.push({f:q, cx:p[0], dz:p[1]}); } }
   boxSetup();
   boxDrawn=false; boxFrontNow=false; BOXFRONT.length=0; door2Dz=(level===2&&coast)?proj(boxC()[0]-SUNDX*BOX_HALF, boxC()[1]-SUNDZ*BOX_HALF)[1]:-1;
+  door2Setup(); if(D2) kd.push({door2:true, cx:0, dz:D2.key});
   if(BOXV){ const B=BOXV;   // the box goes in at its farthest corner, before the ground in front of it. Whatever lies behind it is then kept out of its outline.
     for(const e of kd){ const o=e.k||e.m||e.f||e.p; let x,z,h;
       if(o){ x=o.x; z=o.z; h=ground(x,z)+(o.y||0)+(e.f?(o.h||0):0); } else if(e.b!==undefined){ x=flock.x; z=flock.z; h=flock.y; } else continue;
@@ -1173,7 +1208,8 @@ function drawWorld(){
   for(const e of kd) if(e.key===undefined) e.key=e.dz;
   kd.sort((a,b)=>b.key-a.key);
   let ki=0;
-  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; boxFrontNow=(boxDrawn && !e.hid && !e.box) || (level===2 && coast && !!e.k && (door2Dz<45 || e.dz<door2Dz || doorNear>0.6)); if(e.box){ drawBox(); boxDrawn=true; const B=BOXV; front((B.x0+B.x1)/2,(B.y0+B.y1)/2,(B.x1-B.x0)/2,(B.y1-B.y0)/2,drawBox); continue; }
+  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; boxFrontNow=(boxDrawn && !e.hid && !e.box) || (level===2 && coast && !!e.k && (door2Dz<45 || e.dz<door2Dz || doorNear>0.6)); if(e.door2){ drawDoor2(); continue; }
+    if(e.box){ drawBox(); boxDrawn=true; const B=BOXV; front((B.x0+B.x1)/2,(B.y0+B.y1)/2,(B.x1-B.x0)/2,(B.y1-B.y0)/2,drawBox); continue; }
     if(e.hid && boxDrawn && !e.inClip){ e.inClip=true; ctx.save(); ctx.clip(BOXV.clip,'evenodd'); ki--; kidsBeyond(e.key); ctx.restore(); continue; }
     if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
       if(m.beach && m.y<=6 && m.open<=0.03 && s<0.09){ drawBirdTiny(m,X,horizon+(camY-g)*s,s); continue; }
