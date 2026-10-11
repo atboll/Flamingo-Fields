@@ -55,6 +55,7 @@ output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
     <button type="button" data-pose="walk">Walking</button>
     <button type="button" data-pose="run">Running</button>
     <button type="button" data-pose="open">Wings opening</button>
+    <button type="button" data-pose="runopen">Run and open</button>
     <button type="button" data-pose="fly">Flying</button>
   </div>
   <div class="seg" role="group" aria-label="View">
@@ -587,8 +588,8 @@ function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0), sp=+$('spd').val
   if(air){ const D=Math.max(200,focal/s); camY=Math.tan(clamp(pitch-0.3,-0.69,0.69))*D;
     if(!frozen) beatPh+=dt*sp*4.2; const o={hx,hz,ph:1.3,id:51,y:0,sc:1.3,open:pose==='open'?0.5+0.5*Math.sin(time*0.8):1,roll:0,tiny:true};
     if(newW){ o.phase=frozen?(+$('wpos').value/100)*6.2832:beatPh; drawBirdNew(o, bx, H*0.5, s); } else drawBird(o, bx, H*0.5, s); }
-  else { const v=pose==='walk'?70:pose==='run'?300:0; wp+=dt*sp*(2+v*0.035)*(v>10?1:0);
-    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true, ...(pose==='open'?openMove(time):{}), phase:frozen?(+$('wpos').value/100)*6.2832:time*4.2}, bx, gy, s); }
+  else { const v=pose==='walk'?70:(pose==='run'||pose==='runopen')?300:0; wp+=dt*sp*(2+v*0.035)*(v>10?1:0);
+    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true, ...(pose==='open'?openMove(time):pose==='runopen'?(m=>({open:m.open,dY:m.dY*0.35}))(openMove(time)):{}), phase:frozen?(+$('wpos').value/100)*6.2832:time*4.2}, bx, gy, s); }
   if(kidsOn && !air){ const hk=98*s;   // the kids at their true size beside it: the big one is 98 high, a standing flamingo about 77
     for(let i=0;i<2;i++){ const im=KIDIMG[i]; if(!im.complete || !im.naturalWidth) continue; const kk=KIDS[i], scl=hk/KIDS[0].h*(i?1/1.15:1), w=kk.w*scl, h=kk.h*scl, x=bx-34*s-(i?0.5:0.98)*hk; ctx.drawImage(im,x,gy-h,w,h); } }
   requestAnimationFrame(tick); }
