@@ -282,7 +282,8 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e-SEG[k]*0.16*(1-e)*0.55); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55); }   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
     // As a part folds, its surface turns from lying flat to hanging down along the flank: the leading edge rides up onto the back and the feathers point back and down.
-    const Wp=(t,f)=>{ const k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
+    // Toward the body the whole wing narrows to a small shoulder, a third of its width, every layer drawing in together to one point.
+    const Wp=(t,f0)=>{ const tp=clamp(t/0.7,0,1), f=2+(f0-2)*(0.32+0.68*tp*tp*(3-2*tp)), k=Math.max(0,Math.min(3,Math.floor(t))), r=t-k, q=QF[k]+(QF[k+1]-QF[k])*r, tl=0.78*q+1.3*rz, ch=chord*(1-0.24*q);   /* while opening, the whole wing is also tilted like a flap: front edge up, feathers down */ return P(sd*(xs[k]+(xs[k+1]-xs[k])*r+1.6*q), f*ch*Math.cos(tl)+fs[k]+(fs[k+1]-fs[k])*r, us[k]+(us[k+1]-us[k])*r+f*ch*Math.sin(tl)); };
     // which face of the wing is turned toward us
     const a0=Wp(0.2,0), a1=Wp(2.4,0), b0=Wp(1.3,8), b1=Wp(1.3,-12), top=QA>0.5||((a1[0]-a0[0])*(b1[1]-b0[1])-(a1[1]-a0[1])*(b1[0]-b0[0]))*sd>0;
     const C=top?{cov:'#ff9dbf',pale:'#ec78a5',line:'#d85f90',band:'#1c1317',f1:'#54202e',f2:'#7a3145',edge:'#ff9dbf'}
@@ -341,6 +342,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
         for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(LE(Math.max(0,t))-mdl)*rnd(t))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(Math.max(edge(t),LE(0)-dep*1.2)-mdl)*rnd(t))); }
         ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
     }
+    dot(Wp(0,2),2.5,top?'#ff9dbf':'#ec78a5');   // the shoulder: a small round patch of the body's own pink over the root, so the wing grows out from under the body feathers
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
@@ -540,7 +542,7 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
   // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
   // so the same wing unfolds from lying along the flank to full spread.
-  const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,0.2,40.2+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
+  const wingAny=sd=>{ const op=m.open===undefined?0:m.open, o0=P(0,2.4,41.4+bob);   // the wing is always the flying bird's own jointed wing: folded against the side when standing, the same wing when it opens
     drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:op,phase:m.phase||0,glide:op<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round'; };
   const thighs=()=>{ leg(far,1); leg(-far,1); }, bodyS=()=>body('shape');
   ctx.lineCap='round'; ctx.lineJoin='round';
