@@ -77,6 +77,7 @@ output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
 </div>
 <div class="controls" aria-label="Looking">
   <label for="zoom">Zoom <input id="zoom" type="range" min="40" max="220" value="100"></label>
+  <label for="hturn">Head turn <input id="hturn" type="range" min="-100" max="100" value="0"></label>
   <label for="spd">Speed <input id="spd" type="range" min="0" max="200" value="100"></label>
   <button type="button" class="tog" id="kidsB" aria-pressed="true">Kids</button>
   <div class="seg" role="group" aria-label="Background">
@@ -391,8 +392,8 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     }
                                                                                  // flying away: the tail is the nearest part of the body
   };
-  const neck=(mode,cW)=>{ const HU=2.2, HF=4.5;   // how much higher, and how much further forward, the head is carried than before
-    if(mode!=='detail'){ const cl=[0,sway*0.5,sway,sway*0.4], cf=[3.5,17,30,35.5+HF], cu=[2.4+bob,-0.6+bob*0.62,-2.8+bob*0.25,2.7+HU], pts=[];   // one smooth line starting well inside the breast: down a little, then up to the head
+  const neck=(mode,cW)=>{ const HU=2.2, HF=4.5, hy=o.headYaw||0, shy=Math.sin(hy), chy=Math.cos(hy), cfxH=cfx*chy+cfz*shy, cfzH=cfz*chy-cfx*shy;   // how much higher, and how much further forward, the head is carried than before
+    if(mode!=='detail'){ const cl=[0,sway*0.5,sway+shy*1.2,sway*0.4+shy*3.2], cf=[3.5,17,30,35.5+HF], cu=[2.4+bob,-0.6+bob*0.62,-2.8+bob*0.25,2.7+HU], pts=[];   // one smooth line starting well inside the breast: down a little, then up to the head
       for(let i=0;i<=9;i++){ const t=i/9, a=(1-t)*(1-t)*(1-t), b=3*(1-t)*(1-t)*t, c=3*(1-t)*t*t, d=t*t*t; pts.push(P(b*cl[1]+c*cl[2]+d*cl[3], a*cf[0]+b*cf[1]+c*cf[2]+d*cf[3], a*cu[0]+b*cu[1]+c*cu[2]+d*cu[3])); }
       { const n=pts.length-1, L=[], R=[];
         for(let i=0;i<=n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, t=i/n;
@@ -404,7 +405,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       ln(pts.slice(2).map(q=>[q[0],q[1]-0.55*S]),'#ff9dbf',1.1); return; }
     // The head, from the reference picture: a small smooth oval carried on the end of the neck, and a big bill that runs forward
     // from it, pale pink for most of its length, then bends down into a black tip. A pale patch lies between the eye and the bill.
-    const HFc=37.5+HF, HUc=2.8+HU, hk=1-0.0065*HFc*cfz, Q=(df,du,lat)=>P(lat||0,HFc+df,HUc+du);
+    const HFc=37.5+HF, HUc=2.8+HU, hk=1-0.0065*HFc*cfz, Q=(df,du,lat)=>P(sway*0.4+shy*3.2+shy*(2+df)+(lat||0)*chy, HFc-2+chy*(2+df)-(lat||0)*shy, HUc+du);
     const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),'#ec78a5'); poly(pts,'#ff9dbf'); dot(Q(0.2,0),2.7*hk,'#ff9dbf'); dot(Q(-0.2,1.1),1.3*hk,'#ff9dbf'); };
     const bill=()=>{   // The bill, from the close-up of the standing picture: deep and heavy, running out from the face and then bent sharply down in the middle like a knee;
       // pale at the base, with a near-white patch reaching back toward the eye, and black from the bend to the tip.
@@ -415,11 +416,11 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       poly([Q(3.3,1.5),Q(0.6,-0.5),Q(3.3,-1.7)],'#fdf1ee');                                                                         /* where it meets the head it ends in a wedge, its point running back under the eye */
       poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fbd9d6');                                                           /* and the same seen from above or below */
       ln([Q(1.0,-0.5),Q(5.6,-0.75),Q(6.7,-1.5)],'#d98a98',0.35*hk); };                                                              /* the line of the mouth */
-    if(cfz>0.15){ if(cfz<0.72) bill(); head(); }                                                                               // from behind: the bill is hidden past the head and no eyes show
+    if(cfzH>0.15){ if(cfzH<0.72) bill(); head(); }                                                                               // from behind: the bill is hidden past the head and no eyes show
     else { head(); bill(); }
     // The eyes are painted flat on the two sides of the head. Each is seen full only from its own side; as the head turns it narrows
     // to a sliver at the edge of the head, and from the other side it is not seen at all.
-    { const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfx; if(fo<-0.15 || cfz>0.8) return;
+    { const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfxH; if(fo<-0.15 || cfzH>0.8) return;
         const w=clamp((fo+0.15)/1.0,0.16,1), e=Q(1.2,0.5,o), e1=Q(1.2,0.5,o+sg), an=Math.atan2(e1[1]-e[1],e1[0]-e[0]);
         const el=(r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(e[0],e[1],Math.max(0.35,r*S*hk*w),Math.max(0.45,r*S*hk),an,0,7); ctx.fill(); };
         el(0.6,DARK);   /* the eye is a plain dark spot, with no pale ring */ };
@@ -472,6 +473,7 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   const poly=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.closePath(); ctx.fill(); };
   const run=clamp(m.sp/300,0,1), mv=Math.min(1,m.sp/40), wp=m.wp, dY=m.dY||0, bob=Math.abs(Math.sin(wp))*1.6*mv+dY+0.35*Math.sin(time*1.7+(m.ph||0))*(1-mv), lerp=(a,b,t)=>a+(b-a)*t;
   const far=cfx>0?-1:1;
+  const hy=m.headYaw||0, shy=Math.sin(hy), chy=Math.cos(hy), cfxH=cfx*chy+cfz*shy, cfzH=cfz*chy-cfx*shy;   // the head can turn to one side (headYaw); cfxH and cfzH say how the turned head faces the eye
   // The legs move exactly as the game's do: a short feathered thigh, the long shin, the long lower leg below the backward-bending ankle,
   // and a webbed foot. They are drawn like the flying bird's: thin and two-toned, the joint a slight swelling instead of a ball,
   // and the bare leg coming out of the end of the thigh. mode 1 draws only the thigh's shape (it belongs to the skin), mode 0 the bare leg.
@@ -521,14 +523,14 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   const st=Math.pow(run,1.2), nod=Math.sin(wp*2)*1.6*mv*(1-st), F=m.feed||0, dab=F*Math.sin(time*3+m.ph)*1.6, G=(a,b,c)=>lerp(lerp(a,b,st),c,F);
   const opn=m.open||0;   // as the wings open the neck stretches up and a little forward; the head keeps its height while the body moves under it
   const cf=[6.5, G(19,17,21), G(7,24,27)+nod*0.5+1.2*opn, G(12.5,30,24.5)+nod+dab+2.2*opn], cu=[40.5+bob, G(47,46,43)+bob*0.6, G(61,52,28)+bob*0.3+1.5*opn, G(71,59,13)+3.2*opn];
-  const neckS=()=>{ const pts=[]; for(let i=0;i<=12;i++){ const t=i/12, a=(1-t)*(1-t)*(1-t), b=3*(1-t)*(1-t)*t, c=3*(1-t)*t*t, d=t*t*t; pts.push(P(0,a*cf[0]+b*cf[1]+c*cf[2]+d*cf[3],a*cu[0]+b*cu[1]+c*cu[2]+d*cu[3])); }
+  const neckS=()=>{ const pts=[]; for(let i=0;i<=12;i++){ const t=i/12, a=(1-t)*(1-t)*(1-t), b=3*(1-t)*(1-t)*t, c=3*(1-t)*t*t, d=t*t*t; pts.push(P(shy*3*t*t*t,a*cf[0]+b*cf[1]+c*cf[2]+d*cf[3],a*cu[0]+b*cu[1]+c*cu[2]+d*cu[3])); }   // the top of the neck swings out toward the side the head turns to
     const n=pts.length-1, L=[], R=[];
     for(let i=0;i<=n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, t=i/n, hw=Math.max(0.5,(1.7+3.4*Math.pow(1-t,2.4))*S); L.push([pts[i][0]-dy/l*hw,pts[i][1]+dx/l*hw]); R.push([pts[i][0]+dy/l*hw,pts[i][1]-dx/l*hw]); }
     poly(L.concat(R.reverse()),TOP); dot(pts[n],1.7,TOP); dot(pts[0],5.1,TOP); };
   // The head and bill are the flying bird's: a small smooth oval, and a big bill that runs out from it, pale for most of its length,
   // then bends down into a black tip; where it meets the head it ends in a wedge. The eyes are painted flat on the two sides of the head.
   const headAll=()=>{ let dx=G(0.97,1,0.25), du=G(-0.26,-0.08,-0.97); { const n=Math.hypot(dx,du)||1; dx/=n; du/=n; }
-    const hs=1.08, hf=cf[3]+dx*2.2, hu=cu[3]+du*2.2, hk=(1-0.0065*hf*cfz)*hs, Q=(a,b,lat)=>P(lat||0, hf+(dx*a-du*b)*hs, hu+(du*a+dx*b)*hs);
+    const hs=1.08, hf=cf[3]+dx*2.2, hu=cu[3]+du*2.2, hk=(1-0.0065*hf*cfz)*hs, Q=(a,b,lat)=>{ const h=dx*2.2+(dx*a-du*b)*hs; return P(shy*3+shy*h+(lat||0)*chy, cf[3]+chy*h-(lat||0)*shy, hu+(du*a+dx*b)*hs); };
     const head=()=>{ const pts=[]; for(let i=0;i<16;i++){ const a=i/16*6.2832; pts.push(Q(0.3+3.5*Math.cos(a),2.75*Math.sin(a))); } poly(pts.map(q=>[q[0],q[1]+0.8*S]),DK); poly(pts,TOP); dot(Q(0.2,0),2.7*hk,TOP); dot(Q(-0.2,1.1),1.3*hk,TOP); };
     const bill=()=>{   // The bill, from the close-up of the standing picture: deep and heavy, running out from the face and then bent sharply down in the middle like a knee;
       // pale at the base, with a near-white patch reaching back toward the eye, and black from the bend to the tip.
@@ -539,8 +541,8 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
       poly([Q(3.3,1.5),Q(0.6,-0.5),Q(3.3,-1.7)],'#fdf1ee');                                                                         /* where it meets the head it ends in a wedge, its point running back under the eye */
       poly([Q(4.9,-0.1,1.45),Q(0.5,-0.5,0),Q(4.9,-0.1,-1.45)],'#fbd9d6');                                                           /* and the same seen from above or below */
       ln([Q(1.0,-0.5),Q(5.6,-0.75),Q(6.7,-1.5)],'#d98a98',0.35*hk); };                                                              /* the line of the mouth */
-    if(cfz>0.15){ if(cfz<0.72) bill(); head(); } else { head(); bill(); }
-    const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfx; if(fo<-0.15 || cfz>0.8) return;
+    if(cfzH>0.15){ if(cfzH<0.72) bill(); head(); } else { head(); bill(); }
+    const eye=o=>{ const sg=o>0?1:-1, fo=sg*cfxH; if(fo<-0.15 || cfzH>0.8) return;
       const w=clamp((fo+0.15)/1.0,0.16,1), e=Q(1.2,0.5,o), e1=Q(1.2,0.5,o+sg), an=Math.atan2(e1[1]-e[1],e1[0]-e[0]);
       const el=(r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.ellipse(e[0],e[1],Math.max(0.35,r*S*hk*w),Math.max(0.45,r*S*hk),an,0,7); ctx.fill(); };
       el(0.6,DARK);   /* the eye is a plain dark spot, with no pale ring */ };
@@ -604,10 +606,10 @@ function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0), sp=+$('spd').val
     ctx.globalAlpha=(+$('refA').value/100)*(refMode==='over'?0.55:1); ctx.drawImage(refImg, (side?W*0.74:bx)-iw/2, (refMode==='over'?gy-ih*0.9:H*0.5-ih/2), iw, ih); ctx.globalAlpha=1; }
   if(!air){ ctx.fillStyle='rgba(20,24,50,0.12)'; ctx.beginPath(); ctx.ellipse(bx,gy,26*s,3.2*s,0,0,6.2832); ctx.fill(); }   // a little shadow where it stands
   if(air){ const D=Math.max(200,focal/s); camY=Math.tan(clamp(pitch-0.3,-0.69,0.69))*D;
-    if(!frozen) beatPh+=dt*sp*4.2; const o={hx,hz,ph:1.3,id:51,y:0,sc:1.3,open:pose==='open'?0.5+0.5*Math.sin(time*0.8):1,roll:0,tiny:true};
+    if(!frozen) beatPh+=dt*sp*4.2; const o={hx,hz,ph:1.3,id:51,y:0,sc:1.3,open:pose==='open'?0.5+0.5*Math.sin(time*0.8):1,roll:0,tiny:true,headYaw:+$('hturn').value/100*1.75};
     if(newW){ o.phase=frozen?(+$('wpos').value/100)*6.2832:beatPh; if(pose==='glide'){ o.glide=1; o.phase=0; } drawBirdNew(o, bx, H*0.5, s); } else drawBird(o, bx, H*0.5, s); }
   else { const v=pose==='walk'?70:(pose==='run'||pose==='runopen')?300:0; wp+=dt*sp*(2+v*0.035)*(v>10?1:0);
-    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true, ...(pose==='open'?openMove(time):pose==='runopen'?(m=>({open:m.open,dY:m.dY*0.35}))(openMove(time)):{}), phase:frozen?(+$('wpos').value/100)*6.2832:time*4.2}, bx, gy, s); }
+    (newW?drawBirdWalkNew:drawBirdWalk)({hx,hz,ph:1.3,id:51,sp:v,wp, feed:pose==='feed'?1:0, rest:pose==='rest'?1:0, restSide:1, beach:true, headYaw:+$('hturn').value/100*1.75, ...(pose==='open'?openMove(time):pose==='runopen'?(m=>({open:m.open,dY:m.dY*0.35}))(openMove(time)):{}), phase:frozen?(+$('wpos').value/100)*6.2832:time*4.2}, bx, gy, s); }
   if(kidsOn && !air){ const hk=98*s;   // the kids at their true size beside it: the big one is 98 high, a standing flamingo about 77
     for(let i=0;i<2;i++){ const im=KIDIMG[i]; if(!im.complete || !im.naturalWidth) continue; const kk=KIDS[i], scl=hk/KIDS[0].h*(i?1/1.15:1), w=kk.w*scl, h=kk.h*scl, x=bx-34*s-(i?0.5:0.98)*hk; ctx.drawImage(im,x,gy-h,w,h); } }
   requestAnimationFrame(tick); }
