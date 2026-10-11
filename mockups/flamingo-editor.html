@@ -450,16 +450,16 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     const p2=wp+(sd>0?Math.PI:0), stride=(7+12*run)*mv, sw=Math.sin(p2)*stride, swing=Math.max(0,Math.cos(p2)), lift=swing*(3+9*run)*mv;
     const farLeg=(-sd*cfx>0), dk=farLeg?'#e06a99':'#ec78a5', lt=farLeg?'#ec80a8':'#f68fb5', kb=farLeg?'#c95485':'#d85f90', x=sd*2.3;
     const R=sd===(m.restSide||1)?(m.rest||0):0, Re=R*R*(3-2*R);                                // resting: this leg is drawn up and tucked under the body
-    const hipF=-1, hipU=36.5+bob, kneeF=lerp(hipF+2.2+sw*0.12,2.6,Re), kneeU=lerp(hipU-8,28,Re);
-    const fF=lerp(sw,-7.5,Re), fU=lerp(lift,26.5,Re);
-    const ankF=lerp((kneeF+sw)/2-(3.5+lift*0.9+2*run),-4.2,Re), ankU=lerp((kneeU+lift)/2+1+lift*0.35,30.8,Re);   // the ankle folds backward as the foot lifts
+    const hipF=-1, hipU=36.5+bob, kneeF=lerp(hipF+2.2+sw*0.12,-2.6,Re), kneeU=lerp(hipU-8,31.2,Re);   // resting: the leg turns backward from the body at about 45 degrees
+    const fF=lerp(sw,10.5,Re), fU=lerp(lift,19.5,Re);   // and from the joint behind, the lower leg comes forward again, the foot hanging loose in front of the standing leg
+    const ankF=lerp((kneeF+sw)/2-(3.5+lift*0.9+2*run),-9.6,Re), ankU=lerp((kneeU+lift)/2+1+lift*0.35,25.6,Re);   // the ankle folds backward as the foot lifts
     if(mode){ const a=P(x,hipF,hipU), b=P(x,lerp(hipF,kneeF,0.8),lerp(hipU,kneeU,0.8)), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], Rr=[];
       for(let i=0;i<=10;i++){ const t=i/10, hw=(2.9*Math.pow(1-t,0.75)*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.7+0.25)))+0.9)*S; L.push([a[0]+dx*t+nx*hw,a[1]+dy*t+ny*hw]); Rr.push([a[0]+dx*t-nx*hw,a[1]+dy*t-ny*hw]); }
       dot(a,3.6,TOP); poly(L.concat(Rr.reverse()),TOP); return; }
     const knee=P(x,lerp(hipF,kneeF,0.6),lerp(hipU,kneeU,0.6)), ank=P(x,ankF,ankU), foot=P(x,fF,fU), up=q=>[q[0],q[1]-0.45*S];
     ln([knee,ank,foot],dk,1.5); ln([knee,ank,foot].map(up),lt,0.6);
     { const a=[lerp(ank[0],knee[0],0.07),lerp(ank[1],knee[1],0.07)], b=[lerp(ank[0],foot[0],0.07),lerp(ank[1],foot[1],0.07)]; ln([a,ank,b],dk,2.0); ln([a,ank,b].map(q=>[q[0],q[1]+0.4*S]),kb,0.6); }   // the joint: a slight swelling
-    const tf=lerp(4.6-swing*3.2*mv,1.6,Re), tu=lerp(-swing*3.4*mv,-3.2,Re);                    // toes point forward on the ground and hang when lifted
+    const tf=lerp(4.6-swing*3.2*mv,1.1,Re), tu=lerp(-swing*3.4*mv,-4.4,Re);                    // toes point forward on the ground and hang when lifted
     const t0=P(x,fF+tf,fU+tu), t1=P(x-1.9,fF+tf*0.8,fU+tu*0.8), t2=P(x+1.9,fF+tf*0.8,fU+tu*0.8);
     poly([foot,t1,t0,t2],kb); ln([foot,t0],dk,0.8); ln([foot,t1],dk,0.6); ln([foot,t2],dk,0.6); ln([foot,P(x,fF-1.6,fU+0.4)],dk,0.8);   // webbed toes and a small back toe
   };
