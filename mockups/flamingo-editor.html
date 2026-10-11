@@ -279,7 +279,7 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
   const wing=sd=>{
     const isFar=(-sd*cfx>0);
     const xs=[4.4], us=[2.4+bob], fs=[0];   // the wings are set a little apart, at the sides of the back
-    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e-SEG[k]*0.16*(1-e)*0.55); fs.push(fs[k]+SEG[k]*FOLD[k]*(1-e)*0.55+[-3.6,6.2,-2.2,-2.4][k]*e); }   // the arm is a zigzag, as in the wing drawing: back from the shoulder to the elbow, forward to the wrist, then out along the hand   // a closed part lies folded along the body
+    for(let k=0;k<4;k++){ const e=OP[k]; xs.push(xs[k]+SEG[k]*Math.cos(ang[k])*e); us.push(us[k]+SEG[k]*Math.sin(ang[k])*e+[-2.5,1.2,-2.2,-1.6][k]*(1-e)); fs.push(fs[k]+[-11,14,-11,-9][k]*(1-e)+[-3.6,6.2,-2.2,-2.4][k]*e); }   // folded, the same joints close up as a real wing's do: the upper arm lies back along the body, the forearm comes forward again to the wrist at the front, and the hand lies back over them   // the arm is a zigzag, as in the wing drawing: back from the shoulder to the elbow, forward to the wrist, then out along the hand   // a closed part lies folded along the body
     // a point on the wing: t runs 0..4 along the four parts (and a little beyond, for the feather tips), f is how far forward of the spar it sits
     // As a part folds, its surface turns from lying flat to hanging down along the flank: the leading edge rides up onto the back and the feathers point back and down.
     // the leading edge: from the shoulder it bows outward to the outer joint, its furthest-forward point, then angles back to the tip
@@ -306,49 +306,43 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
       F.push({tb,fb,tt:tb+len*Math.sin(an)/14.5,ft:fb-len*Math.cos(an),u}); }
     const at=(q,r,side)=>Wp(q.tb+(q.tt-q.tb)*r+side*0.125*(1-0.35*r), q.fb+(q.ft-q.fb)*r);                 // a point along feather q: r from its root to its tip, side -1 inner edge, +1 outer edge
     const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], deep=q=>0.68-0.24*Math.pow(clamp((q.u-0.55)/0.45,0,1),1.5);   // how far down the gap between two feathers reaches
-    ctx.fillStyle=C.f1; ctx.beginPath(); { const p=at(F[NF-1],0,1); ctx.moveTo(p[0],p[1]); }
-    for(let j=NF-1;j>=0;j--){ const q=F[j], r0=at(q,0.8,1), tp=at(q,1,0.15), l0=at(q,0.82,-1), c1=at(q,0.95,0.85), c2=at(q,0.94,-0.55);   // each feather ends in a point, like a leaf
-      ctx.lineTo(r0[0],r0[1]); ctx.quadraticCurveTo(c1[0],c1[1],tp[0],tp[1]); ctx.quadraticCurveTo(c2[0],c2[1],l0[0],l0[1]);   // a rounded tip, fuller on its outer side
-      if(j>0){ const n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)); ctx.lineTo(n[0],n[1]); } }
-    // the mass is closed along the roots of the feathers, following the bend of the wing and reaching forward under the coverts,
-    // so no gap opens between the feathers and the pink in front of them however the wing is folded
-    { const p=at(F[0],0,-1); ctx.lineTo(p[0],p[1]); }
-    for(let j=0;j<NF;j++){ const q=F[j], p=Wp(q.tb+(j?0:-0.125)+(j==NF-1?0.125:0), q.fb+4.5*(1-0.6*q.u)); ctx.lineTo(p[0],p[1]); }
-    ctx.closePath(); ctx.fill();
-    if(QA<0.3) for(let j=1;j<NF;j++){ const q=F[j], n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)), b0=mid(at(q,0.12,-1),at(F[j-1],0.12,1)); ln([b0,n],C.f2,0.5); }   // the fine lines between them
-    if(C.band){ const pts=[]; for(let i=0;i<=12;i++){ const t=0.12+3.6*i/12; pts.push(Wp(t,-0.4+0.9*i/12)); } for(let i=12;i>=0;i--){ const t=0.12+3.6*i/12; pts.push(Wp(t,-7.2+4.2*Math.pow(i/12,1.3))); } poly(pts,C.band); }   // the black band, broad at the body and thinning to the tip
-    { const pts=[]; for(let i=0;i<=14;i++){ const t=3.95*i/14; pts.push(Wp(t,LE(t))); }                                                   // the coverts
-      if(top){ for(let i=14;i>=0;i--){ const t=3.95*i/14; pts.push(Wp(t,Math.min(LE(t)-0.3,-1+1.2*i/14))); } }
-      else { for(let i=28;i>=0;i--){ const t=3.9*i/28; pts.push(Wp(t,Math.min(LE(t)-0.3,-3.2-(i%2?1.9:0)+1.6*i/28))); } }               // underneath, their edge is scalloped
-      poly(pts,C.cov);
-      const q=[]; for(let i=0;i<=10;i++){ const t=2.6*i/10; q.push(Wp(t,LE(t))); } for(let i=10;i>=0;i--){ const t=2.6*i/10; q.push(Wp(t,LE(t)-4.4*(1-0.5*i/10))); } poly(q,C.pale); }   // paler along the leading edge
-    // Folded, the pink feathers of the back and shoulder lie over the black band and most of the flight feathers, so only the dark tips
-    // show beneath and behind them. This cover has a toothed lower edge and a thin outline, and it draws back as the wing opens.
-    if(QA>0.3){ const N=16, al=clamp((QA-0.3)/0.3,0,1);
-      // three layers of feathers, each a row of pointed feather shapes: two darker rows reaching further down and back, and the bright row over them
-      const row=(col,tip,val,dt,edge)=>{ const pts=[]; for(let i=0;i<=N;i++){ const t=3.3*i/N; pts.push(Wp(t,LE(t))); }
-        for(let i=5;i>=1;i--){ const t=3.3*i/5+dt; pts.push(Wp(t+0.1,tip+3*i/5)); pts.push(Wp(t-0.52,val+1.5*i/5)); } pts.push(Wp(0,val));
-        poly(pts,col); if(edge){ ctx.strokeStyle=edge; ctx.lineWidth=Math.max(0.6,0.3*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.stroke(); } };
-      ctx.globalAlpha=al; row('#d85f90',-11.5,-5.5,0.22,null); row('#ec78a5',-10,-4.2,0.11,null); row('#ff9dbf',-8.5,-3,0,'#ec78a5');
-      // and the feathers painted on the bright row: a line up from each notch, and a second, shorter row of feather tips higher on the wing
-      for(let i=1;i<=5;i++){ const t=3.3*i/5-0.52, v=-3+1.5*i/5; ln([Wp(t,v),Wp(t-0.25,v+5)],'#ec78a5',0.35); }
-      for(let i=1;i<=6;i++){ const t=3.1*i/6-0.2; ln([Wp(t-0.42,5),Wp(t+0.05,2),Wp(t-0.05,5.3)],'#ec78a5',0.35); }
-      ctx.globalAlpha=1; }
-    if(QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
-                                                // rows of covert feathers
-    { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
-    // The inner wing: a pink part in the body's own colour where the wing joins the body. It is broad against the body and draws out
-    // along the wing in a curve like the body's own droplet, its outer end melting into the wing. The three innermost flight feathers
-    // are shorter the nearer they sit to the body, so the wing's back edge curves in to meet it.
-    // It has no edge: it is laid down in thin see-through layers, each reaching a little further out along the wing and a little further
-    // back over the feathers than the one before, so the wing's own colours pass gradually into the body's pink.
-    { for(let k=9;k>=0;k--){ break;   // neither face of the wing has a pink patch over it: the wing's own shapes run clean to the body
-      const TE=0.5+0.125*k, dep=LE(0)+7.5+0.72*k, edge=t=>LE(t)-dep*Math.pow(Math.max(0,1-t/TE),1.5), q=[];
-        const T0=-0.34, mdl=LE(0)-dep*0.55, rnd=t=>t>=0?1:Math.sqrt(Math.max(0,1-Math.pow(t/T0,2)));   // inside the body it closes in a round end, so no corner pokes out past the shoulder
-          // it starts inside the body, a third of a wing-part in from the shoulder, so the two overlap and no join shows
-        for(let i=0;i<=12;i++){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(LE(Math.max(0,t))-mdl)*rnd(t))); } for(let i=12;i>=0;i--){ const t=T0+(TE-T0)*i/12; q.push(Wp(t,mdl+(Math.max(edge(t),LE(0)-dep*1.2)-mdl)*rnd(t))); }
-        ctx.fillStyle=k?'rgba(255,157,191,0.2)':'rgb(255,157,191)'; ctx.beginPath(); ctx.moveTo(q[0][0],q[0][1]); for(let i=1;i<q.length;i++) ctx.lineTo(q[i][0],q[i][1]); ctx.closePath(); ctx.fill(); }
-    }
+    // The wing is painted in three sections, each with all its layers: first the hand, then the forearm, then the upper arm.
+    // Spread, they lie side by side and make one wing. Folded, they lie over one another as a real wing's do:
+    // the hand underneath, the forearm's feathers over it, the upper arm and shoulder on top.
+    const stroke=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(0.6,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.closePath(); ctx.stroke(); };
+    const sect=(ta,tz,j0,j1,dp,L)=>{ const rng=(a,z,n)=>{ const o=[]; for(let i=0;i<=n;i++) o.push(a+(z-a)*i/n); return o; };
+      // the flight feathers of this section
+      if(L===0){ ctx.fillStyle=C.f1; ctx.beginPath(); { const p=at(F[j1],0,1); ctx.moveTo(p[0],p[1]); }
+      for(let j=j1;j>=j0;j--){ const q=F[j], r0=at(q,0.8,1), tp=at(q,1,0.15), l0=at(q,0.82,-1), c1=at(q,0.95,0.85), c2=at(q,0.94,-0.55);   // each feather ends in a point, like a leaf
+        ctx.lineTo(r0[0],r0[1]); ctx.quadraticCurveTo(c1[0],c1[1],tp[0],tp[1]); ctx.quadraticCurveTo(c2[0],c2[1],l0[0],l0[1]);
+        if(j>j0){ const n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)); ctx.lineTo(n[0],n[1]); } }
+      { const p=at(F[j0],0,-1); ctx.lineTo(p[0],p[1]); }
+      for(let j=j0;j<=j1;j++){ const q=F[j], p=Wp(q.tb+(j>j0?0:-0.125)+(j==j1?0.125:0), q.fb+4.5*(1-0.6*q.u)); ctx.lineTo(p[0],p[1]); }   // closed along the feathers' roots, reaching forward under the coverts
+      ctx.closePath(); ctx.fill();
+      if(QA<0.3) for(let j=j0+1;j<=j1;j++){ const q=F[j], n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)), b0=mid(at(q,0.12,-1),at(F[j-1],0.12,1)); ln([b0,n],C.f2,0.5); } }   // the fine lines between them
+      // the black band, broad at the body and thinning to the tip
+      if(L===1 && C.band){ const a=Math.max(ta,0.12), z=Math.min(tz,3.72); if(z>a){ const T=rng(a,z,6), pts=T.map(t=>Wp(t,-0.4+0.9*(t-0.12)/3.6)); for(let i=6;i>=0;i--) pts.push(Wp(T[i],-7.2+4.2*Math.pow((T[i]-0.12)/3.6,1.3))); poly(pts,C.band); } }
+      // the coverts, paler along the leading edge; underneath, their back edge is scalloped
+      if(L===2){ const a=Math.max(ta,0), z=Math.min(tz,3.95), T=rng(a,z,10), pts=T.map(t=>Wp(t,LE(t)));
+        for(let i=10;i>=0;i--){ const t=T[i], tw=Math.abs(((t/0.2786)%1)-0.5)*2; pts.push(Wp(t,Math.min(LE(t)-0.3, top?-1+1.2*t/3.95:-3.2-1.9*(1-tw)+1.6*t/3.9))); }
+        poly(pts,C.cov);
+        const zz=Math.min(z,2.6); if(zz>a){ const U=rng(a,zz,6), q=U.map(t=>Wp(t,LE(t))); for(let i=6;i>=0;i--) q.push(Wp(U[i],LE(U[i])-4.4*(1-0.5*U[i]/2.6))); poly(q,C.pale); } }
+      // Folded, the pink feathers of the back and shoulder lie over the black band and the upper part of the flight feathers:
+      // three rows of pointed feather shapes, two darker ones reaching further down and the bright row over them, with the feathers painted on.
+      if(L===2 && QA>0.3 && ta<3.3){ const al=clamp((QA-0.3)/0.3,0,1), z=Math.min(tz,3.3);
+        const row=(col,tip,val,dt,edge)=>{ const pts=rng(ta,z,6).map(t=>Wp(t,LE(t)));
+          for(let i=5;i>=1;i--){ const t=3.3*i/5+dt; if(t>ta+0.05 && t<=z+dt+0.01){ pts.push(Wp(t+0.1,tip+3*i/5)); pts.push(Wp(Math.max(ta,t-0.52),val+1.5*i/5)); } } pts.push(Wp(ta,val+1.5*ta/3.3));
+          poly(pts,col); if(edge) stroke(pts,edge,0.3); };
+        ctx.globalAlpha=al; row('#d85f90',-11.5-dp,-5.5-dp*0.7,0.22,null); row('#ec78a5',-10-dp,-4.2-dp*0.7,0.11,null); row('#ff9dbf',-8.5-dp,-3-dp*0.7,0,ta<0.5?'#ec78a5':null);   // on the arm the pink reaches right down over the feathers, so folded only the hand's dark tips show, at the back
+        for(let i=1;i<=5;i++){ const t=3.3*i/5-0.52, v=-3-dp*0.7+1.5*i/5; if(t>ta && t<=z && ta<1.5) ln([Wp(t,v),Wp(t-0.25,v+5+dp*0.4)],'#ec78a5',0.35); }
+        for(let i=1;i<=6;i++){ const t=3.1*i/6-0.2; if(t>ta+0.3 && t<=z && ta<0.5) ln([Wp(t-0.42,5),Wp(t+0.05,2),Wp(t-0.05,5.3)],'#ec78a5',0.35); }
+        ctx.globalAlpha=1; }
+      if(L===2 && QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; if(t>ta && t<=tz) ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // rows of covert feathers; they stop inside the pink, short of the black band
+      if(L===2) ln(rng(Math.max(ta,0),Math.min(tz,3.95),6).map(t=>Wp(t,LE(t))),C.edge,1.0);                                                                // light leading edge
+    };
+    { const SC=[[1.98,3.95,9,NF-1,0],[0.98,2,5,9,9],[0,1,0,5,10]];
+      if(QA<0.5){ for(let L=0;L<3;L++) for(const c of SC) sect(c[0],c[1],c[2],c[3],c[4],L); }   // spread: layer by layer along the whole wing, so it is one unbroken surface
+      else for(const c of SC) for(let L=0;L<3;L++) sect(c[0],c[1],c[2],c[3],c[4],L); }               // folded: section over section
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
