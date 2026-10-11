@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:20</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:28</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -164,8 +164,8 @@ const BOXFRONT=[]; let boxFrontNow=false, door2Dz=-1;   // whatever is drawn in 
 function skyLimit(x,d){ if(!STRN || SD[STRN-1]>=d-4) return 1e9; let lo=0, hi=STRN-1; while(lo<hi){ const m=(lo+hi)>>1; if(SD[m]<d-4) hi=m; else lo=m+1; } return skyAt(lo,x); }
 let gcv=null, gctx=null, gcv2=null, gctx2=null;
 function frontOverLight(lx0,ly0,lx1,ly1,sil){   // everything standing or flying in front of the box, painted again in the colours of the hour over the light just laid down
-  const n=night, L=[]; let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
-  for(const q of BOXFRONT){ const ax=q[1]-q[3]*1.3, bx=q[1]+q[3]*1.3, ay=q[2]-q[4]*1.3, by=q[2]+q[4]*1.3; if(bx<lx0 || ax>lx1 || by<ly0 || ay>ly1) continue; L.push(q[0]); if(ax<x0)x0=ax; if(bx>x1)x1=bx; if(ay<y0)y0=ay; if(by>y1)y1=by; }
+  const n=night, L=[], G=[]; let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  for(const q of BOXFRONT){ const ax=q[1]-q[3]*1.3, bx=q[1]+q[3]*1.3, ay=q[2]-q[4]*1.3, by=q[2]+q[4]*1.3; if(bx<lx0 || ax>lx1 || by<ly0 || ay>ly1) continue; L.push(q[0]); if(q[5]!==undefined) G.push([q[1],q[5],q[6]]); if(ax<x0)x0=ax; if(bx>x1)x1=bx; if(ay<y0)y0=ay; if(by>y1)y1=by; }
   if(!L.length) return;
   x0=Math.max(0,Math.floor(x0)); y0=Math.max(0,Math.floor(y0)); x1=Math.min(W,Math.ceil(x1)); y1=Math.min(H,Math.ceil(y1)); if(x1-x0<2 || y1-y0<2) return;
   const w=Math.ceil((x1-x0)*DPR), h=Math.ceil((y1-y0)*DPR);
@@ -183,6 +183,13 @@ function frontOverLight(lx0,ly0,lx1,ly1,sil){   // everything standing or flying
       gctx.globalCompositeOperation='multiply'; gctx.fillStyle='rgb('+v(255,36)+','+v(255,32)+','+v(255,50)+')'; gctx.fillRect(0,0,w,h);
       gctx.globalCompositeOperation='source-over'; gctx.fillStyle='rgba(30,26,44,'+(0.55*k).toFixed(3)+')'; gctx.fillRect(0,0,w,h); }
     gctx.globalCompositeOperation='destination-in'; gctx.drawImage(gcv2,0,0); gctx.globalCompositeOperation='source-over'; }
+  // Whoever stands in the grass keeps the grass over their legs: the repaint fades out toward the feet, so the blades already drawn in front of them stay.
+  // Without this the whole figure, feet and all, was laid over the grass and looked as if it stood on top of it.
+  const gk=clamp(1-sil*2.2,0,1);   // right up at the door the light has washed the grass away, so there the figures are left whole
+  if(G.length && gk>0.02){ gctx.setTransform(DPR,0,0,DPR,-x0*DPR,-y0*DPR); gctx.globalCompositeOperation='destination-out';
+    for(const a of G){ const top=a[1]-32*a[2], bot=a[1]-6*a[2], gr=gctx.createLinearGradient(0,top,0,bot); gr.addColorStop(0,'rgba(0,0,0,0)'); gr.addColorStop(1,'rgba(0,0,0,'+gk.toFixed(3)+')');
+      gctx.fillStyle=gr; gctx.fillRect(a[0]-46*a[2],top,92*a[2],bot-top+70*a[2]); }
+    gctx.globalCompositeOperation='source-over'; gctx.setTransform(1,0,0,1,0,0); }
   const s0=clamp((sil-0.4)/0.6,0,1), fa=1-0.8*s0*s0*(3-2*s0);                           // in the full white they are left as faint shapes
   ctx.save(); ctx.globalAlpha=fa; ctx.globalCompositeOperation='source-over'; ctx.drawImage(gcv,x0,y0,w/DPR,h/DPR); ctx.restore();
 }
@@ -938,7 +945,7 @@ function groundColor(v,k){
 }
 // Whatever flies across the moon's disc is noted here and painted again over the moon, so the moon stays behind it.
 const FRONT=[]; let moonX=0, moonY=0, moonR=0;
-function front(X,Y,rx,ry,fn){ if(boxFrontNow) BOXFRONT.push([fn,X,Y,rx,ry]); if(moonR>0 && Math.abs(X-moonX)<rx+moonR && Math.abs(Y-moonY)<ry+moonR) FRONT.push(fn); }
+function front(X,Y,rx,ry,fn,gy,gs){ if(boxFrontNow) BOXFRONT.push([fn,X,Y,rx,ry,gy,gs]);   /* gy, gs: where its feet stand in the grass and at what scale, when it does */ if(moonR>0 && Math.abs(X-moonX)<rx+moonR && Math.abs(Y-moonY)<ry+moonR) FRONT.push(fn); }
 const fcv=document.createElement('canvas'), fctx=fcv.getContext('2d'), fcv2=document.createElement('canvas'), fctx2=fcv2.getContext('2d');
 const REDO=[];   // the kids and their flock, kept so they can be painted again over the great cloud when they fly above it
 // The speckle that lies over the water: a small tile of pale grit, gathered into cloudy blotches, that repeats and slowly drifts.
@@ -1580,7 +1587,7 @@ function drawWorld(){
       if(m.y>6) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
       const dr=(m.y>6) ? ()=>drawBird({hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:g+m.y+25,sc:1.3,open:m.open,legDown:clamp((40-m.y)/34,0,1),headYaw:m.headYaw||0,roll:clamp((m.turn||0)*0.36,-0.44,0.44)*m.open}, X, horizon+(camY-g-m.y-25)*s, s)
         : ()=>drawBirdWalk(m.open>0.01 ? Object.assign({},m,{phase:time*4.2+m.ph,dY:-1.3*Math.sin(Math.PI*m.open)}) : m, X, horizon+(camY-g)*s, s);   // on the ground it is the ground bird, running with its wings opening or folding
-      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr); if(!m.beach) REDO.push(dr); }
+      dr(); front(X, horizon+(camY-g-m.y-25)*s, 130*s, 110*s, dr, (level===1&&!m.beach&&m.y<=6)?horizon+(camY-g)*s:undefined, s); if(!m.beach) REDO.push(dr); }
     else if(e.b!==undefined){ const s=focal/e.dz, X=W/2+e.cx*s, Y=horizon+(camY-flock.y-Math.sin(time*1.1+BIRD_PH[e.b])*7)*s;
       const fade=clamp((s-focal/FLOCK_GONE)/0.03,0,1); if(fade<=0.01) continue;
       const dr=()=>{ ctx.globalAlpha=fade;
@@ -1589,7 +1596,7 @@ function drawWorld(){
       dr(); front(X,Y,130*s,90*s,dr); }
     else if(e.p){ const s=focal/e.dz; drawProp(e.p, W/2+e.cx*s, horizon+(camY-ground(e.p.x,e.p.z))*s, s); }
     else if(e.dz>60){ const s=focal/e.dz, o=e.k||e.f, sy=horizon+(camY-ground(o.x,o.z))*s; if(e.k){ const fl=e.k.flyT||0; OCC.push(W/2+e.cx*s, sy-(e.k.y+44)*s, (22+16*fl)*s*1.15, (48-12*fl)*s*1.15, e.dz); }
-      if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr); REDO.push(dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
+      if(e.k){ const k=e.k, kx=W/2+e.cx*s, dr=()=>drawKid(k,kx,sy,s); dr(); front(kx, sy-(k.y+44)*s, 60*s, 70*s, dr, (level===1&&!arrived&&k.y<3)?sy:undefined, s); REDO.push(dr); } else drawFeather(e.f, W/2+e.cx*s, sy, s); } } };
   const wR=windR(), windF=Math.abs(WIND_X*fwdX+WIND_Z*fwdZ), tanH=(W/2)/focal;
   // the ground line across the screen at one depth; the last slot holds how much that line faces the sun
   const NX=(BOX&&coast)?36:22, profile=(d)=>{ const s=focal/d, ys=new Float32Array(NX+2), L=new Float32Array(NX+1); let lit=0;
