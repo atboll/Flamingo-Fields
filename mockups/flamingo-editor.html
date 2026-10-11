@@ -470,9 +470,9 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
     const p2=wp+(sd>0?Math.PI:0), stride=(7+12*run)*mv, sw=Math.sin(p2)*stride, swing=Math.max(0,Math.cos(p2)), lift=swing*(3+9*run)*mv;
     const farLeg=(-sd*cfx>0), dk=farLeg?'#e06a99':'#ec78a5', lt=farLeg?'#ec80a8':'#f68fb5', kb=farLeg?'#c95485':'#d85f90', x=sd*2.3;
     const R=sd===(m.restSide||1)?(m.rest||0):0, Re=R*R*(3-2*R);                                // resting: this leg is drawn up and tucked under the body
-    const hipF=-1, hipU=36.5+bob, kneeF=lerp(hipF+2.2+sw*0.12,-2.6,Re), kneeU=lerp(hipU-8,31.2,Re);   // resting: the leg turns backward from the body at about 45 degrees
+    const hipF=-1, hipU=36.5+bob, kneeF=lerp(hipF+0.5+1.7*mv+sw*0.12,-2.6,Re), kneeU=lerp(hipU-8,31.2,Re);   // resting: the leg turns backward from the body at about 45 degrees
     const fF=lerp(sw,10.5,Re), fU=lerp(lift,19.5,Re);   // and from the joint behind, the lower leg comes forward again, the foot hanging loose in front of the standing leg
-    const ankF=lerp((kneeF+sw)/2-(3.5+lift*0.9+2*run),-9.6,Re), ankU=lerp((kneeU+lift)/2+1+lift*0.35,25.6,Re);   // the ankle folds backward as the foot lifts
+    const ankF=lerp((kneeF+sw)/2-(3.5*mv+lift*0.9+2*run),-9.6,Re), ankU=lerp((kneeU+lift)/2+1+lift*0.35,25.6,Re);   // standing still, the leg is straight: the joint sits on the line from thigh to foot, and only bends back as the bird walks   // the ankle folds backward as the foot lifts
     if(mode){ const a=P(x,hipF,hipU), b=P(x,lerp(hipF,kneeF,0.8),lerp(hipU,kneeU,0.8)), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], Rr=[];
       for(let i=0;i<=10;i++){ const t=i/10, hw=(2.9*Math.pow(1-t,0.75)*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.7+0.25)))+0.9)*S; L.push([a[0]+dx*t+nx*hw,a[1]+dy*t+ny*hw]); Rr.push([a[0]+dx*t-nx*hw,a[1]+dy*t-ny*hw]); }
       dot(a,3.6,TOP); poly(L.concat(Rr.reverse()),TOP); return; }
