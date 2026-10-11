@@ -306,14 +306,14 @@ function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph
     { const p=at(F[0],0,-1); ctx.lineTo(p[0],p[1]); }
     for(let j=0;j<NF;j++){ const q=F[j], p=Wp(q.tb+(j?0:-0.125)+(j==NF-1?0.125:0), q.fb+4.5*(1-0.6*q.u)); ctx.lineTo(p[0],p[1]); }
     ctx.closePath(); ctx.fill();
-    for(let j=1;j<NF;j++){ const q=F[j], n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)), b0=mid(at(q,0.12,-1),at(F[j-1],0.12,1)); ln([b0,n],C.f2,0.5); }   // the fine lines between them
+    if(QA<0.3) for(let j=1;j<NF;j++){ const q=F[j], n=mid(at(q,deep(q),-1),at(F[j-1],deep(q),1)), b0=mid(at(q,0.12,-1),at(F[j-1],0.12,1)); ln([b0,n],C.f2,0.5); }   // the fine lines between them
     if(C.band){ const pts=[]; for(let i=0;i<=12;i++){ const t=0.12+3.6*i/12; pts.push(Wp(t,-0.4+0.9*i/12)); } for(let i=12;i>=0;i--){ const t=0.12+3.6*i/12; pts.push(Wp(t,-7.2+4.2*Math.pow(i/12,1.3))); } poly(pts,C.band); }   // the black band, broad at the body and thinning to the tip
     { const pts=[]; for(let i=0;i<=14;i++){ const t=3.95*i/14; pts.push(Wp(t,LE(t))); }                                                   // the coverts
       if(top){ for(let i=14;i>=0;i--){ const t=3.95*i/14; pts.push(Wp(t,Math.min(LE(t)-0.3,-1+1.2*i/14))); } }
       else { for(let i=28;i>=0;i--){ const t=3.9*i/28; pts.push(Wp(t,Math.min(LE(t)-0.3,-3.2-(i%2?1.9:0)+1.6*i/28))); } }               // underneath, their edge is scalloped
       poly(pts,C.cov);
       const q=[]; for(let i=0;i<=10;i++){ const t=2.6*i/10; q.push(Wp(t,LE(t))); } for(let i=10;i>=0;i--){ const t=2.6*i/10; q.push(Wp(t,LE(t)-4.4*(1-0.5*i/10))); } poly(q,C.pale); }   // paler along the leading edge
-    for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
+    if(QA<0.3) for(let j=1;j<9;j++){ const t=0.35*j; ln([Wp(t,LE(t)-4.6),Wp(t+0.1,1.4)],C.line,0.45); }   // they stop inside the pink, short of the black band
                                                 // rows of covert feathers
     { const pts=[]; for(let i=0;i<=12;i++){ const t=3.95*i/12; pts.push(Wp(t,LE(t))); } ln(pts,C.edge,1.0); }                               // light leading edge
     // The inner wing: a pink part in the body's own colour where the wing joins the body. It is broad against the body and draws out
@@ -469,8 +469,9 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   // Two darker layers of the same shape sit a little lower and further back, so their points show beneath it, and at the very back
   // the tips of the dark flight feathers stick out from under them, as they do on a real flamingo.
   const WSH=[[8.5,42.5],[6.5,46],[-1.5,47.4],[-9,45.2],[-14.5,40.6],[-11.4,39.4],[-12.8,36],[-7.6,38.8],[-8.6,35.2],[-3.4,38.4],[-3.8,35.2],[1,38.2],[1.4,35.8],[5.2,39.4]];
-  const wingFold=sd=>{ const isFar=(-sd*cfx>0), az=Math.abs(cfz), sh=(df,du,k)=>WSH.map(p=>P(sd*5.6,p[0]*k+df,p[1]+du+bob));
-    if(az<0.8) poly([[-9,43.5],[-15,41.5],[-22.5,36.2],[-17.5,37.6],[-19.5,33.8],[-13,37.4]].map(p=>P(sd*5.2,p[0],p[1]+bob)),isFar?'#431a25':'#54202e');
+  // When the wings begin to open, the folded wing first lifts away from the flank, hinged along the shoulder (th is how far it has swung out).
+  const wingFold=(sd,th)=>{ th=th||0; const isFar=(-sd*cfx>0), az=Math.abs(cfz), sn=Math.sin(th), cs=Math.cos(th), TR=(f,u,l)=>{ const h=46.8-u; return P(sd*(l+h*sn),f,46.8-h*cs+bob); }, sh=(df,du,k)=>WSH.map(p=>TR(p[0]*k+df,p[1]+du,5.6));
+    if(az<0.8) poly([[-9,43.5],[-15,41.5],[-22.5,36.2],[-17.5,37.6],[-19.5,33.8],[-13,37.4]].map(p=>TR(p[0],p[1],5.2)),isFar?'#431a25':'#54202e');
     poly(sh(-2.6,-2.6,1.06),isFar?'#c95485':LINE); poly(sh(-1.3,-1.3,1.03),isFar?'#e06a99':DK);
     if(!isFar || az>0.75){ const t=sh(0,0,1); poly(t,TOP); ctx.strokeStyle=DK; ctx.lineWidth=Math.max(0.6,0.3*S); ctx.beginPath(); ctx.moveTo(t[0][0],t[0][1]); for(let i=1;i<t.length;i++) ctx.lineTo(t[i][0],t[i][1]); ctx.closePath(); ctx.stroke(); } };
   // The body: a full droplet, round at the breast and drawing out toward the tail. 'shape' paints it plain; 'mask' gives the line where light meets dark.
@@ -527,8 +528,8 @@ function drawBirdWalkNewOn(MAIN,m,sx,sy,s){ let ctx=MAIN;
   // Opening the wings on the ground: the folded wing is replaced by the flying bird's jointed wing, set on this bird's shoulder,
   // so the same wing unfolds from lying along the flank to full spread.
   const wingAny=sd=>{ if(m.open===undefined){ wingFold(sd); return; }
-    const o0=P(0,3.5,42.4+bob); if(m.open>0.06) drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:m.open,phase:m.phase||0,glide:m.open<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round';
-    if(m.open<0.36){ ctx.globalAlpha=clamp((0.36-m.open)/0.2,0,1); wingFold(sd); ctx.globalAlpha=1; } };   // closed, it is the standing bird's own folded wing; the jointed wing comes out from under it as that fades
+    const o0=P(0,3.5,42.4+bob); if(m.open>0.3) drawBirdNewOn(MAIN,{hx:m.hx,hz:m.hz,ph:m.ph,id:m.id,y:0,sc:1.02*1.08,tiny:true,open:m.open,phase:m.phase||0,glide:m.open<0.999?1:0,noBob:true,elev:0.14,roll:0,wingsOnly:sd===far?'far':'near'},o0[0],o0[1],s); ctx.lineCap='round'; ctx.lineJoin='round';
+    if(m.open<0.56){ const L=clamp(m.open/0.5,0,1); ctx.globalAlpha=clamp((0.56-m.open)/0.18,0,1); wingFold(sd,1.15*L*L*(3-2*L)); ctx.globalAlpha=1; } };   // closed, it is the standing bird's own folded wing; the jointed wing comes out from under it as that fades
   const thighs=()=>{ leg(far,1); leg(-far,1); }, bodyS=()=>body('shape');
   ctx.lineCap='round'; ctx.lineJoin='round';
   if(cfz>0){ skin([neckS]); headAll(); leg(far,0); wingAny(far); skin([thighs,bodyS]); tail(); wingAny(-far); leg(-far,0); }
