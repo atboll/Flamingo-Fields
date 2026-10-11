@@ -119,17 +119,18 @@ function body(){
   }
 }
 // a thin lens-shaped blade through a row of stations, each with a leading point A, a trailing point B, an "up" n and a half thickness
-function blade(st,kTop,kBot,map){
-  const Mx=4, first=vi/3;
-  for(const q of st) for(let side=1;side>=-1;side-=2) for(let m=0;m<=Mx;m++){
-    const u=m/Mx, bulge=Math.pow(Math.sin(Math.PI*u),0.7)*q.t*side;
-    map(q.A[0]+(q.B[0]-q.A[0])*u+q.n[0]*bulge, q.A[1]+(q.B[1]-q.A[1])*u+q.n[1]*bulge, q.A[2]+(q.B[2]-q.A[2])*u+q.n[2]*bulge);
-  }
+function blade(st,kTop,kBot,map){   // stations may carry "rim": a pale edge strip of that share of the width, on the dark face too
+  const rimmed=st[0].rim!==undefined, Mx=rimmed?6:4, first=vi/3;
+  for(const q of st){ const r=rimmed?clamp(q.rim,0.001,0.3):0, US=rimmed?[0,r,0.25,0.5,0.75,1-r,1]:[0,0.25,0.5,0.75,1];
+    for(let side=1;side>=-1;side-=2) for(let m=0;m<=Mx;m++){
+      const u=US[m], bulge=Math.pow(Math.sin(Math.PI*u),0.7)*q.t*side;
+      map(q.A[0]+(q.B[0]-q.A[0])*u+q.n[0]*bulge, q.A[1]+(q.B[1]-q.A[1])*u+q.n[1]*bulge, q.A[2]+(q.B[2]-q.A[2])*u+q.n[2]*bulge);
+    } }
   if(!INIT) return;
   const row=2*(Mx+1);
   for(let k=0;k<st.length-1;k++) for(let side=0;side<2;side++) for(let m=0;m<Mx;m++){
-    const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1;
-    quad(o,o+1,o+row+1,o+row,side?kBot:kTop,[n[0]*sg,n[1]*sg,n[2]*sg],null,side?((st[k].mix||0)+(st[k+1].mix||0))/2:0);
+    const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1, mix=((st[k].mix||0)+(st[k+1].mix||0))/2, edge=rimmed && !side && (m===0||m===Mx-1);
+    quad(o,o+1,o+row+1,o+row,side?kBot:edge?PALE:kTop,[n[0]*sg,n[1]*sg,n[2]*sg],null,(side||edge)?mix:0);
   }
 }
 const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
@@ -137,23 +138,23 @@ const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]]
 // The flipper's outline, traced from the reference picture: how far its front and back edges lie from a straight middle line,
 // as fractions of its length, from the body (0) to the tip (1). Broadest in the upper part, narrowing in a step, the front edge
 // then swinging round the end to meet the back edge, so the tip leans toward the tail.
-const FF=[[0,0.125],[0.15,0.142],[0.4,0.14],[0.6,0.126],[0.78,0.112],[0.87,0.086],[0.93,0.046],[0.975,-0.012],[1,-0.052]];
-const FB=[[0,-0.128],[0.2,-0.135],[0.4,-0.112],[0.6,-0.099],[0.8,-0.09],[0.92,-0.087],[0.975,-0.078],[1,-0.052]];
+const FF=[[0,0.07],[0.12,0.096],[0.3,0.132],[0.45,0.138],[0.6,0.126],[0.78,0.112],[0.87,0.086],[0.93,0.046],[0.975,-0.012],[1,-0.052]];
+const FB=[[0,-0.08],[0.15,-0.1],[0.3,-0.116],[0.45,-0.11],[0.6,-0.099],[0.8,-0.09],[0.92,-0.087],[0.975,-0.078],[1,-0.052]];
 function prof2(T,s){ let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
   const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
   return (2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1; }
 function flipper(sg,t){
   const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
-  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=56, L=0.8, st=[], ph=t*1.25+(sg>0?0:0.9);
+  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=56, L=0.7, st=[], ph=t*1.25+(sg>0?0:0.9);
   for(let k=0;k<=S;k++){ const u=1-Math.pow(1-k/S,1.6), un=1-Math.pow(1-Math.min(1,(k+1)/S),1.6);   // stations crowd toward the tip so the end comes out round
     const flap=Math.sin(ph-u*1.3)*calm;                                 // a slow stroke up and down that runs out along the flipper
-    const be=0.84+0.06*Math.sin(ph*0.5)*calm, out=0.45+0.45*flap*(0.35+0.65*u);   // swept back at the picture's angle
+    const be=0.8+0.6*Math.pow(u,2.6)+0.06*Math.sin(ph*0.5)*calm, out=0.45+0.45*flap*(0.35+0.65*u);   // swept back at the picture's angle, curving further back toward the tip
     const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
     const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
     const kn=clamp((u-0.45)/0.15,0,1)*clamp((0.98-u)/0.06,0,1);
-    const fr=(prof2(FF,u)+0.007*Math.sin(u*46)*kn)*L, bk=(prof2(FB,u)+0.004*Math.sin(u*38+1)*kn)*L, wd=Math.max(0,fr-bk);   // small knobs only along the outer part
+    const fr=(prof2(FF,u)+0.007*Math.sin(u*46)*kn)*L, bk=(prof2(FB,u)+0.004*Math.sin(u*38+1)*kn)*L, wd=Math.max(0,fr-bk), rw=0.02*clamp((u-0.06)/0.16,0,1);   // small knobs only along the outer part
     const root=Math.pow(clamp(1-u/0.24,0,1),2), m=clamp((u-0.1)/0.16,0,1);
-    st.push({A:[c[0]+ch[0]*fr,c[1]+ch[1]*fr,c[2]+ch[2]*fr], B:[c[0]+ch[0]*bk,c[1]+ch[1]*bk,c[2]+ch[2]*bk], n, t:Math.min(0.008+0.012*(1-u)+0.014*root,wd*0.22+0.0005), mix:1-m*m*(3-2*m)});
+    st.push({A:[c[0]+ch[0]*(fr+rw),c[1]+ch[1]*(fr+rw),c[2]+ch[2]*(fr+rw)], B:[c[0]+ch[0]*(bk-rw),c[1]+ch[1]*(bk-rw),c[2]+ch[2]*(bk-rw)], n, rim:rw/(wd+2*rw+1e-6), t:Math.min(0.008+0.012*(1-u)+0.014*root,wd*0.22+0.0005), mix:1-m*m*(3-2*m)});
     const d=(un-u)*L; c=[c[0]+dir[0]*d,c[1]+dir[1]*d,c[2]+dir[2]*d];
   }
   blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
