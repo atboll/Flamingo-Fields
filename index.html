@@ -52,7 +52,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the box</button>
     <button type="button" id="testDoor">Test: stand before the door</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 13:50</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 14:00</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -372,7 +372,7 @@ function addMate(x,z,y,hx,hz){
   mates.push({x,z,y,open:y>6?1:0,vx:hx*200,vz:hz*200,vy:0,hx,hz,ph:h2(mates.length*5+2,9)*6.28,id:50+mates.length,wp:0,sp:0});
 }
 function updateMates(dt){
-  const air=lead.fly||lead.y>30;
+  const air=lead.fly||(lead.glide && lead.y-(lead.fl||0)>30);   // they fly when the kids fly, and come down with them afterwards; a hop does not lift them
   mates.forEach((m,i)=>{
     // a place behind the kids, two abreast, wider and looser in the air
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
