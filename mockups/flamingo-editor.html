@@ -248,7 +248,9 @@ function drawBirdWalk(m,sx,sy,s){   // a companion on the ground: long legs stri
 }
 
 /* ---- the flying flamingo being reworked here: the same bird with a rebuilt wing (not in the game yet) ---- */
-function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute height, sc size}
+const SKIN={cv:document.createElement('canvas')}; SKIN.g=SKIN.cv.getContext('2d');
+function drawBirdNew(o,sx,sy,s){ return drawBirdNewOn(ctx,o,sx,sy,s); }
+function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph, id, y absolute height, sc size}
   const cfx=o.hx*rgtX+o.hz*rgtZ, cfz=o.hx*fwdX+o.hz*fwdZ, S=(o.tiny?s:Math.max(s,0.17))*(o.sc||1.9), ph=o.ph;
   // seen a little from above (or from below when the camera is under the flock), so the wing surfaces show instead of lying edge-on
   const elev=clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.3, ce=Math.cos(elev), se=Math.sin(elev);
@@ -257,7 +259,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
   const poly=(pts,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.closePath(); ctx.fill(); };
   const dot=(p,r,col)=>{ ctx.fillStyle=col; ctx.beginPath(); ctx.arc(p[0],p[1],Math.max(0.7,r*S),0,7); ctx.fill(); };
-  const DARK='#2a1e24';
+  const DARK='#2a1e24', TOP='#ff9dbf', DK='#ec78a5';
   // Wingbeat. Each bird keeps its own tempo; the down-stroke is quicker than the up-stroke; now and then a bird rests on a short glide.
   const glide=o.phase!==undefined?(o.glide||0):clamp((Math.sin(time*0.37+ph*3.1)-0.82)/0.12,0,1), beat=o.phase!==undefined?o.phase:time*4.2*(0.92+0.16*h2(o.id,3))+ph, phi=beat+0.4*Math.sin(beat);   // the editor can hold the wingbeat at any moment
   // The body rides the wingbeat (up as the wings come down) while the head holds level, as a real bird's does; the neck takes up the difference.
@@ -328,22 +330,23 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   };
   // The legs are set wide apart on the body, at the sides of the belly, and draw together behind it until the feet meet. They trail behind and hang a little below the line of the body, slightly bent at the joint, one a touch lower than the other,
   // and sway a moment after each wingbeat. Each is two-toned, darker underneath and lighter along the top, with a knob at the joint and a webbed foot.
-  const legs=(side)=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
+  const legs=(side,mode)=>{ const lag=Math.sin(phi-1.1)*1.3*(1-glide);
     for(const o of [3.2*side]){ const d=0, farL=(-o*cfx>0), dk=farL?'#e06a99':'#ec78a5', lt=farL?'#ec80a8':'#f68fb5', kb=farL?'#c95485':'#d85f90';   // the legs take the colour of the body's underside
       const J=[[-1,0.2+bob,o*0.8],[-22.5,-13.6-d*0.5+bob*0.6+lag*0.4,o*0.82],[-43,-21.2-d+bob*0.3+lag,o*0.36]], ft=[-50.4,-20.6-d+bob*0.25+lag*1.25,o*0.2];   // spread a little apart, bent at the knee, the foot turned back and up at the ankle so the toes trail
-      ln(J.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(J.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8);                          // the leg: dark, with a light line along its top. It is drawn first, so its upper part lies inside the thigh and it comes out at the thigh's end
+      const JV=[[J[0][0]+(J[1][0]-J[0][0])*0.45,J[0][1]+(J[1][1]-J[0][1])*0.45,J[0][2]+(J[1][2]-J[0][2])*0.45],J[1],J[2]];   // the bare leg starts inside the thigh
+      if(!mode){ ln(JV.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(JV.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8); }                          // the leg: dark, with a light line along its top. It is drawn first, so its upper part lies inside the thigh and it comes out at the thigh's end
       // the feathered thigh: a full teardrop in the dark pink of the body's underside, starting inside the belly and narrowing down to the leg at the knee,
       // so the leg grows out of the body instead of being pinned to it
-      { const A=J[0], B=[J[0][0]+(J[1][0]-J[0][0])*0.55,J[0][1]+(J[1][1]-J[0][1])*0.55,J[0][2]+(J[1][2]-J[0][2])*0.55], a=P(A[2],A[0],A[1]), b=P(B[2],B[0],B[1]), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], R=[];
+      if(mode){ const A=J[0], B=[J[0][0]+(J[1][0]-J[0][0])*0.55,J[0][1]+(J[1][1]-J[0][1])*0.55,J[0][2]+(J[1][2]-J[0][2])*0.55], a=P(A[2],A[0],A[1]), b=P(B[2],B[0],B[1]), dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, nx=-dy/l, ny=dx/l, L=[], R=[];
         for(let i=0;i<=10;i++){ const t=i/10, hw=(3.7*Math.pow(1-t,0.75)*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.7+0.25)))+0.95)*S; L.push([a[0]+dx*t+nx*hw,a[1]+dy*t+ny*hw]); R.push([a[0]+dx*t-nx*hw,a[1]+dy*t-ny*hw]); }
-        dot(a,4.16,farL?'#e06a99':'#ec78a5'); poly(L.concat(R.reverse()),farL?'#e06a99':'#ec78a5');   // rounded where it begins, so no straight end shows
-        }   // with a darker line along its underside
+        dot(a,4.7,TOP); poly(L.concat(R.reverse()),TOP);   // rounded where it begins, so no straight end shows
+        continue; }   // with a darker line along its underside
       { const m=(i,j,t)=>P(J[i][2]+(J[j][2]-J[i][2])*t, J[i][0]+(J[j][0]-J[i][0])*t, J[i][1]+(J[j][1]-J[i][1])*t);   // the joint is a slight swelling along the leg, not a ball
         ln([m(1,0,0.12),P(J[1][2],J[1][0],J[1][1]),m(1,2,0.09)],dk,2.35); ln([m(1,0,0.12),P(J[1][2],J[1][0],J[1][1]),m(1,2,0.09)].map(q=>[q[0],q[1]+0.5*S]),kb,0.7); }                           // the knob of the joint, with a small highlight
       const a=P(J[2][2],J[2][0],J[2][1]), t0=P(ft[2],ft[0],ft[1]), t1=P(ft[2]-2.1,ft[0]+1.4,ft[1]+0.4), t2=P(ft[2]+2.1,ft[0]+1.4,ft[1]+0.4);
       poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); } };       // the webbed foot, toes trailing
   // The body is a droplet: full and round at the breast, drawing out to a point at the tail, darker along the belly and pale along the back.
-  const body=()=>{
+  const body=(mode)=>{
     // The tail: a small fan of seven feathers at the droplet's tip, the outer ones shorter and spread a little to the sides, the middle ones longest.
     // Each is a rounded blade in the body's own pink with a very thin outline, laid so the middle feathers lie over the outer ones.
     const tail=()=>{ const sway2=Math.sin(phi-0.9)*0.5*(1-glide);
@@ -351,7 +354,7 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
         const B=(t,side)=>P(l0+(l1-l0)*t+side*hw*(0.55+0.45*Math.sin(Math.PI*Math.min(1,t*1.15))), f0+(f1-f0)*t, u0+(u1-u0)*t);
         const pts=[B(0,-1),B(0.35,-1),B(0.75,-1),B(0.94,-0.75),P(l1,f1,u1),B(0.94,0.75),B(0.75,1),B(0.35,1),B(0,1)];
         poly(pts,'#ff9dbf'); ctx.strokeStyle='#d85f90'; ctx.lineWidth=Math.max(0.5,0.22*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); } };
-    if(cfz<=0) tail();
+    if(mode==='tail'){ tail(); return; }
     { const f=P(0,12.5,0.9+bob), r=P(0,-19.5,0.5+bob), dx=r[0]-f[0], dy=r[1]-f[1], L=Math.hypot(dx,dy)||1, nx=-dy/L, ny=dx/L, w=6.3*S;
       const prof=u=>Math.pow(Math.sin(Math.PI*Math.pow(u,0.58)),0.85);                               // widest a third of the way back, then a long taper
       const drop=(oy,k,col)=>{ ctx.fillStyle=col; ctx.beginPath();
@@ -361,25 +364,24 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
         ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28+oy*S, w*k*0.98, 0, 7); ctx.fill(); };          // the breast stays round however the bird is turned
       // Dark pink underneath, bright pink on top. The two meet along the side in a row of pointed feather shapes, as in the reference picture,
       // their tips trailing back and down. Looked at from above the bright takes the whole body; from underneath, the dark.
-      drop(1.3,1,'#ec78a5');
+      if(mode==='shape'){ drop(1.3,1,TOP); drop(0,1,TOP); return; }
       { const sT=ny<0?1:-1, c=clamp(0.2-elev*0.95,-0.92,0.85), X=(u,b)=>{ const q=prof(u)*w*sT*b; return [f[0]+dx*u+nx*q, f[1]+dy*u+ny*q]; };
-        ctx.fillStyle='#ff9dbf'; ctx.beginPath(); { const p=X(0,1); ctx.moveTo(p[0],p[1]); }
-        for(let i=1;i<=22;i++){ const p=X(i/22,1); ctx.lineTo(p[0],p[1]); }
-        for(let i=66;i>=0;i--){ const u=i/66, fr=(u*6.2+0.3)%1, on=clamp((u-0.1)/0.08,0,1)*clamp((0.94-u)/0.08,0,1), p=X(u,clamp(c-0.36*Math.pow(fr,1.5)*on,-1,1)); ctx.lineTo(p[0],p[1]); }
-        ctx.closePath(); ctx.fill();
-        if(elev>-0.1){ ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28, w*0.98, Math.PI, 0); ctx.closePath(); ctx.fill(); } }   // seen end-on, the top of the round breast is bright too
+        const WL=[]; for(let i=7;i<=66;i++){ const u=i/66, fr=(u*6.2+0.3)%1, on=clamp((u-0.1)/0.08,0,1)*clamp((0.94-u)/0.08,0,1); WL.push(X(u,clamp(c-0.36*Math.pow(fr,1.5)*on,-1,1))); }
+        return {WL,c}; }
     }
-    if(cfz>0) tail();                                                                             // flying away: the tail is the nearest part of the body
+                                                                                 // flying away: the tail is the nearest part of the body
   };
-  const neck=()=>{ const HU=2.2, HF=4.5;   // how much higher, and how much further forward, the head is carried than before
-    { const cl=[0,sway*0.5,sway,sway*0.4], cf=[3.5,17,30,35.5+HF], cu=[2.4+bob,-0.6+bob*0.62,-2.8+bob*0.25,2.7+HU], pts=[];   // one smooth line starting well inside the breast: down a little, then up to the head
+  const neck=(mode,cW)=>{ const HU=2.2, HF=4.5;   // how much higher, and how much further forward, the head is carried than before
+    if(mode!=='detail'){ const cl=[0,sway*0.5,sway,sway*0.4], cf=[3.5,17,30,35.5+HF], cu=[2.4+bob,-0.6+bob*0.62,-2.8+bob*0.25,2.7+HU], pts=[];   // one smooth line starting well inside the breast: down a little, then up to the head
       for(let i=0;i<=9;i++){ const t=i/9, a=(1-t)*(1-t)*(1-t), b=3*(1-t)*(1-t)*t, c=3*(1-t)*t*t, d=t*t*t; pts.push(P(b*cl[1]+c*cl[2]+d*cl[3], a*cf[0]+b*cf[1]+c*cf[2]+d*cf[3], a*cu[0]+b*cu[1]+c*cu[2]+d*cu[3])); }
       { const n=pts.length-1, L=[], R=[];
         for(let i=0;i<=n;i++){ const a=pts[Math.max(0,i-1)], b=pts[Math.min(n,i+1)], dx=b[0]-a[0], dy=b[1]-a[1], l=Math.hypot(dx,dy)||1, t=i/n;
           const hw=Math.max(0.5,(1.75+3.1*Math.pow(1-t,2.6))*S), nx=-dy/l*hw, ny=dx/l*hw; L.push([pts[i][0]+nx,pts[i][1]+ny]); R.push([pts[i][0]-nx,pts[i][1]-ny]); }   // nearly three times as broad at the breast as at the head
-        const NP=L.concat(R.reverse()); poly(NP.map((q,k)=>{ const t=k<=n?k/n:(2*n+1-k)/n; return [q[0],q[1]+1.15*S*Math.min(1,t*3.5)]; }),'#ec78a5');   // darker along its underside, from just clear of the breast
+        if(mode==='line'){ const D=P(0,0,-1), O=P(0,0,0), dl=Math.hypot(D[0]-O[0],D[1]-O[1])||1, ux=(D[0]-O[0])/dl, uy=(D[1]-O[1])/dl, out=[];
+          for(let i=n;i>=3;i--){ const t=i/n, hw=Math.max(0.5,(1.75+3.1*Math.pow(1-t,2.6))*S)*(-cW); out.push([pts[i][0]+ux*hw,pts[i][1]+uy*hw]); } return out; }
+        const NP=L.concat(R.reverse()); poly(NP.map((q,k)=>{ const t=k<=n?k/n:(2*n+1-k)/n; return [q[0],q[1]+1.15*S*Math.min(1,t*3.5)]; }),TOP);   // darker along its underside, from just clear of the breast
         poly(NP,'#ff9dbf'); dot(pts[n],1.75,'#ff9dbf'); dot(pts[0],4.85,'#ff9dbf'); }   // in the body's own pink, its broad end rounded and sunk inside the breast, so no edge shows
-      ln(pts.slice(2).map(q=>[q[0],q[1]-0.55*S]),'#ff9dbf',1.1); }
+      ln(pts.slice(2).map(q=>[q[0],q[1]-0.55*S]),'#ff9dbf',1.1); return; }
     // The head, from the reference picture: a small smooth oval carried on the end of the neck, and a big bill that runs forward
     // from it, pale pink for most of its length, then bends down into a black tip. A pale patch lies between the eye and the bill.
     const HFc=37.5+HF, HUc=2.8+HU, hk=1-0.0065*HFc*cfz, Q=(df,du,lat)=>P(lat||0,HFc+df,HUc+du);
@@ -405,13 +407,28 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
   const far=cfx>0?-1:1;
   ctx.lineCap='round'; ctx.lineJoin='round';
   { const above=elev>0;
-    legs(far);                                          // the far leg is always behind the body, so it never shows on the near side
-    if(above) legs(-far);                               // seen from above, the near leg is under the body too
-    if(cfz>0) neck();                                   // flying away: the neck is the far end
+    // The skin: the given parts are painted plain on a spare canvas, the dark underside is laid over all of them at once
+    // along one line running from the neck through the body to the tail, and the finished skin is set into the picture.
+    const skin=parts=>{ const cv=SKIN.cv, g=SKIN.g, m=MAIN.getTransform(), R=78*S;
+      if(cv.width!==MAIN.canvas.width||cv.height!==MAIN.canvas.height){ cv.width=MAIN.canvas.width; cv.height=MAIN.canvas.height; }
+      const x0=Math.max(0,Math.floor((sx-R)*m.a+m.e)), y0=Math.max(0,Math.floor((sy-R)*m.d+m.f)), x1=Math.min(cv.width,Math.ceil((sx+R)*m.a+m.e)), y1=Math.min(cv.height,Math.ceil((sy+R)*m.d+m.f));
+      if(x1<=x0||y1<=y0) return;
+      g.setTransform(1,0,0,1,0,0); g.clearRect(x0,y0,x1-x0,y1-y0); g.setTransform(m); g.lineCap='round'; g.lineJoin='round'; g.globalCompositeOperation='source-over';
+      ctx=g; for(const p of parts) p();
+      const bm=body('mask'), nl=neck('line',bm.c), D=P(0,0,-1), O=P(0,0,0), dl=Math.hypot(D[0]-O[0],D[1]-O[1])||1, ux=(D[0]-O[0])/dl*200*S, uy=(D[1]-O[1])/dl*200*S;
+      const h0=[nl[0][0]+(nl[0][0]-nl[1][0])*3, nl[0][1]+(nl[0][1]-nl[1][1])*3], W=bm.WL, e=W[W.length-1], e0=W[W.length-2], t0=[e[0]+(e[0]-e0[0])*6, e[1]+(e[1]-e0[1])*6];
+      g.globalCompositeOperation='source-atop'; poly([h0].concat(nl,W,[t0,[t0[0]+ux,t0[1]+uy],[h0[0]+ux,h0[1]+uy]]),DK); g.globalCompositeOperation='source-over';
+      ctx=MAIN; MAIN.save(); MAIN.setTransform(1,0,0,1,0,0); MAIN.drawImage(cv,x0,y0,x1-x0,y1-y0,x0,y0,x1-x0,y1-y0); MAIN.restore(); };
+    const thighs=()=>{ legs(far,1); legs(-far,1); }, bodyS=()=>body('shape'), neckS=()=>neck('shape');
+    legs(far,0);                                        // the far leg is always behind the body, so it never shows on the near side
+    if(above) legs(-far,0);                             // seen from above, the near leg is under the body too
+    if(cfz>0){ skin([neckS]); neck('detail'); }         // flying away: the neck and head are the far end
     wing(far);                                          // the far wing is on the other side of the body, so the body hides it wherever the two overlap
-    body();
-    if(cfz<=0) neck();
-    if(!above) legs(-far);                                  // seen from underneath, the legs are the nearest thing
+    if(cfz<=0) body('tail');
+    skin(cfz>0?[thighs,bodyS]:[thighs,neckS,bodyS]);
+    if(cfz>0) body('tail');                             // flying away: the tail is the nearest part of the body
+    if(cfz<=0) neck('detail');
+    if(!above) legs(-far,0);                            // seen from underneath, the legs are the nearest thing
     wing(-far); }                                       // the near wing lies over everything: nothing shows through it
 }
 
