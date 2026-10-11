@@ -338,9 +338,10 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
         dot(a,4.16,farL?'#e06a99':'#ec78a5'); poly(L.concat(R.reverse()),farL?'#e06a99':'#ec78a5');   // rounded where it begins, so no straight end shows
         ln([P(A[2],A[0]-4,A[1]-2.6),P(B[2],B[0]+3,B[1]+0.2)],farL?'#c95485':'#d85f90',1.2); }   // with a darker line along its underside
       ln(J.map(q=>P(q[2],q[0],q[1])),dk,1.9); ln(J.map(q=>P(q[2],q[0],q[1]+0.55)),lt,0.8);                          // the leg: dark, with a light line along its top
-      dot(P(J[1][2],J[1][0],J[1][1]),1.45,kb); dot(P(J[1][2],J[1][0]+0.3,J[1][1]+0.4),0.55,lt);                           // the knob of the joint, with a small highlight
+      { const m=(i,j,t)=>P(J[i][2]+(J[j][2]-J[i][2])*t, J[i][0]+(J[j][0]-J[i][0])*t, J[i][1]+(J[j][1]-J[i][1])*t);   // the joint is a slight swelling along the leg, not a ball
+        ln([m(1,0,0.12),P(J[1][2],J[1][0],J[1][1]),m(1,2,0.09)],dk,2.35); ln([m(1,0,0.12),P(J[1][2],J[1][0],J[1][1]),m(1,2,0.09)].map(q=>[q[0],q[1]+0.5*S]),kb,0.7); }                           // the knob of the joint, with a small highlight
       const a=P(J[2][2],J[2][0],J[2][1]), t0=P(ft[2],ft[0],ft[1]), t1=P(ft[2]-2.1,ft[0]+1.4,ft[1]+0.4), t2=P(ft[2]+2.1,ft[0]+1.4,ft[1]+0.4);
-      poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); dot(a,1.1,kb); } };       // the webbed foot, toes trailing
+      poly([a,t1,t0,t2],kb); ln([a,t0],dk,0.8); ln([a,t1],dk,0.6); ln([a,t2],dk,0.6); } };       // the webbed foot, toes trailing
   // The body is a droplet: full and round at the breast, drawing out to a point at the tail, darker along the belly and pale along the back.
   const body=()=>{
     // The tail: a small fan of seven feathers at the droplet's tip, the outer ones shorter and spread a little to the sides, the middle ones longest.
