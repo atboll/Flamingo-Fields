@@ -52,7 +52,9 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the box</button>
     <button type="button" id="testDoor">Test: stand before the door</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 14:00</span>
+    <button type="button" id="testClouds">Test: go to the clouds</button>
+    <button type="button" id="testCross">Test: whale crosses now</button>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 18:30</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -504,6 +506,7 @@ function land(){ if(skyOpen) return; if(lead.fly && time-flyStart>0.6){ flightLe
 /* ---------- update ---------- */
 function update(dt){
   time+=dt;
+  if(level===2){ if(!whales) whalesStart(); whalesUpdate(dt); } else whales=null;
   let ix=0, iz=0, sprint=false;
   if(keys.has('a')||keys.has('arrowleft')) ix-=1;
   if(keys.has('d')||keys.has('arrowright')) ix+=1;
@@ -1173,8 +1176,338 @@ function paintMoon(){
     px[i+3]=d>0.955?(r()<(1-d)/0.045?255:0):255; }                                            // a ragged, speckled edge
   g.putImageData(img,0,0); return c;
 }
+/* ================= the humpback whales of level 2 =================
+   The whale from the mockup page (mockups/whale-3d.html), carried over whole: one solid shape built from rings along a bending spine,
+   with each whale's own markings, dots, belly and tail edge worked out from its settings. Everything here is private to WHALE. */
+const WHALE=(()=>{
+const bg='day', NEAR=45;   // the game darkens the whole picture at night, so the whales are always painted in their day colours
+/* ---- the whale's shape: nose at x=+1, tail stock at x=-1, y up, z out to its sides ---- */
+// The same outline as the flat whale: heights above and below a straight line from jaw tip to tail stock, by s (0 nose .. 1 stock).
+const PT=[[0,0.012],[0.012,0.03],[0.05,0.054],[0.11,0.08],[0.17,0.098],[0.21,0.108],[0.24,0.112],[0.32,0.13],[0.45,0.15],[0.56,0.142],[0.63,0.14],[0.7,0.112],[0.8,0.07],[0.9,0.04],[1,0.026]];
+const PB=[[0,0.012],[0.012,0.05],[0.045,0.11],[0.09,0.17],[0.16,0.235],[0.26,0.288],[0.36,0.27],[0.47,0.215],[0.58,0.16],[0.7,0.105],[0.82,0.06],[0.92,0.036],[1,0.026]];
+// New for the solid whale: how wide it is, seen from above. A broad rounded head, widest behind the flippers, a stock that is taller than it is wide.
+const PW=[[0,0.035],[0.015,0.07],[0.05,0.112],[0.11,0.15],[0.2,0.186],[0.3,0.203],[0.42,0.194],[0.55,0.155],[0.68,0.1],[0.8,0.052],[0.9,0.025],[0.96,0.021],[1,0.03]];
+function prof(T,s){ s=clamp(s,0,1); let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
+  return Math.max(0.003,(2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1); }
+const TOP=s=>prof(PT,s), BOT=s=>prof(PB,s), WID=s=>prof(PW,s);
+// where the dark back ends and the pale underside begins, as a depth below the middle line (taken from the flat whale)
+const mouth=s=>0.006+0.04*Math.pow(Math.sin(clamp(s/0.29,0,1)*Math.PI*0.5),1.3);
+const edge=s=>{ if(s<0.258) return mouth(s); const d0=clamp((s-0.258)/0.03,0,1), d=d0*d0*(3-2*d0), low=0.096+0.018*Math.sin(s*14)*clamp((s-0.4)/0.06,0,1)+(s-0.27)*-0.03+Math.pow(clamp((s-0.5)/0.3,0,1),1.5)*0.02; return mouth(s)+(low-mouth(s))*d; };
+const palBase=sv=>{ if(sv<=0.56) return edge(sv); const back=BOT(sv)*(0.6-0.3*(sv-0.6)), m=clamp((sv-0.56)/0.1,0,1); const m2=clamp((sv-0.78)/0.13,0,1), top=edge(sv)+(back-edge(sv))*m; return Math.min(top+(BOT(sv)+0.01-top)*m2*m2, BOT(sv)*0.7); };   // unlike the flat whale, a strip of white stays under the stock right to the tail
+
+/* ---- movement: the whole body bends up and down along its length, more toward the tail ---- */
+let TB=0, INIT=true;   // tail-beat clock
+const spineY=s=>INIT?0:(0.012+0.2*s*s)*Math.sin(TB-s*3.3)*calm;   // laid out straight the first time, so every patch can be told which way is out
+const FR=[0,0,0,0,0];   // scratch: the spine's place and its "up" at s
+function frame(s){ const y=spineY(s), dy=(spineY(s+0.004)-spineY(s-0.004))/0.008, l=Math.hypot(dy,2); FR[0]=y; FR[1]=dy/l; FR[2]=2/l; }   // up = (FR[1], FR[2]), toward the nose = (FR[2], -FR[1])
+
+/* ---- the mesh: points written fresh every frame, four-cornered patches listed once ---- */
+const MV=[]; let vi=0; const QUADS=[];
+function put(x,y,z){ MV[vi++]=x; MV[vi++]=y; MV[vi++]=z; return vi/3-1; }
+function bent(x,yl,z){ const s=(1-x)/2; frame(s); return put(x+FR[1]*yl, FR[0]+FR[2]*yl, z); }                                   // each point follows the spine where it sits
+function bentAt(sr,x,yl,z){ const xr=1-2*sr; frame(sr); return put(xr+FR[2]*(x-xr)+FR[1]*yl, FR[0]-FR[1]*(x-xr)+FR[2]*yl, z); }   // a stiff part follows the spine at its root
+const DARK=0, PALE=1;
+const FLIP_S=0.34, FLIP_Y=-0.06;   // the flipper's root: where the drawing has it, in the dark of the flank behind and below the eye
+// the border as drawn, plus the dark dipping down round the eye into the pale
+let RW=null;   // this whale's own reach of the white: {k: -1 a narrow strip .. +1 high up the flank, amp/f/ph: the waviness of its edge}
+const palTop=sv=>{ let b=palBase(sv);
+  if(RW){ const g=clamp((sv-0.27)/0.1,0,1), gg=g*g*(3-2*g), lowest=BOT(sv)*0.86;
+    if(RW.k<0) b+=(Math.max(b,lowest)-b)*(-RW.k)*gg; else b-=b*0.88*RW.k*gg;
+    b+=RW.amp*(Math.sin(sv*RW.f+RW.ph)+0.5*Math.sin(sv*RW.f*2.3+RW.ph*1.9))*gg*clamp((0.92-sv)/0.1,0,1);
+    b=clamp(b,0.004,Math.max(lowest,palBase(sv)));
+    const q=clamp(1-(Math.abs(sv-FLIP_S)-0.035)/0.05,0,1); b=Math.max(b,(-FLIP_Y+0.028)*q*q*(3-2*q));   // the dark always comes down far enough to carry the flipper
+  }
+  const e=(sv-0.281)/0.026; return e*e<1?Math.max(b,0.048+0.04*Math.sqrt(1-e*e)):b; };
+function quad(a,b,c,d,kind,hint,groove,mix){   // hint: roughly which way the patch faces, so the corners get wound the right way
+  const P=i=>[MV[i*3],MV[i*3+1],MV[i*3+2]], A=P(a),B=P(b),C=P(c),D=P(d);
+  const ux=C[0]-A[0],uy=C[1]-A[1],uz=C[2]-A[2], vx=D[0]-B[0],vy=D[1]-B[1],vz=D[2]-B[2];
+  const nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx;
+  const mx=(A[0]+B[0]+C[0]+D[0])/4, my=(A[1]+B[1]+C[1]+D[1])/4, mz=(A[2]+B[2]+C[2]+D[2])/4;   // where the patch sits on the straight whale, for the markings
+  if(nx*hint[0]+ny*hint[1]+nz*hint[2]<0) QUADS.push([a,d,c,b,kind,groove||null,mix||0,mx,my,mz]); else QUADS.push([a,b,c,d,kind,groove||null,mix||0,mx,my,mz]);
+}
+
+const NR=100, K1=7, K2=7, M=2*(K1+K2);
+function body(){
+  const first=vi/3;
+  for(let i=-1;i<=NR+1;i++){
+    const s=i<0?-0.003:i>NR?1.004:Math.pow(i/NR,1.2), cap=(i<0||i>NR)?0.02:1, sc=clamp(s,0,1);
+    const t=TOP(sc)*cap, b=BOT(sc)*cap, w=WID(sc)*cap, tb=Math.acos(clamp(-palTop(sc)/BOT(sc),-1,0));
+    for(let j=0;j<M;j++){
+      const side=j<=K1+K2?1:-1, jj=side>0?j:M-j;   // down the right side, back up the left
+      const th=jj<=K1? tb*jj/K1 : tb+(Math.PI-tb)*(jj-K1)/K2, c=Math.cos(th);
+      bent(1-2*s, c>0?t*c:b*c, side*w*Math.sin(th));
+    }
+  }
+  if(!INIT) return;
+  for(let i=0;i<NR+2;i++) for(let j=0;j<M;j++){
+    const a=first+i*M+j, b=first+i*M+(j+1)%M, c=first+(i+1)*M+(j+1)%M, d=first+(i+1)*M+j;
+    const pale=j>=K1 && j<K1+2*K2, s=Math.pow(clamp((i-0.5)/NR,0,1),1.2);
+    const row=r=>r>K1 && r<K1+2*K2 && s>0.012 && s<0.68;   // throat grooves run along the lines between pale patches
+    const cy=(MV[a*3+1]+MV[c*3+1])/2, cz=(MV[a*3+2]+MV[c*3+2])/2;
+    const g=[]; if(row(j+1)) g.push(b,c,(j+1)%M); if(row(j)) g.push(a,d,j);   // each groove line remembers which row it is, so it can end at its own place
+    quad(a,b,c,d,pale?PALE:DARK,[i===0?0.4:i>NR?-0.4:0,cy,cz],g.length?g:null); QUADS[QUADS.length-1][10]=s;
+  }
+}
+// a thin lens-shaped blade through a row of stations, each with a leading point A, a trailing point B, an "up" n and a half thickness
+function blade(st,kTop,kBot,map){   // stations may carry "rim": a pale edge strip of that share of the width, on the dark face too
+  const rimmed=st[0].rim!==undefined, Mx=rimmed?6:4, first=vi/3;
+  for(const q of st){ const r=rimmed?clamp(q.rim,0.001,0.3):0, US=rimmed?[0,r,0.25,0.5,0.75,1-r,1]:[0,0.25,0.5,0.75,1];
+    for(let side=1;side>=-1;side-=2) for(let m=0;m<=Mx;m++){
+      const u=US[m], bulge=Math.pow(Math.sin(Math.PI*u),0.7)*q.t*side;
+      map(q.A[0]+(q.B[0]-q.A[0])*u+q.n[0]*bulge, q.A[1]+(q.B[1]-q.A[1])*u+q.n[1]*bulge, q.A[2]+(q.B[2]-q.A[2])*u+q.n[2]*bulge);
+    } }
+  if(!INIT) return;
+  const row=2*(Mx+1);
+  for(let k=0;k<st.length-1;k++) for(let side=0;side<2;side++) for(let m=0;m<Mx;m++){
+    const o=first+k*row+side*(Mx+1)+m, n=st[k].n, sg=side?-1:1, mix=((st[k].mix||0)+(st[k+1].mix||0))/2, edge=rimmed && !side && (m===0||m===Mx-1);
+    quad(o,o+1,o+row+1,o+row,side?kBot:edge?PALE:kTop,[n[0]*sg,n[1]*sg,n[2]*sg],null,(side||edge)?mix:0);
+  }
+}
+const norm=v=>{ const l=Math.hypot(v[0],v[1],v[2])||1; return [v[0]/l,v[1]/l,v[2]/l]; };
+const cross=(a,b)=>[a[1]*b[2]-a[2]*b[1],a[2]*b[0]-a[0]*b[2],a[0]*b[1]-a[1]*b[0]];
+// The flipper's outline, traced from the reference picture: how far its front and back edges lie from a straight middle line,
+// as fractions of its length, from the body (0) to the tip (1). Broadest in the upper part, narrowing in a step, the front edge
+// then swinging round the end to meet the back edge, so the tip leans toward the tail.
+const FF=[[0,0.07],[0.12,0.096],[0.3,0.132],[0.45,0.138],[0.6,0.128],[0.68,0.114],[0.78,0.084],[0.87,0.04],[0.94,-0.012],[0.985,-0.062],[1,-0.097]];   // the outer third of the front edge is cut away in a curve back to the tip
+const FB=[[0,-0.08],[0.15,-0.106],[0.3,-0.128],[0.45,-0.126],[0.6,-0.114],[0.8,-0.102],[0.92,-0.099],[0.975,-0.1],[1,-0.094]];
+function prof2(T,s){ let k=1; while(k<T.length-1 && T[k][0]<s) k++; const a=T[k-1], b=T[k], p=T[Math.max(0,k-2)], n=T[Math.min(T.length-1,k+1)], u=clamp((s-a[0])/(b[0]-a[0]),0,1);
+  const m0=(b[1]-p[1])/(b[0]-p[0])*(b[0]-a[0]), m1=(n[1]-a[1])/(n[0]-a[0])*(b[0]-a[0]), u2=u*u, u3=u2*u;
+  return (2*u3-3*u2+1)*a[1]+(u3-2*u2+u)*m0+(-2*u3+3*u2)*b[1]+(u3-u2)*m1; }
+function flipper(sg,t){
+  const xr=1-2*FLIP_S, zr=WID(FLIP_S)*Math.sqrt(1-Math.pow(FLIP_Y/BOT(FLIP_S),2));
+  let c=[xr,FLIP_Y,sg*zr*0.8]; const S=56, L=0.7, st=[], ph=t*1.25+(sg>0?0:0.9);
+  for(let k=0;k<=S;k++){ const u=1-Math.pow(1-k/S,1.6), un=1-Math.pow(1-Math.min(1,(k+1)/S),1.6);   // stations crowd toward the tip so the end comes out round
+    const flap=Math.sin(ph-u*1.3)*calm;                                 // a slow stroke up and down that runs out along the flipper
+    const be=0.78+0.8*Math.pow(u,2.2)+0.06*Math.sin(ph*0.5)*calm, out=0.45+0.45*flap*(0.35+0.65*u);   // swept back at the picture's angle, curving further back toward the tip
+    const dir=norm([-Math.sin(be),-Math.cos(be),sg*out]);
+    const dx=dir[0], ch=norm([1-dx*dx,-dx*dir[1],-dx*dir[2]]); let n=cross(dir,ch); if(n[1]*0.4+n[2]*sg<0) n=[-n[0],-n[1],-n[2]];   // the dark face is the outer one
+    const kn=clamp((u-0.45)/0.15,0,1)*clamp((0.98-u)/0.06,0,1);
+    const fr=(prof2(FF,u)+0.007*Math.sin(u*46)*kn)*L, bk=(prof2(FB,u)+0.004*Math.sin(u*38+1)*kn)*L, wd=Math.max(0,fr-bk), rw=0.02*clamp((u-0.06)/0.16,0,1);   // small knobs only along the outer part
+    const root=Math.pow(clamp(1-u/0.24,0,1),2), m=clamp((u-0.1)/0.16,0,1);
+    st.push({A:[c[0]+ch[0]*(fr+rw),c[1]+ch[1]*(fr+rw),c[2]+ch[2]*(fr+rw)], B:[c[0]+ch[0]*(bk-rw),c[1]+ch[1]*(bk-rw),c[2]+ch[2]*(bk-rw)], n, rim:rw/(wd+2*rw+1e-6), t:Math.min(0.008+0.012*(1-u)+0.014*root,wd*0.22+0.0005), mix:1-m*m*(3-2*m)});
+    const d=(un-u)*L; c=[c[0]+dir[0]*d,c[1]+dir[1]*d,c[2]+dir[2]*d];
+  }
+  blade(st,DARK,PALE,(x,y,z)=>bentAt(FLIP_S,x,y,z));
+  if(CUR) for(const d of CUR.f){ if(d.sg!==sg) continue;   // white flecks lying on the flipper's dark face
+    const k=clamp(Math.round(S*(1-Math.pow(1-d.u,1/1.6))),1,S-1), q=st[k], q2=st[k+1], v=d.v, bl=Math.pow(Math.sin(Math.PI*v),0.7)*q.t+0.001;
+    const p=[q.A[0]+(q.B[0]-q.A[0])*v+q.n[0]*bl, q.A[1]+(q.B[1]-q.A[1])*v+q.n[1]*bl, q.A[2]+(q.B[2]-q.A[2])*v+q.n[2]*bl];
+    const e1=norm([q.A[0]-q.B[0],q.A[1]-q.B[1],q.A[2]-q.B[2]]), e2=norm([q2.A[0]+q2.B[0]-q.A[0]-q.B[0],q2.A[1]+q2.B[1]-q.A[1]-q.B[1],q2.A[2]+q2.B[2]-q.A[2]-q.B[2]]);
+    const at=(a,m)=>bentAt(FLIP_S,p[0]+a[0]*m,p[1]+a[1]*m,p[2]+a[2]*m);
+    late.push(()=>decs.push([at(q.n,0),at(q.n,0.02),at(e1,0.02),at(e2,0.02),d.r,1,'w',0.012])); }   // placed after all the meshes, so their points keep their numbers
+}
+function fluke(sg){   // one half of the tail: flat, lying level, swept back to a point; it bends with the stock
+  const S=28, st=[], e=CUR&&CUR.tail;   // e: this whale's own back edge
+  for(let k=0;k<=S;k++){ const v=k/S, z=sg*0.38*v; let bx=-1.075-0.105*Math.pow(Math.sin(v*Math.PI/2),0.8);
+    if(e){ const fade=1-Math.pow(v,5), ph=sg>0?e.ph:e.ph2;
+      bx+=(e.notch*0.075*Math.pow(1-v,2.5) - e.bow*0.05*Math.sin(Math.PI*v) + e.amp*0.016*Math.sin(v*e.freq+ph)*Math.min(1,v*6) + e.amp*0.007*Math.sin(v*e.freq*2.3+ph*1.7)*Math.min(1,v*6))*fade; }   // a deeper or shallower notch, a bow in or out, and scallops
+    const ax=-0.875-0.305*Math.pow(v,1.3);
+    st.push({A:[ax,0,z], B:[Math.min(bx,ax-0.004),0,z], n:[0,1,0], t:0.003+0.034*Math.pow(1-v,1.6)}); }
+  blade(st,DARK,PALE,bent);
+}
+function backFin(){
+  const S=5, st=[], xL=1-2*0.632, xT=1-2*0.716;
+  for(let k=0;k<=S;k++){ const v=k/S, xa=xL-0.132*Math.pow(v,0.8), xb=xT+0.036*v*v;
+    st.push({A:[xa,TOP((1-xa)/2)*0.9+0.056*v,0], B:[xb,TOP((1-xb)/2)*0.9+0.056*v,0], n:[0,0,1], t:0.002+0.012*(1-v)}); }
+  blade(st,DARK,DARK,bent);
+}
+const EYE_S=0.283; let eyes=[];
+let CUR=null; const decs=[], late=[];   // the dots of the whale being built, and where they have landed this frame
+function bodyDot(d){ const x=1-2*d.s, top=d.yl===undefined, h=top?(Math.cos(d.th)>0?TOP(d.s):BOT(d.s)):(d.yl>0?TOP(d.s):BOT(d.s)), w=WID(d.s);
+  const yl=top?h*Math.cos(d.th):d.yl, z=w*Math.sqrt(Math.max(0,1-(yl/h)*(yl/h))), o=norm([0,yl/(h*h),z/(w*w)]), sg=d.sg;
+  decs.push([bent(x,yl,sg*z),bent(x,yl+o[1]*0.02,sg*(z+o[2]*0.02)),bent(x+0.02,yl,sg*z),bent(x,yl-o[2]*0.02,sg*(z+o[1]*0.02)),d.r,d.ax||1,d.col,0.03]); }
+function build(t){
+  decs.length=0; late.length=0; RW=CUR?CUR.reach:null;
+  vi=0; body(); flipper(1,t); flipper(-1,t); fluke(1); fluke(-1); backFin();
+  const yl=-(mouth(EYE_S)+0.014), h=BOT(EYE_S), w=WID(EYE_S), z=w*Math.sqrt(1-(yl/h)*(yl/h)), o=norm([0,yl/(h*h),z/(w*w)]);
+  eyes=[]; for(const sg of [1,-1]){ const p=bent(1-2*EYE_S,yl,sg*z), q=bent(1-2*EYE_S,yl+o[1]*0.03,sg*(z+o[2]*0.03)); const r=bent(1-2*EYE_S+0.02,yl,sg*z), w=bent(1-2*EYE_S,yl+0.02,sg*z); eyes.push([p,q,r,w]); }
+  for(const fn of late) fn();
+  if(CUR) for(const d of CUR.b) bodyDot(d);
+  INIT=false;
+}
+
+const SV=[];   // points after the camera: x, y, depth
+const COL={ day:[[[0x20,0x22,0x52],[0x2e,0x31,0x68],[0x44,0x49,0x90]],[[0xa9,0xc4,0xd3],[0xcf,0xe0,0xe8],[0xf7,0xfa,0xfb]]],
+            night:[[[0x15,0x17,0x3c],[0x1f,0x22,0x50],[0x30,0x35,0x72]],[[0x74,0x8c,0xa8],[0x9d,0xb2,0xc8],[0xdc,0xe5,0xf1]]] };
+const PURP={ day:[[0x4a,0x12,0x86],[0x7a,0x22,0xc4],[0xa8,0x4c,0xf0]], night:[[0x32,0x0e,0x62],[0x54,0x1a,0x92],[0x78,0x38,0xbc]] };   // a vivid violet
+function toneT(c,l,k){ const u=clamp(l,0,1)*2, a=c[u<1?0:1], b=c[u<1?1:2], f=u<1?u:u-1; return a[k]+(b[k]-a[k])*f; }
+const RGB=[0,0,0]; let TINT=[1,1,1];
+// the belly's own tint: the slider runs white, cream, pink, lilac, ice blue
+const TINTS=[[1,1,1],[1.1,0.985,0.83],[1.09,0.87,0.93],[0.93,0.86,1.02],[0.84,0.93,1.02]], TNAME=['white','cream','pink','lilac','ice blue'];
+function tintOf(v){ const x=clamp(v,0,100)/25, i=Math.min(3,Math.floor(x)), f=x-i, a=TINTS[i], b=TINTS[i+1]; return [a[0]+(b[0]-a[0])*f,a[1]+(b[1]-a[1])*f,a[2]+(b[2]-a[2])*f]; }
+function dark(l,pm,lm){ const nt=bg==='night'?'night':'day', c=COL[nt][DARK], p=PURP[nt];   // the dark skin, with this whale's markings: leaning to purple by pm, lighter or darker by lm
+  for(let k=0;k<3;k++){ let v=toneT(c,l,k); if(pm>0) v+=(toneT(p,l,k)-v)*pm; RGB[k]=v*(1+lm); } }
+function shade(kind,l,mix,pm,lm){ let r,g,b;
+  if(kind===DARK){ dark(l,pm,lm); r=RGB[0]; g=RGB[1]; b=RGB[2]; }
+  else{ const c=COL[bg==='night'?'night':'day'][PALE]; r=toneT(c,l,0)*TINT[0]; g=toneT(c,l,1)*TINT[1]; b=toneT(c,l,2)*TINT[2];
+    if(mix>0){ dark(l,pm,lm); r+=(RGB[0]-r)*mix; g+=(RGB[1]-g)*mix; b+=(RGB[2]-b)*mix; } }
+  return 'rgb('+Math.round(clamp(r,0,255))+','+Math.round(clamp(g,0,255))+','+Math.round(clamp(b,0,255))+')'; }
+
+/* ---- each whale's own markings: soft patches worked out from where a patch of skin sits and the whale's pattern number ---- */
+const hsh=(i,j,k,q)=>{ let n=Math.sin(i*127.1+j*311.7+k*74.7+q*53.3)*43758.5453; return n-Math.floor(n); };
+function vn(x,y,z,q){ const i=Math.floor(x), j=Math.floor(y), k=Math.floor(z); let fx=x-i, fy=y-j, fz=z-k; fx=fx*fx*(3-2*fx); fy=fy*fy*(3-2*fy); fz=fz*fz*(3-2*fz);
+  const L=(a,b,t)=>a+(b-a)*t;
+  return L(L(L(hsh(i,j,k,q),hsh(i+1,j,k,q),fx),L(hsh(i,j+1,k,q),hsh(i+1,j+1,k,q),fx),fy),L(L(hsh(i,j,k+1,q),hsh(i+1,j,k+1,q),fx),L(hsh(i,j+1,k+1,q),hsh(i+1,j+1,k+1,q),fx),fy),fz); }
+const sm=v=>{ v=clamp(v,0,1); return v*v*(3-2*v); };
+function marksFor(c,out){
+  const q0=c.p, S=c.s/100, U=c.u/100, h1=hsh(q0,1,0,0), h2=hsh(q0,2,0,0), h3=hsh(q0,3,0,0), h4=hsh(q0,4,0,0);
+  for(let q=0;q<QUADS.length;q++){ const Q=QUADS[q], x=Q[7], y=Q[8], z=Q[9];
+    const a=vn(x*2.1+7,y*3.4+3,z*3.4+5,q0), b=vn(x*5.5+1,y*7+9,z*7+2,q0+0.5), c2=vn(x*1.3+4,y*2.1+6,z*2.1+8,q0+0.25);
+    let pm=sm((0.62*a+0.38*b-0.47)/0.17);                                         // blotches
+    const band=Math.exp(-Math.pow((x-(0.45-1.2*h1))/(0.2+0.25*h4),2))*(0.4+0.6*h2);   // a wash across the body at a place of its own
+    pm=clamp(pm*(0.6+0.4*h3)+band*sm((b+a*0.5-0.45)/0.35)*0.8,0,1)*0.85;
+    const lm=(c2-0.5)*1.2-0.5*h3*sm(y/0.09)+0.35*h2*sm((b-0.55)/0.2);          // lighter and darker blue patches, and a darker saddle along the back
+    out[q*3]=pm*U*Math.min(1,S*1.5); out[q*3+1]=lm*0.5*S;
+    const dm=0;
+    out[q*3+2]=dm; }
+}
+function dotsFor(c,few){ const b=[], f=[], q0=c.p, R=(i,salt)=>hsh(q0+0.37,i,salt,1.7), dz=0.5+c.ds/100*1.3; let n;
+  const reach={k:(c.wr-50)/50, amp:0.004+0.02*R(1,60)*(0.3+Math.abs(c.wr-50)/70), f:14+22*R(2,60), ph:6.28*R(3,60)}; RW=reach;   // the dots below are placed against this whale's own edge of the white
+  n=Math.round(c.bs/100*90*few); for(let i=0;i<n;i++){ const sv=0.03+0.84*R(i,61), tb=Math.acos(clamp(-palTop(sv)/BOT(sv),-1,0)), t=Math.pow(R(i,62),sv<0.25?1:1.9), big=R(i,63)>0.82;   // dark freckles and blotches on the white, thickest toward its edge and under the chin
+    b.push({s:sv,th:tb+0.03+(Math.PI-tb-0.03)*t,sg:R(i,64)<0.5?1:-1,r:(big?0.009+0.009*R(i,65):0.0035+0.006*R(i,65)*R(i,66))*(0.75+0.25*dz),ax:big?1.4+1.2*R(i,67):1,col:'d'}); }
+  n=Math.round(c.k/100*24*few); for(let i=0;i<n;i++) b.push({s:0.025+0.2*R(i,1),th:0.12+1.05*R(i,2),sg:R(i,3)<0.5?1:-1,r:0.006+0.005*R(i,4),col:'k'});
+  n=Math.round(c.k/100*12*few); for(let i=0;i<n;i++){ const sv=0.03+0.18*R(i,5); b.push({s:sv,yl:-(mouth(sv)+0.02+0.035*R(i,6)),sg:R(i,7)<0.5?1:-1,r:0.005+0.004*R(i,8),col:'c'}); }
+  n=Math.round(c.f/100*11*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const sv=0.43+0.4*(i+R(i,9+sg))/n; b.push({s:sv,yl:-(palTop(sv)-0.016),sg,r:(0.006+0.005*R(i,11+sg))*(0.7+0.7*c.f/100),ax:2.3,col:'w'}); }
+  n=Math.round(c.d/100*50*few); for(let i=0;i<n;i++){ const sv=0.3+0.62*R(i,13), a=R(i,14); b.push({s:sv,yl:-(palTop(sv)-0.012-0.08*a*a),sg:R(i,15)<0.5?1:-1,r:(0.003+0.006*R(i,16)*R(i,17))*dz,col:'w'}); }
+  n=Math.round(c.d/100*9*few); for(let i=0;i<n;i++) b.push({s:0.74+0.21*R(i,18),th:0.25*R(i,19),sg:R(i,20)<0.5?1:-1,r:(0.004+0.004*R(i,21))*dz,col:'w'});
+  n=Math.round(c.d/100*60*few); for(let sg=-1;sg<=1;sg+=2) for(let i=0;i<n;i++){ const u=0.2+0.76*Math.pow(R(i,22+sg),0.6), side=R(i,24+sg)-0.5, e=Math.abs(side)*2;
+    if(R(i,26+sg)>0.25+0.75*Math.max(u*u,e*e)) continue; f.push({sg,u,v:clamp(0.5+side*0.86,0.07,0.93),r:(0.0035+0.008*R(i,28+sg)*R(i,30+sg))*dz}); }
+  const T=c.t/100, tail={notch:(R(1,40)*1.6-0.5)*T, bow:(R(2,40)*2-1)*T, amp:(0.25+0.75*R(3,40))*T, freq:9+16*R(4,40), ph:6.28*R(5,40), ph2:6.28*R(6,40)};   // the back curve of the tail fin, this whale's own
+  const ge=[], gs=[]; for(let r=0;r<M;r++){ const e=Math.abs(r-(K1+K2))/K2;   // e: 0 along the middle of the belly, 1 up at the edge of the white
+    ge[r]=0.6-0.27*Math.pow(e,1.6)+0.05*(R(r,50)-0.5); gs[r]=0.02+0.07*e*e+0.015*R(r,51); }
+  RW=null;
+  return {b,f,tail,ge,gs,reach,tint:tintOf(c.bt)}; }
+const order=[];
+function pass(w,P){
+  TB=P.tb+w.ph; CUR=w.dots; build(P.t+w.ph*2);
+  const half=P.len/2, sc=w.sc*half, ox=w.o[0]*half, oy=w.o[1]*half, oz=w.o[2]*half, px=P.x, py=P.y, pz=P.z;
+  const ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
+  const f=focal, cx=W/2, cy=horizon;
+  const n=vi/3, MK=w.mk, GE=w.dots.ge, GS=w.dots.gs; TINT=w.dots.tint;
+  for(let i=0;i<n;i++){
+    let x=MV[i*3]*sc+ox, y=MV[i*3+1]*sc+oy, z=MV[i*3+2]*sc+oz;
+    let y1=y*cr-z*sr, z1=y*sr+z*cr;                 // bank
+    let x2=x*ct-y1*stp, y2=x*stp+y1*ct;             // nose up or down
+    const x3=x2*ch+z1*sh+px-camPx, z3=-x2*sh+z1*ch+pz-camPz;   // heading and place, seen from the camera
+    SV[i*3]=x3*rgtX+z3*rgtZ; SV[i*3+1]=y2+py-camY; SV[i*3+2]=x3*fwdX+z3*fwdZ;
+  }
+  // light from above and a little from the sun's side, carried into the camera's space
+  const L0=norm([SUNDX*0.35,0.9,SUNDZ*0.35]), lx=L0[0]*rgtX+L0[2]*rgtZ, ly=L0[1], lz=L0[0]*fwdX+L0[2]*fwdZ;
+  order.length=0;
+  for(let q=0;q<QUADS.length;q++){
+    const Q=QUADS[q], a=Q[0]*3,b=Q[1]*3,c=Q[2]*3,d=Q[3]*3;
+    const ux=SV[c]-SV[a],uy=SV[c+1]-SV[a+1],uz=SV[c+2]-SV[a+2], vx=SV[d]-SV[b],vy=SV[d+1]-SV[b+1],vz=SV[d+2]-SV[b+2];
+    let nx=uy*vz-uz*vy, ny=uz*vx-ux*vz, nz=ux*vy-uy*vx; const nl=Math.hypot(nx,ny,nz); if(nl<1e-12) continue; nx/=nl; ny/=nl; nz/=nl;
+    const mx=(SV[a]+SV[b]+SV[c]+SV[d])/4, my=(SV[a+1]+SV[b+1]+SV[c+1]+SV[d+1])/4, mz=(SV[a+2]+SV[b+2]+SV[c+2]+SV[d+2])/4;
+    const ml=Math.hypot(mx,my,mz), face=-(nx*mx+ny*my+nz*mz)/ml; if(face<=0 || mz<NEAR || SV[a+2]<NEAR || SV[b+2]<NEAR || SV[c+2]<NEAR || SV[d+2]<NEAR) continue;   // turned away from us, or reaching behind the camera
+    const lam=(nx*lx+ny*ly+nz*lz)*0.5+0.5;
+    order.push([mz,q,0.72*lam+0.3*face]);
+  }
+  for(const d of decs){ const p=d[0]*3, o=d[1]*3; if(SV[p+2]>NEAR*2 && SV[o+2]<SV[p+2]-0.003*sc) order.push([SV[p+2]-d[7]*sc,-2,d]); }
+  for(const e of eyes){ const p=e[0]*3, o=e[1]*3; if(SV[p+2]>NEAR*2 && SV[o+2]<SV[p+2]-0.004*sc) order.push([SV[p+2]-0.06*sc,-1,e]); }
+  order.sort((A,B)=>B[0]-A[0]);
+  const night=bg==='night', gcol=night?'#6c86a0':'#8fb1c0';
+  ctx.lineJoin='round';
+  for(const it of order){
+    if(it[1]===-2){   // a dot lying on the skin
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3);
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=E[6]==='d'?(night?'#232658':'#33377a'):E[6]==='w'?(night?'#dfe6f2':'#ffffff'):E[6]==='k'?(night?'#5b6090':'#7d83b0'):(night?'#3a3f6a':'#474c7c');
+      ctx.beginPath(); ctx.ellipse(0,0,E[4]*E[5],E[4],0,0,6.2832); ctx.fill(); ctx.restore(); continue; }
+    if(it[1]<0){   // the eye, drawn lying on the skin: a dark almond with a fine pale rim, a soft paler lid round it and two creases arching over it
+      const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3), R=0.014;   // (the three points are 0.02 apart on the whale itself, so the drawing scales with it)
+      ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
+      ctx.fillStyle=night?'#2a2f68':'#3a4088'; ctx.beginPath(); ctx.ellipse(0,R*0.25,R*2.5,R*1.75,0,0,6.2832); ctx.fill();
+      ctx.lineCap='round'; ctx.strokeStyle=night?'#4a5196':'#5a63ad'; ctx.lineWidth=R*0.3;
+      ctx.beginPath(); ctx.moveTo(R*2.3,R*0.5); ctx.quadraticCurveTo(R*0.3,R*2.5,-R*2.4,R*0.9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.5,R*1.9); ctx.quadraticCurveTo(-R*0.2,R*3.2,-R*2.2,R*2.0); ctx.stroke();
+      ctx.lineWidth=R*0.22; ctx.beginPath(); ctx.moveTo(-R*2.4,-R*0.2); ctx.quadraticCurveTo(-R*3.1,-R*0.9,-R*3.0,-R*1.7); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*1.55,0); ctx.quadraticCurveTo(0,R*1.75,-R*1.55,0); ctx.quadraticCurveTo(0,-R*1.45,R*1.55,0); ctx.closePath();
+      ctx.fillStyle=night?'#090a1a':'#0c0e22'; ctx.fill(); ctx.strokeStyle=night?'#7b86c4':'#8f9bd6'; ctx.lineWidth=R*0.2; ctx.stroke();
+      ctx.fillStyle='rgba(235,240,255,0.8)'; ctx.beginPath(); ctx.arc(R*0.35,R*0.3,R*0.2,0,6.2832); ctx.fill();
+      ctx.restore(); continue; }
+    const Q=QUADS[it[1]], col=shade(Q[4],it[2],Math.max(Q[6],MK[it[1]*3+2]),MK[it[1]*3],MK[it[1]*3+1]); let X=[],Y=[];
+    for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
+    { const mx=(X[0]+X[1]+X[2]+X[3])/4, my=(Y[0]+Y[1]+Y[2]+Y[3])/4;   // each patch is spread a hair past its edges so no seams show between neighbours (one fill, where the mockup page used a fill and an outline)
+      for(let k=0;k<4;k++){ const dx=X[k]-mx, dy=Y[k]-my, l=Math.hypot(dx,dy)||1; X[k]+=dx/l*0.55; Y[k]+=dy/l*0.55; } }
+    ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill();
+    if(Q[5]){ const G=Q[5], sq=Q[10], lw=Math.max(0.5,0.004*sc*f/it[0]); ctx.strokeStyle=gcol;   // the grooves end on a curve: longest along the middle of the belly, shorter out to the sides, thinning out at both ends
+      for(let k=0;k<G.length;k+=3){ const r=G[k+2], wv=Math.min(1,(GE[r]-sq)/0.07,(sq-GS[r])/0.025); if(wv<=0) continue;
+        const i1=G[k]*3, i2=G[k+1]*3, z1=SV[i1+2], z2=SV[i2+2]; ctx.lineWidth=lw*(0.35+0.65*wv); ctx.globalAlpha=Math.min(1,wv*2.5);
+        ctx.beginPath(); ctx.moveTo(cx+SV[i1]*f/z1,cy-SV[i1+1]*f/z1); ctx.lineTo(cx+SV[i2]*f/z2,cy-SV[i2+1]*f/z2); ctx.stroke(); }
+      ctx.globalAlpha=1; }
+  }
+}
+build(0);   // lay the mesh out once, straight, so every patch knows which way is out
+// a whale's look, worked out once from its settings (and its calf's, a lighter relation of hers)
+function look(c){ const one=(q,few)=>{ const mk=new Float32Array(QUADS.length*3); marksFor(q,mk); return {mk,dots:dotsFor(q,few)}; };
+  const m=one(c,1), k=c.c?one({p:c.p+50,s:c.s*0.6,u:c.u,d:c.d*0.6,ds:c.ds,k:c.k,f:c.f*0.6,t:c.t*0.7,bs:c.bs*0.5,bt:c.bt,wr:c.wr},0.55):null;
+  return {mom:{sc:1,o:[0,0,0],mk:m.mk,dots:m.dots,ph:0}, calf:k&&{sc:0.42,o:[-0.6,-0.56,0.36],mk:k.mk,dots:k.dots,ph:1.3}}; }
+// draw one whale (and her calf): P = {x,y,z: where its middle is, head, roll, tip, len: its length, tb: tail-beat clock, t: time}
+function draw(lk,P){ const sh=Math.sin(P.head), ch=Math.cos(P.head), half=P.len/2;
+  const dep=w=>{ const x=w.o[0]*half*ch+w.o[2]*half*sh+P.x-camPx, z=-w.o[0]*half*sh+w.o[2]*half*ch+P.z-camPz; return x*fwdX+z*fwdZ; };
+  const list=lk.calf?[lk.mom,lk.calf]:[lk.mom]; if(lk.calf){ lk.calf.o[1]=-0.56+0.03*Math.sin(P.t*0.7); if(dep(lk.calf)>dep(lk.mom)) list.reverse(); }
+  ctx.save(); ctx.lineJoin='round'; for(const w of list) pass(w,P); ctx.restore(); ctx.globalAlpha=1; }
+// for checking: how far the lowest point of a whale (and her calf) is above the ground just now
+function clear(lk,P,gf){ let lo=1e9; const half=P.len/2, ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
+  for(const w of lk.calf?[lk.mom,lk.calf]:[lk.mom]){ TB=P.tb+w.ph; CUR=w.dots; build(P.t+w.ph*2); const sc=w.sc*half;
+    for(let i=0;i<vi/3;i++){ const x=MV[i*3]*sc+w.o[0]*half, y=MV[i*3+1]*sc+w.o[1]*half, z=MV[i*3+2]*sc+w.o[2]*half, y1=y*cr-z*sr, z1=y*sr+z*cr, x2=x*ct-y1*stp, y2=x*stp+y1*ct;
+      const d=y2+P.y-gf(x2*ch+z1*sh+P.x,-x2*sh+z1*ch+P.z); if(d<lo) lo=d; } }
+  return lo; }
+return {look,draw,clear,quads:()=>QUADS.length};
+})();
+
+/* ---- the ten whales of the cloud field: who they are, and how they move ---- */
+// Made on the mockup page and pasted in from its list: p pattern, s strength, u purple, z length in kid-heights, d white dots, ds dot size,
+// k head knobs, f flank patches, t tail edge, bs belly spots, bt belly tint, wr how far the white reaches, c calf.
+const WHALE_CFG=[
+  {p:43,s:75,u:16,z:30,d:100,ds:20,k:50, f:27,t:41,bs:5,  bt:27,wr:9, c:1},
+  {p:29,s:76,u:79,z:21,d:70, ds:87,k:73, f:64,t:16,bs:52, bt:11,wr:88,c:1},
+  {p:99,s:94,u:84,z:49,d:84, ds:60,k:100,f:54,t:95,bs:100,bt:0, wr:29,c:0},
+  {p:76,s:60,u:48,z:8, d:34, ds:44,k:25, f:34,t:34,bs:32, bt:78,wr:40,c:0},
+  {p:6, s:55,u:23,z:23,d:17, ds:54,k:96, f:80,t:19,bs:22, bt:0, wr:34,c:0},
+  {p:40,s:92,u:71,z:79,d:72, ds:67,k:32, f:62,t:66,bs:66, bt:26,wr:89,c:0},
+  {p:84,s:76,u:0, z:43,d:68, ds:32,k:26, f:72,t:81,bs:32, bt:68,wr:32,c:1},
+  {p:59,s:47,u:75,z:60,d:68, ds:42,k:100,f:55,t:88,bs:100,bt:98,wr:94,c:1},
+  {p:12,s:65,u:93,z:7, d:53, ds:20,k:83, f:5, t:74,bs:43, bt:88,wr:79,c:0},
+  {p:53,s:81,u:34,z:14,d:78, ds:60,k:65, f:42,t:30,bs:65, bt:28,wr:51,c:0}];
+const KID_H=98;              // the big kid's height in the world: a whale "30 kids long" is 30 of these
+const WH_GAP=45;             // how far a whale's lowest point keeps above the highest cloud under it
+const WH_CROSS_FIRST=14, WH_CROSS_EVERY=30;
+let whales=null, whCrossT=0, whCrossI=0, whMs=0;
+const whMid=()=>{ const c=boxC(); return [c[0]-SUNDX*BOX_HALF, c[1]-SUNDZ*BOX_HALF]; };   // the middle of their ring: the doorway
+// the ground as a whale must treat it: the clouds, and the doorway standing up out of them
+function whGround(x,z,mid){ const g=ground(x,z), d=Math.hypot(x-mid[0],z-mid[1]); if(d>1900) return g; const q=clamp((1900-d)/1300,0,1); return g+(DOOR_H+D2_POST+60)*q*q*(3-2*q); }
+function whalesStart(){ const mid=whMid(); whales=WHALE_CFG.map((c,i)=>{
+    const len=c.z*KID_H, R=5200+len*1.25+(h2(i,811)-0.5)*900, th=i*Math.PI*2/WHALE_CFG.length*3+(h2(i,813)-0.5)*0.5;   // every third place round the ring, so big and small are mixed
+    return {c, look:null, len, R, ph:h2(i,817)*6.28, v:110+len*0.045, x:mid[0]+R*Math.cos(th), z:mid[1]+R*Math.sin(th), y:null, psi:th+Math.PI/2, turn:0, tip:0, tb:h2(i,819)*6, mode:0, tx:0, tz:0, low:c.c?0.86:0.6}; });
+  whCrossT=time+WH_CROSS_FIRST; whCrossI=0; }
+function whalesUpdate(dt){ const mid=whMid();
+  if(time>whCrossT){ whCrossT=time+WH_CROSS_EVERY; for(let n=0;n<whales.length;n++){ const w=whales[(whCrossI+n*3)%whales.length]; if(w.mode===0){ w.mode=1; whCrossI=(whCrossI+n*3+3)%whales.length; break; } } }
+  for(const w of whales){
+    const dx=w.x-mid[0], dz=w.z-mid[1], dist=Math.hypot(dx,dz), th=Math.atan2(dz,dx); let cx, cz;
+    if(w.mode===0){ const a=th+0.32, R=w.R*(1+0.07*Math.sin(3*a+w.ph)+0.04*Math.sin(5*a+w.ph*2.1)); cx=mid[0]+R*Math.cos(a); cz=mid[1]+R*Math.sin(a); }   // round the ring: a regular path with a slow swell in and out of its own
+    else if(w.mode===1){ cx=mid[0]; cz=mid[1]; if(dist<Math.max(700,w.len*0.3)){ w.mode=2; w.tx=mid[0]+Math.cos(w.psi)*w.R; w.tz=mid[1]+Math.sin(w.psi)*w.R; } }   // leaving the ring to pass over the doorway...
+    else { cx=w.tx; cz=w.tz; if(dist>w.R*0.82) w.mode=0; }                                                                                                              // ...and straight on to the ring on the far side
+    let d=Math.atan2(cz-w.z,cx-w.x)-w.psi; d=Math.atan2(Math.sin(d),Math.cos(d));
+    const maxT=w.v/Math.max(1300,w.len*0.9), want=clamp(d*0.8,-maxT,maxT); w.turn+=(want-w.turn)*(1-Math.exp(-dt*1.2)); w.psi+=w.turn*dt;
+    const fx=Math.cos(w.psi), fz=Math.sin(w.psi); w.x+=fx*w.v*dt; w.z+=fz*w.v*dt;
+    // height: over the highest cloud anywhere under its body, flippers and calf, by its own depth plus a gap. It follows the land, and can never be lower than that.
+    let G=-1e9; const half=w.len/2, wide=w.len*0.17;
+    for(let i=-5;i<=5;i++){ const a=i*half*0.24; for(let j=-2;j<=2;j++){ const g=whGround(w.x+fx*a-fz*j*wide, w.z+fz*a+fx*j*wide, mid); if(g>G) G=g; } }
+    const lean=0.62*Math.abs(Math.sin(whRoll(w)))+1.1*Math.abs(Math.sin(w.tip)), floor=G+(w.low+lean)*half+WH_GAP,   // banking and nosing up or down swing the flippers and tail lower, so they count too
+          aim=floor+half*(0.012+0.012*Math.sin(time*0.17+w.ph)), y0=w.y;
+    w.y=w.y===null?aim:Math.max(floor,w.y+(aim-w.y)*(1-Math.exp(-dt*0.7)));
+    const vy=y0===null?0:(w.y-y0)/Math.max(dt,1e-3); w.tip+=(clamp(vy/w.v,-0.1,0.1)-w.tip)*(1-Math.exp(-dt*1.5));
+    w.tb+=dt*2.1*Math.sqrt(clamp(1500/w.len,0.16,1.4));
+  }
+}
+const whRoll=w=>clamp(w.turn*5,-0.2,0.2);
+const whP=w=>({x:w.x,y:w.y,z:w.z,head:-w.psi,roll:whRoll(w),tip:w.tip,len:w.len,tb:w.tb,t:time+w.ph*3});
+function drawWhale(w){ if(!w.look) w.look=WHALE.look(w.c); const t0=performance.now();
+  WHALE.draw(w.look,whP(w)); whMs+=performance.now()-t0; }
 function drawWorld(){
-  OCC.length=0; STRN=0;
+  OCC.length=0; STRN=0; whMs=0;
   const kd=kids.map(k=>{ const p=proj(k.x,k.z); return {k, cx:p[0], dz:p[1]}; });
   { const th=(W/2)/focal; let x0=1e9,x1=-1e9,z0=1e9,z1=-1e9;
     for(const d of [80,2600]) for(const sg of [-1,1]){ const cx=sg*(d*th+80), wx=camPx+rgtX*cx+fwdX*d, wz=camPz+rgtZ*cx+fwdZ*d; if(wx<x0)x0=wx; if(wx>x1)x1=wx; if(wz<z0)z0=wz; if(wz>z1)z1=wz; }
@@ -1200,6 +1533,7 @@ function drawWorld(){
   boxSetup();
   boxDrawn=false; boxFrontNow=false; BOXFRONT.length=0; door2Dz=(level===2&&coast)?proj(boxC()[0]-SUNDX*BOX_HALF, boxC()[1]-SUNDZ*BOX_HALF)[1]:-1;
   door2Setup(); if(D2) kd.push({door2:true, cx:0, dz:D2.key});
+  if(level===2 && whales){ const th=(W/2)/focal; for(const w of whales){ if(w.y===null) continue; const p=proj(w.x,w.z), r=w.len*0.75; if(p[1]+r<60 || Math.abs(p[0])-r>Math.max(0,p[1]+r)*th) continue; kd.push({wh:w, cx:p[0], dz:p[1], key:Math.max(61,p[1])}); } }   // whales out of sight are not drawn at all
   if(BOXV){ const B=BOXV;   // the box goes in at its farthest corner, before the ground in front of it. Whatever lies behind it is then kept out of its outline.
     for(const e of kd){ const o=e.k||e.m||e.f||e.p; let x,z,h;
       if(o){ x=o.x; z=o.z; h=ground(x,z)+(o.y||0)+(e.f?(o.h||0):0); } else if(e.b!==undefined){ x=flock.x; z=flock.z; h=flock.y; } else continue;
@@ -1208,7 +1542,7 @@ function drawWorld(){
   for(const e of kd) if(e.key===undefined) e.key=e.dz;
   kd.sort((a,b)=>b.key-a.key);
   let ki=0;
-  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; boxFrontNow=(boxDrawn && !e.hid && !e.box) || (level===2 && coast && !!e.k && (door2Dz<45 || e.dz<door2Dz || doorNear>0.6)); if(e.door2){ drawDoor2(); continue; }
+  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; boxFrontNow=(boxDrawn && !e.hid && !e.box) || (level===2 && coast && !!e.k && (door2Dz<45 || e.dz<door2Dz || doorNear>0.6)); if(e.door2){ drawDoor2(); continue; } if(e.wh){ drawWhale(e.wh); continue; }
     if(e.box){ drawBox(); boxDrawn=true; const B=BOXV; front((B.x0+B.x1)/2,(B.y0+B.y1)/2,(B.x1-B.x0)/2,(B.y1-B.y0)/2,drawBox); continue; }
     if(e.hid && boxDrawn && !e.inClip){ e.inClip=true; ctx.save(); ctx.clip(BOXV.clip,'evenodd'); ki--; kidsBeyond(e.key); ctx.restore(); continue; }
     if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
@@ -1928,13 +2262,15 @@ function nightGrade(){
   const clear=()=>{ mates.length=0; mateMsgT=-99; if(lead.fly){ flyStart=-9; land(); } if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(e){} } padPlayed=false; cv.focus(); };
   fb.addEventListener('click',()=>{ if(mates.length>=MATES_MAX) clear(); else give(MATES_MAX); label(); });
   setInterval(label,500);
-  { const bs=document.getElementById('buildStamp'), b0=bs.textContent; setInterval(()=>{ if(!box.hidden) bs.textContent=b0+' · flock '+mates.length+' · clock '+Math.round((((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN)+(nightOn?'':' (waiting)')+' · night '+night.toFixed(2); },500); }
+  { const bs=document.getElementById('buildStamp'), b0=bs.textContent; setInterval(()=>{ if(!box.hidden) bs.textContent=b0+' · flock '+mates.length+' · clock '+Math.round((((time+dayOffset)%DAY_LEN)+DAY_LEN)%DAY_LEN)+(nightOn?'':' (waiting)')+' · night '+night.toFixed(2)+(whales?' · whales '+whMs.toFixed(0)+' ms':''); },500); }
   document.getElementById('testOne').addEventListener('click',()=>give(1));
   // straight to deep night with a full flock and the feather road already laid from where the kids stand
   document.getElementById('testRoad').addEventListener('click',()=>{ give(MATES_MAX); label(); nightOn=true; dayOffset=EVENING+DUSK+5-time; pathPx=lead.x; pathPz=lead.z; pathA=1; cv.focus(); });
   document.getElementById('testSea').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast){ makeCoast(5200); coastA=1; } });
   document.getElementById('testDoor').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) makeCoast(5200);
     setTimeout(()=>{ if(!coast||level!==1) return; coastA=1; sea=1; const c=boxC(); for(const k of kids){ k.x=c[0]-SUNDX*(BOX_HALF+1500)+(k===lead?0:40); k.z=c[1]-SUNDZ*(BOX_HALF+1500); k.fly=false; k.glide=false; k.vy=0; k.y=0; } focX=lead.x; focZ=lead.z; camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; },300); cv.focus(); });
+  document.getElementById('testClouds').addEventListener('click',()=>{ if(level===2) return; document.getElementById('testDoor').click(); setTimeout(()=>{ if(level===1 && coast) throughDoor(); },700); });
+  document.getElementById('testCross').addEventListener('click',()=>{ whCrossT=0; cv.focus(); });
   document.getElementById('testBeach').addEventListener('click',()=>{ document.getElementById('testRoad').click(); if(!coast) makeCoast(5200);
     setTimeout(()=>{ if(!coast||arrived) return; coastA=1; sea=1; const d=SHORE-5200-alongRoad(lead.x,lead.z); for(const k of kids){ k.x+=SUNDX*d; k.z+=SUNDZ*d; } for(const m of mates){ m.x+=SUNDX*d; m.z+=SUNDZ*d; }
       camYaw=SUN_B; headX=SUNDX; headZ=SUNDZ; if(!lead.fly){ hop(); setTimeout(hop,250); } },300); cv.focus(); });

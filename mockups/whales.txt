@@ -1,0 +1,11 @@
+The ten whales, as saved on the Whale 3D page on 11 Oct 2026.
+slot 1: pattern 43, strength 75, purple 16, size 30 kids long, dots 100, dot size 20, knobs 50, flank 27, tail 41, belly spots 5, belly tint 27, white reach 9, calf yes
+slot 2: pattern 29, strength 76, purple 79, size 21 kids long, dots 70, dot size 87, knobs 73, flank 64, tail 16, belly spots 52, belly tint 11, white reach 88, calf yes
+slot 3: pattern 99, strength 94, purple 84, size 49 kids long, dots 84, dot size 60, knobs 100, flank 54, tail 95, belly spots 100, belly tint 0, white reach 29, calf no
+slot 4: pattern 76, strength 60, purple 48, size 8 kids long, dots 34, dot size 44, knobs 25, flank 34, tail 34, belly spots 32, belly tint 78, white reach 40, calf no
+slot 5: pattern 6, strength 55, purple 23, size 23 kids long, dots 17, dot size 54, knobs 96, flank 80, tail 19, belly spots 22, belly tint 0, white reach 34, calf no
+slot 6: pattern 40, strength 92, purple 71, size 79 kids long, dots 72, dot size 67, knobs 32, flank 62, tail 66, belly spots 66, belly tint 26, white reach 89, calf no
+slot 7: pattern 84, strength 76, purple 0, size 43 kids long, dots 68, dot size 32, knobs 26, flank 72, tail 81, belly spots 32, belly tint 68, white reach 32, calf yes
+slot 8: pattern 59, strength 47, purple 75, size 60 kids long, dots 68, dot size 42, knobs 100, flank 55, tail 88, belly spots 100, belly tint 98, white reach 94, calf yes
+slot 9: pattern 12, strength 65, purple 93, size 7 kids long, dots 53, dot size 20, knobs 83, flank 5, tail 74, belly spots 43, belly tint 88, white reach 79, calf no
+slot 10: pattern 53, strength 81, purple 34, size 14 kids long, dots 78, dot size 60, knobs 65, flank 42, tail 30, belly spots 65, belly tint 28, white reach 51, calf no
