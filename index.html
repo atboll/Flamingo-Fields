@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:08</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 12 Oct 00:14</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1737,7 +1737,7 @@ function drawBirdNew(o,sx,sy,s){ return drawBirdNewOn(ctx,o,sx,sy,s); }
 function drawBirdNewOn(MAIN,o,sx,sy,s){ let ctx=MAIN;   // o: {hx,hz heading, ph, id, y absolute height, sc size}
   const cfx=o.hx*rgtX+o.hz*rgtZ, cfz=o.hx*fwdX+o.hz*fwdZ, S=(o.tiny?s:Math.max(s,0.17))*(o.sc||1.9), ph=o.ph;
   // seen a little from above (or from below when the camera is under the flock), so the wing surfaces show instead of lying edge-on
-  const elev=o.elev!==undefined?o.elev:clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.56, ce=Math.cos(elev), se=Math.sin(elev);
+  const elev=o.elev!==undefined?o.elev:Math.min(1.3,clamp(Math.atan2(camY-o.y,Math.max(200,focal/s)),-0.7,0.7)+0.85), ce=Math.cos(elev), se=Math.sin(elev);
   const gl0=o.phase!==undefined?(o.glide||0):clamp((Math.sin(time*0.37+o.ph*3.1)-0.82)/0.12,0,1), roll=(o.roll||0)+gl0*0.06*Math.sin(time*0.7+o.ph), cr=Math.cos(roll), sr=Math.sin(roll);
   const P=(lat0,fwd,up0)=>{ const lat=lat0*cr+up0*sr, up=up0*cr-lat0*sr, d=-lat*cfx+fwd*cfz, k=S*(1-0.0065*d); return [sx+(lat*cfz+fwd*cfx)*k, sy-(up*ce+d*se)*k]; };
   const ln=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=Math.max(1,w*S); ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let j=1;j<pts.length;j++) ctx.lineTo(pts[j][0],pts[j][1]); ctx.stroke(); };
