@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:05</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:38</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -2203,14 +2203,18 @@ function drawFeather(f,sx,sy,s){
   ctx.restore();
 }
 function flamingoIcon(u,body,leg,bill){   // a small standing flamingo, drawn around the current origin; u is roughly half its body length
+  // Tall and slim, so it reads as a flamingo and not a duck: long thin legs, one of them bent back with the foot hanging, a compact body
+  // with the dark wingtip at the back, a long thin S of a neck, a small head, and the bent bill with its dark tip.
   ctx.lineCap='round'; ctx.lineJoin='round';
-  ctx.strokeStyle=leg; ctx.lineWidth=u*0.13; ctx.beginPath(); ctx.moveTo(-u*0.05,u*0.3); ctx.lineTo(-u*0.05,u*1.15); ctx.lineTo(u*0.14,u*1.15);
-  ctx.moveTo(u*0.14,u*0.3); ctx.lineTo(u*0.42,u*0.68); ctx.lineTo(u*0.1,u*0.82); ctx.stroke();
-  ctx.strokeStyle=body; ctx.lineWidth=u*0.24; ctx.beginPath(); ctx.moveTo(u*0.4,-u*0.12); ctx.bezierCurveTo(u*1.0,-u*0.4,u*0.2,-u*0.85,u*0.58,-u*1.2); ctx.stroke();
-  ctx.fillStyle=body; ctx.beginPath(); ctx.ellipse(0,0,u*0.66,u*0.42,-0.12,0,7); ctx.fill();
-  ctx.beginPath(); ctx.moveTo(-u*0.5,-u*0.2); ctx.lineTo(-u*0.98,u*0.08); ctx.lineTo(-u*0.45,u*0.22); ctx.closePath(); ctx.fill();      // tail
-  ctx.beginPath(); ctx.arc(u*0.62,-u*1.24,u*0.19,0,7); ctx.fill();
-  ctx.fillStyle=bill; ctx.beginPath(); ctx.moveTo(u*0.76,-u*1.32); ctx.lineTo(u*1.08,-u*1.06); ctx.lineTo(u*0.74,-u*1.1); ctx.closePath(); ctx.fill();
+  ctx.strokeStyle=leg; ctx.lineWidth=u*0.1; ctx.beginPath(); ctx.moveTo(u*0.02,u*0.3); ctx.lineTo(u*0.02,u*1.9); ctx.lineTo(u*0.24,u*1.9);       // the standing leg and its foot
+  ctx.moveTo(-u*0.08,u*0.3); ctx.lineTo(-u*0.52,u*0.78); ctx.lineTo(u*0.3,u*1.02); ctx.lineTo(u*0.34,u*1.22); ctx.stroke();                     // the other leg: back to the joint, forward again, the foot hanging
+  ctx.strokeStyle=body; ctx.lineWidth=u*0.17; ctx.beginPath(); ctx.moveTo(u*0.42,-u*0.1); ctx.bezierCurveTo(u*1.12,-u*0.5,-u*0.12,-u*1.25,u*0.4,-u*2.0); ctx.stroke();   // the neck
+  ctx.fillStyle=bill; ctx.beginPath(); ctx.moveTo(-u*0.42,-u*0.16); ctx.lineTo(-u*1.12,u*0.2); ctx.lineTo(-u*0.4,u*0.2); ctx.closePath(); ctx.fill();   // the dark wingtip at the back
+  ctx.fillStyle=body; ctx.beginPath(); ctx.ellipse(0,0,u*0.62,u*0.4,-0.14,0,7); ctx.fill();                                                     // the body
+  ctx.beginPath(); ctx.moveTo(-u*0.45,-u*0.22); ctx.lineTo(-u*0.92,u*0.02); ctx.lineTo(-u*0.4,u*0.2); ctx.closePath(); ctx.fill();              // drawn out a little toward the tail
+  ctx.beginPath(); ctx.arc(u*0.43,-u*2.04,u*0.165,0,7); ctx.fill();                                                                             // the head
+  ctx.beginPath(); ctx.moveTo(u*0.52,-u*2.17); ctx.lineTo(u*0.88,-u*2.02); ctx.lineTo(u*0.6,-u*1.9); ctx.closePath(); ctx.fill();               // the bill, out to the bend
+  ctx.fillStyle=bill; ctx.beginPath(); ctx.moveTo(u*0.9,-u*2.03); ctx.lineTo(u*0.88,-u*1.6); ctx.lineTo(u*0.66,-u*1.92); ctx.closePath(); ctx.fill();   // and bent down to its dark tip
 }
 function drawHud(){
   if(arrived) return;                                         // on the beach there is nothing left to count
@@ -2225,7 +2229,7 @@ function drawHud(){
     ctx.fill(); ctx.restore();
   }
   // Your flock: grey flamingos turn pink as birds join. The next one fills from the feet up while the kids fly with the wild flock.
-  { const u=10*q, gp=34*q, fy=y+36*q, fx0=W/2-(MATES_MAX-1)*gp/2, n=mates.length, since=time-mateMsgT;
+  { const u=10*q, gp=34*q, fy=y+46*q, fx0=W/2-(MATES_MAX-1)*gp/2, n=mates.length, since=time-mateMsgT;
     const prog=(flock&&!flock.gave&&!free)?clamp(flock.withKids/PASS_NEEDED,0,1):0, earning=!!(flock&&flock.joined&&!flock.gave&&!free);
     const nudge=!!(flock&&flock.s<FLOCK_NEAR&&!flock.gave&&!free&&!lead.fly&&feathers>=NEED);        // a flock is passing and the kids could go up to it
     for(let i=0;i<MATES_MAX;i++){
@@ -2238,7 +2242,7 @@ function drawHud(){
       if(i<n){ if(glow){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=12; } flamingoIcon(u,'#f8a6b9','#e98da0','#3a2a30'); }
       else {
         flamingoIcon(u,'rgba(70,62,58,.42)','rgba(70,62,58,.42)','rgba(40,34,32,.5)');
-        if(i===n && prog>0){ ctx.save(); ctx.beginPath(); ctx.rect(-u*1.4,u*1.2-prog*u*2.75,u*2.8,prog*u*2.75+2); ctx.clip();
+        if(i===n && prog>0){ ctx.save(); ctx.beginPath(); ctx.rect(-u*1.4,u*1.98-prog*u*4.3,u*2.8,prog*u*4.3+2); ctx.clip();
           ctx.shadowColor='rgba(255,170,190,.9)'; ctx.shadowBlur=earning?8:0; flamingoIcon(u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }
         else if(i===n && nudge){ ctx.globalAlpha=0.35+0.35*Math.sin(time*3); flamingoIcon(u,'#f8a6b9','#e98da0','#3a2a30'); }
       }
@@ -2246,7 +2250,7 @@ function drawHud(){
     } }
   if(time-mateMsgT<5){
     ctx.save(); ctx.globalAlpha=clamp((5-(time-mateMsgT))/1.2,0,1); ctx.font='600 '+Math.round(17*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(free?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+102*q); ctx.restore();
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(free?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+118*q); ctx.restore();
   }
   if(flock){
     const p=proj(flock.x,flock.z), off=p[1]<=0||Math.abs(p[0])>p[1]*(W/2)/focal;
@@ -2257,17 +2261,17 @@ function drawHud(){
     }
     if(flock.joined){
       ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-      ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText('Flying with the flamingos',W/2,y+78*q); ctx.restore();
+      ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText('Flying with the flamingos',W/2,y+90*q); ctx.restore();
     }
   }
   if(free && lead.fly && !(flock&&flock.joined) && time-flyStart<9){
     ctx.save(); ctx.globalAlpha=clamp(9-(time-flyStart),0,1); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
-    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag up to rise · down to descend · tap to land · blue feathers give speed':'W / ↑ to rise · S / ↓ to descend · Space to land · blue feathers give speed',W/2,y+78*q); ctx.restore();
+    ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc'; ctx.fillText(touchy?'Drag up to rise · down to descend · tap to land · blue feathers give speed':'W / ↑ to rise · S / ↓ to descend · Space to land · blue feathers give speed',W/2,y+90*q); ctx.restore();
   }
   if(ready){
     ctx.save(); ctx.font='600 '+Math.round(16*q)+'px "Klee One","Trebuchet MS",sans-serif'; ctx.textAlign='center';
     ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#fff6dc';
-    ctx.fillText(touchy?'Tap twice to fly':'Jump twice to fly  (Space, Space)',W/2,y+78*q); ctx.restore();
+    ctx.fillText(touchy?'Tap twice to fly':'Jump twice to fly  (Space, Space)',W/2,y+90*q); ctx.restore();
   }
 }
 function chime(n){
