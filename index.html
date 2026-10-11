@@ -51,7 +51,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testRoad">Test: night + feather road</button>
     <button type="button" id="testSea">Test: mountains almost open</button>
     <button type="button" id="testBeach">Test: fly to the beach</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 01:40 box</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 08:10 box</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -117,7 +117,7 @@ function boxLat(x,z){ const c=boxC(), dx=x-c[0], dz=z-c[1]; return Math.atan2(dx
 function boxFloor(k,gh){ if(!coast || level!==1) return 0; const c=boxC(), dx=k.x-c[0], dz=k.z-c[1], u=dx*SUNDZ-dz*SUNDX, v=dx*SUNDX+dz*SUNDZ;   // the height of the box top above the ground under the kid, when the kid is over it
   if(Math.abs(u)>BOX_HALF || Math.abs(v)>BOX_HALF) return 0; const fl=ground(c[0],c[1])-30+BOX_H-gh; return (k.y>=fl-45 || (k!==lead && lead.fl>0))?fl:0; }   // the small kid stays with the big one
 function boxDist(x,z){ const c=boxC(); return Math.hypot(x-c[0],z-c[1]); }
-let BOXV=null;
+let BOXV=null, boxDrawn=false;
 // Works out, for this frame, which faces of the box are seen and its outline on the screen.
 function boxSetup(){
   BOXV=null; if(!coast || level!==1 || coastA<=0.01) return;
@@ -131,18 +131,20 @@ function boxSetup(){
       if(pi) out.push(p); if(pi!==qi){ const t=(NEARZ-p[1])/(q[1]-p[1]); out.push([p[0]+(q[0]-p[0])*t,NEARZ,p[2]+(q[2]-p[2])*t]); } }
     return out.map(v=>{ const s=focal/v[1]; return [W/2+v[0]*s, horizon+(camY-v[2])*s]; }); };
   const S=(p,h)=>{ const s=focal/Math.max(p.dz,NEARZ); return [W/2+p.cx*s, horizon+(camY-h)*s]; };
-  const N=[[0,-1],[1,0],[0,1],[-1,0]], faces=[], pts=[], top=g+BOX_H;
+  const N=[[0,-1],[1,0],[0,1],[-1,0]], faces=[], pts=[], cpts=[], top=g+BOX_H;
   for(let i=0;i<4;i++){ const A=P[i], B=P[(i+1)&3], nx=ux*N[i][0]+vx*N[i][1], nz=uz*N[i][0]+vz*N[i][1], mx=(A.x+B.x)/2, mz=(A.z+B.z)/2;
-    const vis=(camPx-mx)*nx+(camPz-mz)*nz>0, pg=vis?poly([[A.cx,A.dz,g],[B.cx,B.dz,g],[B.cx,B.dz,top],[A.cx,A.dz,top]]):[];
-    faces.push({A,B,nx,nz,mx,mz,vis:vis,pg,d:(A.dz+B.dz)/2,lit:nx*SUNDX+nz*SUNDZ}); if(pg.length>2) for(const p of pg) pts.push(p); }
-  const topPg=camY>top+4?poly(P.map(p=>[p.cx,p.dz,top])):[]; if(topPg.length>2) for(const p of topPg) pts.push(p);
+    const vis=(camPx-mx)*nx+(camPz-mz)*nz>0, pg=vis?poly([[A.cx,A.dz,g-220],[B.cx,B.dz,g-220],[B.cx,B.dz,top],[A.cx,A.dz,top]]):[];
+    faces.push({A,B,nx,nz,mx,mz,vis:vis,pg,d:(A.dz+B.dz)/2,lit:nx*SUNDX+nz*SUNDZ}); if(pg.length>2){ for(const p of pg) pts.push(p); for(const p of poly([[A.cx,A.dz,g+24],[B.cx,B.dz,g+24],[B.cx,B.dz,top],[A.cx,A.dz,top]])) cpts.push(p); } }
+  const topPg=camY>top+4?poly(P.map(p=>[p.cx,p.dz,top])):[]; if(topPg.length>2) for(const p of topPg){ pts.push(p); cpts.push(p); }
   if(pts.length<3) return;
-  pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]); const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]), lo=[], up=[];
-  for(const p of pts){ while(lo.length>=2 && cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
-  for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(up.length>=2 && cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
-  lo.pop(); up.pop(); const hull=lo.concat(up); if(hull.length<3) return;
+  const cr=(o,a,b)=>(a[0]-o[0])*(b[1]-o[1])-(a[1]-o[1])*(b[0]-o[0]), hullOf=(pts)=>{ pts.sort((a,b)=>a[0]-b[0]||a[1]-b[1]); const lo=[], up=[];
+    for(const p of pts){ while(lo.length>=2 && cr(lo[lo.length-2],lo[lo.length-1],p)<=0) lo.pop(); lo.push(p); }
+    for(let i=pts.length-1;i>=0;i--){ const p=pts[i]; while(up.length>=2 && cr(up[up.length-2],up[up.length-1],p)<=0) up.pop(); up.push(p); }
+    lo.pop(); up.pop(); return lo.concat(up); };
+  const hull=hullOf(pts), ch=hullOf(cpts); if(hull.length<3 || ch.length<3) return;
+  const clip=new Path2D(); clip.rect(-20,-20,W+40,H+40); clip.moveTo(ch[0][0],ch[0][1]); for(let i=1;i<ch.length;i++) clip.lineTo(ch[i][0],ch[i][1]); clip.closePath();   // everything but the box, down to where it meets the sand
   let x0=1e9,x1=-1e9,y0=1e9,y1=-1e9; for(const p of hull){ if(p[0]<x0)x0=p[0]; if(p[0]>x1)x1=p[0]; if(p[1]<y0)y0=p[1]; if(p[1]>y1)y1=p[1]; }
-  BOXV={P,S,g,faces,hull,near,far,x0,x1,y0,y1,c,topPg};
+  BOXV={P,S,g,faces,hull,near,far,x0,x1,y0,y1,c,topPg,clip};
   // its shadow, thrown back along the road away from the moon, laid over the dunes
   { const NS=16, Lf=[], Rt=[]; let sn=1e9, sf=-1e9;
     for(let i=0;i<=NS;i++){ const al=-BOX_HALF-BOX_SHADOW*(1-i/NS)*1, row=[];
@@ -465,6 +467,8 @@ function update(dt){
   const hy=lead.fly?lead.y:Math.max(0,lead.y-(lead.fl||0)), stand=lead.y-hy;   // standing on the box, the camera treats its top as the ground
   lift+=(clamp(hy/240,0,2.7)-lift)*(1-Math.exp(-dt*2.5)); camBack=CAM_BACK+Math.min(lift,1.4)*170+lead.sprint*(lead.flyT||0)*110; horizon=H*(0.5-0.1*Math.min(lift,1.7));
   camPx=focX-fwdX*camBack; camPz=focZ-fwdZ*camBack;
+  if(BOX && coast && level===1){ const c=boxC(), top=ground(c[0],c[1])-30+BOX_H, R=BOX_HALF+45;   // the camera tries not to back into the box: it closes up on the kids, as far as it decently can
+    if(camY<top+40) for(let it=0, cb=camBack; it<14; it++){ const dx=camPx-c[0], dz=camPz-c[1]; if(Math.abs(dx*SUNDZ-dz*SUNDX)>R || Math.abs(dx*SUNDX+dz*SUNDZ)>R) break; if(cb<=210) break; cb=Math.max(210,cb*0.8); camPx=focX-fwdX*cb; camPz=focZ-fwdZ*cb; } }
   { const gt=Math.max(ground(focX,focZ), ground(camPx,camPz)-15)+CAM_H+stand+(hy-Math.min(hy*0.15,95))*Math.min(1,lift*1.6); camY+=(gt-camY)*(1-Math.exp(-dt*4)); }
 }
 
@@ -1001,7 +1005,7 @@ function updateCoast(dt){
   if(!coast && pathOn && lead.fly) makeCoast(COAST_DIST);
   if(!coast) return;
   for(const k of kids){ const lim=SHORE+(k.fly?9000:45), cs=coastAlong(k.x,k.z); if(cs>lim){ k.x-=SUNDX*(cs-lim); k.z-=SUNDZ*(cs-lim); } }   // ankle-deep on foot; on the wing the kids are turned gently back long before this
-  { const c=boxC(), top=ground(c[0],c[1])-30+BOX_H; for(const k of kids){ const dx=k.x-c[0], dz=k.z-c[1], u=dx*SUNDZ-dz*SUNDX, v=dx*SUNDX+dz*SUNDZ, R=BOX_HALF+30;   // nobody passes through the box; from above it is a floor
+  { const c=boxC(), top=ground(c[0],c[1])-30+BOX_H; for(const k of kids){ const dx=k.x-c[0], dz=k.z-c[1], u=dx*SUNDZ-dz*SUNDX, v=dx*SUNDX+dz*SUNDZ, R=BOX_HALF+80;   // nobody passes through the box, and the kids keep a step clear of its walls; from above it is a floor
       if(Math.abs(u)<R && Math.abs(v)<R && ground(k.x,k.z)+k.y<top-45 && !(k!==lead && lead.fl>0)){ const pu=R-Math.abs(u), pv=R-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv; k.x+=SUNDZ*du+SUNDX*dv; k.z+=-SUNDX*du+SUNDZ*dv; } } }
   updateShore(dt);
   // the kids' own flock, a few moments after LEVEL 2 shows: they walk off down the beach and are flamingos of the shore from then on
@@ -1071,15 +1075,17 @@ function drawWorld(){
   if(pathA>0.01){ const al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
     for(let j=Math.floor((al-1100)/ROAD_STEP), j1=Math.floor((al+ROAD_END)/ROAD_STEP); j<=j1; j++){ const q=trailFeather(j,al); if(!q) continue; const p=proj(q.x,q.z); if(p[1]>60 && Math.abs(p[0])<p[1]*(W/2)/focal+300) kd.push({f:q, cx:p[0], dz:p[1]}); } }
   boxSetup();
-  if(BOXV){ const B=BOXV;   // the box goes in at its nearest corner; whatever stands in front of one of its faces is drawn after it
-    for(const e of kd){ if(e.dz<=B.near) continue; const o=e.k||e.m||e.f||e.p; let x,z,h;
+  boxDrawn=false;
+  if(BOXV){ const B=BOXV;   // the box goes in at its farthest corner, before the ground in front of it. Whatever lies behind it is then kept out of its outline.
+    for(const e of kd){ const o=e.k||e.m||e.f||e.p; let x,z,h;
       if(o){ x=o.x; z=o.z; h=ground(x,z)+(o.y||0)+(e.f?(o.h||0):0); } else if(e.b!==undefined){ x=flock.x; z=flock.z; h=flock.y; } else continue;
-      if(boxInFront(x,z,h)) e.key=B.near-0.5; }
-    kd.push({box:true, cx:0, dz:B.near}); }
+      if(!boxInFront(x,z,h)) e.hid=true; }
+    kd.push({box:true, cx:0, dz:B.far+1}); }
   for(const e of kd) if(e.key===undefined) e.key=e.dz;
   kd.sort((a,b)=>b.key-a.key);
   let ki=0;
-  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; if(e.box){ drawBox(); const B=BOXV; front((B.x0+B.x1)/2,(B.y0+B.y1)/2,(B.x1-B.x0)/2,(B.y1-B.y0)/2,drawBox); continue; }
+  const kidsBeyond=(depth)=>{ while(ki<kd.length && kd[ki].key>=depth){ const e=kd[ki++]; if(e.box){ drawBox(); boxDrawn=true; const B=BOXV; front((B.x0+B.x1)/2,(B.y0+B.y1)/2,(B.x1-B.x0)/2,(B.y1-B.y0)/2,drawBox); continue; }
+    if(e.hid && boxDrawn && !e.inClip){ e.inClip=true; ctx.save(); ctx.clip(BOXV.clip,'evenodd'); ki--; kidsBeyond(e.key); ctx.restore(); continue; }
     if(e.m){ const s=focal/e.dz, m=e.m, g=ground(m.x,m.z), X=W/2+e.cx*s;
       if(m.beach && m.y<=6 && m.open<=0.03 && s<0.09){ drawBirdTiny(m,X,horizon+(camY-g)*s,s); continue; }
       if(m.y>6||m.open>0.03) OCC.push(X,horizon+(camY-g-m.y-25)*s,48*s,20*s,e.dz); else OCC.push(X,horizon+(camY-g)*s-42*s,15*s,46*s,e.dz);
@@ -1149,6 +1155,7 @@ function drawWorld(){
       const dn=b.a+bn*sp, dz=dn+sp/2, nearP=profile(dn);
       SD[STRN]=dn+sp; SY[STRN]=farP; STRN++;
       kidsBeyond(dn+sp);
+      const bc=boxDrawn && BOXV; if(bc){ ctx.save(); ctx.clip(BOXV.clip,'evenodd'); }   // ground lying behind the box stays behind it
       // the strip of bare ground under this row, so a hill hides whatever lies behind it
       ctx.fillStyle=groundColor(clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), clamp(1+farP[NX+1]*1.8*(1-0.75*clamp((dz/hk-2500)/11000,0,1))*(1-hiF*clamp((dz-900)/2500,0,1)),0.72,1.25));
       ctx.beginPath(); ctx.moveTo(0,farP[0]-0.5);
@@ -1158,13 +1165,14 @@ function drawWorld(){
       if(coast) coastStrip(dn+sp, dn, farP, nearP, NX, clamp(CAM_H*hk*focal/dz/(H-horizon),0,1), farP[NX+1]);
       if(coast && BOXV && BOXV.sh && dn<BOXV.shFar && dn+sp>BOXV.shNear) boxShadowStrip(farP,nearP,NX);
       farP=nearP;
-      const paths=bins[bn]; if(!paths) continue;
+      const paths=bins[bn]; if(!paths){ if(bc) ctx.restore(); continue; }
       const hz=Math.pow(clamp((dz/hk-320)/9000,0,1),0.6)*0.96, near=clamp((330-dz)/220,0,1)*0.55;
       ctx.lineWidth=Math.max(1,2*(focal/dz)*b.lw);
       for(let c=0;c<5;c++){
         const BL=level===2?BLADE2:BLADE, col = near>0 ? mix(BL[c],level===2?DEEP2:DEEP,near) : mix(BL[c],level===2?HAZE2:HAZE,hz);
         if(b.fill||level===2){ ctx.fillStyle=col; ctx.fill(paths[c]); } else { ctx.strokeStyle=col; ctx.stroke(paths[c]); }
       }
+      if(bc) ctx.restore();
     }
   }
   kidsBeyond(-1e9);
