@@ -54,7 +54,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">Test: stand before the door</button>
     <button type="button" id="testClouds">Test: go to the clouds</button>
     <button type="button" id="testCross">Test: whale crosses now</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 20:40</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 21:00</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -1182,8 +1182,7 @@ function paintMoon(){
    The whale from the mockup page (mockups/whale-3d.html), carried over whole: one solid shape built from rings along a bending spine,
    with each whale's own markings, dots, belly and tail edge worked out from its settings. Everything here is private to WHALE. */
 const WHALE=(()=>{
-const bg='day', NEAR=45; let ctx=null, GROW=0.55;   // ctx: where the whale is being painted just now (the picture itself, or the side canvas for a far one)
-const off=document.createElement('canvas'), octx=off.getContext('2d');   // the game darkens the whole picture at night, so the whales are always painted in their day colours
+const bg='day', NEAR=45; let ctx=null, HZ=0; const HC=[0,0,0];   // HZ, HC: how much haze lies over the whale being painted, and the colour of the sky behind it   // the game darkens the whole picture at night, so the whales are always painted in their day colours
 /* ---- the whale's shape: nose at x=+1, tail stock at x=-1, y up, z out to its sides ---- */
 // The same outline as the flat whale: heights above and below a straight line from jaw tip to tail stock, by s (0 nose .. 1 stock).
 const PT=[[0,0.012],[0.012,0.03],[0.05,0.054],[0.11,0.08],[0.17,0.098],[0.21,0.108],[0.24,0.112],[0.32,0.13],[0.45,0.15],[0.56,0.142],[0.63,0.14],[0.7,0.112],[0.8,0.07],[0.9,0.04],[1,0.026]];
@@ -1344,6 +1343,8 @@ function shade(kind,l,mix,pm,lm){ let r,g,b;
   if(kind===DARK){ dark(l,pm,lm); r=RGB[0]; g=RGB[1]; b=RGB[2]; }
   else{ const c=COL[bg==='night'?'night':'day'][PALE]; r=toneT(c,l,0)*TINT[0]; g=toneT(c,l,1)*TINT[1]; b=toneT(c,l,2)*TINT[2];
     if(mix>0){ dark(l,pm,lm); r+=(RGB[0]-r)*mix; g+=(RGB[1]-g)*mix; b+=(RGB[2]-b)*mix; } }
+  if(HZ>0){ const lum=0.3*r+0.59*g+0.11*b, sat=1-0.55*HZ, a=HZ*(1.15-0.5*lum/255);   // distance: a little greyer, and drifting toward the sky behind it, the darks more than the whites
+    r=lum+(r-lum)*sat; g=lum+(g-lum)*sat; b=lum+(b-lum)*sat; r+=(HC[0]-r)*a; g+=(HC[1]-g)*a; b+=(HC[2]-b)*a; }
   return 'rgb('+Math.round(clamp(r,0,255))+','+Math.round(clamp(g,0,255))+','+Math.round(clamp(b,0,255))+')'; }
 
 /* ---- each whale's own markings: soft patches worked out from where a patch of skin sits and the whale's pattern number ---- */
@@ -1416,7 +1417,7 @@ function pass(w,P){
       const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3);
       ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
       ctx.fillStyle=E[6]==='d'?(night?'#232658':'#33377a'):E[6]==='w'?(night?'#dfe6f2':'#ffffff'):E[6]==='k'?(night?'#5b6090':'#7d83b0'):(night?'#3a3f6a':'#474c7c');
-      ctx.beginPath(); ctx.ellipse(0,0,E[4]*E[5],E[4],0,0,6.2832); ctx.fill(); ctx.restore(); continue; }
+      ctx.globalAlpha=1-Math.min(0.7,HZ*2.2); ctx.beginPath(); ctx.ellipse(0,0,E[4]*E[5],E[4],0,0,6.2832); ctx.fill(); ctx.restore(); continue; }   // fine detail fades with distance
     if(it[1]<0){   // the eye, drawn lying on the skin: a dark almond with a fine pale rim, a soft paler lid round it and two creases arching over it
       const E=it[2], S=i=>{ const k=E[i]*3, z=SV[k+2]; return [cx+SV[k]*f/z, cy-SV[k+1]*f/z]; }, p=S(0), fw=S(2), up=S(3), R=0.014;   // (the three points are 0.02 apart on the whale itself, so the drawing scales with it)
       ctx.save(); ctx.transform((fw[0]-p[0])/0.02,(fw[1]-p[1])/0.02,(up[0]-p[0])/0.02,(up[1]-p[1])/0.02,p[0],p[1]);
@@ -1432,11 +1433,11 @@ function pass(w,P){
     const Q=QUADS[it[1]], col=shade(Q[4],it[2],Math.max(Q[6],MK[it[1]*3+2]),MK[it[1]*3],MK[it[1]*3+1]); let X=[],Y=[];
     for(let k=0;k<4;k++){ const i=Q[k]*3, z=SV[i+2]; X[k]=cx+SV[i]*f/z; Y[k]=cy-SV[i+1]*f/z; }
     { const mx=(X[0]+X[1]+X[2]+X[3])/4, my=(Y[0]+Y[1]+Y[2]+Y[3])/4;   // each patch is spread a hair past its edges so no seams show between neighbours (one fill, where the mockup page used a fill and an outline)
-      for(let k=0;k<4;k++){ const dx=X[k]-mx, dy=Y[k]-my, l=Math.hypot(dx,dy)||1; X[k]+=dx/l*GROW; Y[k]+=dy/l*GROW; } }
+      for(let k=0;k<4;k++){ const dx=X[k]-mx, dy=Y[k]-my, l=Math.hypot(dx,dy)||1; X[k]+=dx/l*0.55; Y[k]+=dy/l*0.55; } }
     ctx.fillStyle=col; ctx.beginPath(); ctx.moveTo(X[0],Y[0]); ctx.lineTo(X[1],Y[1]); ctx.lineTo(X[2],Y[2]); ctx.lineTo(X[3],Y[3]); ctx.closePath(); ctx.fill();
     if(Q[5]){ const G=Q[5], sq=Q[10], lw=Math.max(0.5,0.004*sc*f/it[0]); ctx.strokeStyle=gcol;   // the grooves end on a curve: longest along the middle of the belly, shorter out to the sides, thinning out at both ends
       for(let k=0;k<G.length;k+=3){ const r=G[k+2], wv=Math.min(1,(GE[r]-sq)/0.07,(sq-GS[r])/0.025); if(wv<=0) continue;
-        const i1=G[k]*3, i2=G[k+1]*3, z1=SV[i1+2], z2=SV[i2+2]; ctx.lineWidth=lw*(0.35+0.65*wv); ctx.globalAlpha=Math.min(1,wv*2.5);
+        const i1=G[k]*3, i2=G[k+1]*3, z1=SV[i1+2], z2=SV[i2+2]; ctx.lineWidth=lw*(0.35+0.65*wv); ctx.globalAlpha=Math.min(1,wv*2.5)*(1-Math.min(0.7,HZ*2.2));
         ctx.beginPath(); ctx.moveTo(cx+SV[i1]*f/z1,cy-SV[i1+1]*f/z1); ctx.lineTo(cx+SV[i2]*f/z2,cy-SV[i2+1]*f/z2); ctx.stroke(); }
       ctx.globalAlpha=1; }
   }
@@ -1450,15 +1451,8 @@ function look(c){ const one=(q,few)=>{ const mk=new Float32Array(QUADS.length*3)
 function draw(lk,P){ const sh=Math.sin(P.head), ch=Math.cos(P.head), half=P.len/2;
   const dep=w=>{ const x=w.o[0]*half*ch+w.o[2]*half*sh+P.x-camPx, z=-w.o[0]*half*sh+w.o[2]*half*ch+P.z-camPz; return x*fwdX+z*fwdZ; };
   const list=lk.calf?[lk.mom,lk.calf]:[lk.mom]; if(lk.calf){ lk.calf.o[1]=-0.56+0.03*Math.sin(P.t*0.7); if(dep(lk.calf)>dep(lk.mom)) list.reverse(); }
-  const main=P.ctx, k=P.soft||1;
-  if(k<1.15){ ctx=main; GROW=0.55; ctx.save(); ctx.lineJoin='round'; for(const w of list) pass(w,P); ctx.restore(); ctx.globalAlpha=1; return; }
-  // far off: painted small on a side canvas and laid back enlarged, which softens it, more the farther away it is
-  const sc=focal/P.dz, sx=W/2+P.cxc*sc, sy=horizon+(camY-P.y)*sc, r=0.66*P.len*sc+4;
-  const x0=Math.max(0,Math.floor(sx-r)), y0=Math.max(0,Math.floor(sy-r)), x1=Math.min(W,Math.ceil(sx+r)), y1=Math.min(H,Math.ceil(sy+r)); if(x1<=x0 || y1<=y0) return;
-  const ow=Math.ceil((x1-x0)/k)+2, oh=Math.ceil((y1-y0)/k)+2; if(off.width<ow) off.width=ow; if(off.height<oh) off.height=oh;
-  octx.setTransform(1,0,0,1,0,0); octx.clearRect(0,0,ow,oh); octx.setTransform(1/k,0,0,1/k,1-x0/k,1-y0/k);
-  ctx=octx; GROW=0.55*k; ctx.lineJoin='round'; for(const w of list) pass(w,P); ctx.globalAlpha=1; ctx=main;
-  main.drawImage(off,0,0,ow,oh,x0-k,y0-k,ow*k,oh*k); }
+  ctx=P.ctx; HZ=P.haze||0; if(P.sky){ HC[0]=P.sky[0]; HC[1]=P.sky[1]; HC[2]=P.sky[2]; }
+  ctx.save(); ctx.lineJoin='round'; for(const w of list) pass(w,P); ctx.restore(); ctx.globalAlpha=1; }
 // for checking: how far the lowest point of a whale (and her calf) is above the ground just now
 function clear(lk,P,gf){ let lo=1e9; const half=P.len/2, ch=Math.cos(P.head), sh=Math.sin(P.head), cr=Math.cos(P.roll), sr=Math.sin(P.roll), ct=Math.cos(P.tip), stp=Math.sin(P.tip);
   for(const w of lk.calf?[lk.mom,lk.calf]:[lk.mom]){ TB=P.tb+w.ph; CUR=w.dots; build(P.t+w.ph*2); const sc=w.sc*half;
@@ -1521,10 +1515,15 @@ function whalesUpdate(dt){ const mid=whMid();
     w.tb+=dt*2.1*(w.c.tb!==undefined?w.c.tb/100:Math.sqrt(clamp(1500/w.len,0.16,1.4)));   // its own tail beat from the mockup page; one saved without it beats slower the bigger it is
   }
 }
+const WH_SKY=[[0,0x2a,0x8a,0x88],[0.4,0x4f,0xa9,0x99],[0.76,0x93,0xc7,0x9e],[1,0xf0,0xd8,0x98]];   // the sky's colours from the top of the picture down to the horizon (as drawSky paints them)
 const whRoll=w=>clamp(w.turn*5,-0.2,0.2);
 const whP=w=>({x:w.x,y:w.y,z:w.z,head:-w.psi,roll:whRoll(w),tip:w.tip,len:w.len,tb:w.tb,t:time+w.ph*3});
 function drawWhale(w,e){ if(!w.look) w.look=WHALE.look(w.c); const t0=performance.now(), P=whP(w);
-  P.ctx=ctx; P.cxc=e.cx; P.dz=e.dz; P.soft=1+clamp((e.dz-3200)/9000,0,1)*3.4*Math.max(0.7,W/1100);   // sharp when near, softer and softer with distance
+  // distance haze, very slight: nothing for a long way, then growing with the square of the distance to about a quarter at the far side of the ring.
+  // The sky's own colour at the height the whale is seen at: teal high up, pale gold at the horizon.
+  const q=clamp((e.dz-2500)/11000,0,1), sy=clamp((horizon+(camY-w.y)*focal/Math.max(60,e.dz))/Math.max(1,horizon),0,1);
+  let i=1; while(i<WH_SKY.length-1 && WH_SKY[i][0]<sy) i++; const A=WH_SKY[i-1], B=WH_SKY[i], f=clamp((sy-A[0])/(B[0]-A[0]),0,1);
+  P.ctx=ctx; P.haze=0.26*q*q; P.sky=[A[1]+(B[1]-A[1])*f, A[2]+(B[2]-A[2])*f, A[3]+(B[3]-A[3])*f];
   WHALE.draw(w.look,P); whMs+=performance.now()-t0; }
 function drawWorld(){
   OCC.length=0; STRN=0; whMs=0;
