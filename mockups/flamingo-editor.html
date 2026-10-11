@@ -367,7 +367,15 @@ function drawBirdNew(o,sx,sy,s){   // o: {hx,hz heading, ph, id, y absolute heig
         for(let i=1;i<=22;i++){ const p=X(i/22,1); ctx.lineTo(p[0],p[1]); }
         for(let i=66;i>=0;i--){ const u=i/66, fr=(u*6.2+0.3)%1, on=clamp((u-0.1)/0.08,0,1)*clamp((0.94-u)/0.08,0,1), p=X(u,clamp(c-0.36*Math.pow(fr,1.5)*on,-1,1)); ctx.lineTo(p[0],p[1]); }
         ctx.closePath(); ctx.fill();
-        if(elev>-0.1){ ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28, w*0.98, Math.PI, 0); ctx.closePath(); ctx.fill(); } }   // seen end-on, the top of the round breast is bright too
+        if(elev>-0.1){ ctx.beginPath(); ctx.arc(f[0]+dx*0.28, f[1]+dy*0.28, w*0.98, Math.PI, 0); ctx.closePath(); ctx.fill(); }   // seen end-on, the top of the round breast is bright too
+        // Body texture, after the reference picture: soft overlapping feather flaps along the flank, each a rounded lobe opening toward the tail
+        // with a little shade under its edge. Two staggered rows lie on the bright back and one on the dark belly, growing larger toward the rear.
+        const lobes=(b0,h,col,off,n)=>{ if(h<0.09) return; ctx.strokeStyle=col; ctx.lineCap='round';
+          for(let i=0;i<n;i++){ const u=0.3+0.56*(i+off)/n, g=0.75+0.5*(i/n), du=0.075*g, hh=h*Math.min(1,g), a=X(u,clamp(b0+hh,-0.97,0.97)), m=X(u+du*1.7,b0), z=X(u,clamp(b0-hh,-0.97,0.97));
+            ctx.lineWidth=Math.max(0.5,0.42*S); ctx.beginPath(); ctx.moveTo(a[0],a[1]); ctx.quadraticCurveTo(m[0],m[1],z[0],z[1]); ctx.stroke(); } };
+        { const hi=1-c, lo=c-0.36+1;
+          lobes(c+hi*0.34, hi*0.17, '#f284ad', 0.5, 5); lobes(c+hi*0.68, hi*0.15, '#f58cb3', 0, 5);
+          lobes(c-0.36-lo*0.45, lo*0.2, '#dc6a97', 0.25, 4); } }
     }
     if(cfz>0) tail();                                                                             // flying away: the tail is the nearest part of the body
   };
