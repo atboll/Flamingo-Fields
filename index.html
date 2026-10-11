@@ -49,7 +49,7 @@ body{background:var(--wheat-shade);color:var(--ink);font-family:var(--font-displ
     <button type="button" id="testDoor">At door to level 2</button>
     <button type="button" id="testOne">+1 flamingo</button>
     <button type="button" id="testFlock">Remove flock</button>
-    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:42</span>
+    <span id="buildStamp" style="font:11px sans-serif;color:#fff;opacity:.75;text-shadow:0 1px 2px #000">build 11 Oct 23:45</span>
   </div>
   <p class="hint" id="hint"><span id="hintText"></span></p>
 </div>
@@ -374,8 +374,8 @@ function updateMates(dt){
   const air=lead.fly||(lead.glide && lead.y-(lead.fl||0)>30);   // they fly when the kids fly, and come down with them afterwards; a hop does not lift them
   mates.forEach((m,i)=>{
     // a place behind the kids, two abreast, wider and looser in the air
-    const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*18;
-    const tight=1-0.35*pathAlign, back=((air?80:85)+row*(air?60:52))*tight, lat=(side*((air?75:58)+row*(air?55:26))+wob)*tight;
+    const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*(air?25:18);
+    const tight=1-0.35*pathAlign, back=((air?112:85)+row*(air?84:52))*tight, lat=(side*((air?105:58)+row*(air?77:26))+wob)*tight;   // in the air they keep well apart, like the wild flock
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
     const dx=tx-m.x, dz=tz-m.z, d=Math.hypot(dx,dz), want=Math.min(m.y>3?1900:400,d*2.2), e=1-Math.exp(-dt*3.5);
     m.vx+=((d>2?dx/d*want:0)-m.vx)*e; m.vz+=((d>2?dz/d*want:0)-m.vz)*e;
