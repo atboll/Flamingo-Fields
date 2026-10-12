@@ -154,16 +154,18 @@ function inPlace(clip){ const t=clip.tracks.find(k=>/Hips\.position$/.test(k.nam
    - the air she runs or flies through pushing both back (the skirt toward her feet when she flies);
    - swing: a soft spring that lags behind her when she speeds up, stops, turns or lands, then settles.
    It is not real cloth, so nothing collides with her legs. */
-const WIND={uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()}};
+const WIND={uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},uPh:{value:new THREE.Vector4()},uPh5:{value:0}};
+/* each wave's position is advanced a little every frame at its current speed, so a change of speed never makes the waves jump */
+function wavesStep(dt){ const f=WIND.uFlow.value, p=WIND.uPh.value; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); WIND.uPh5.value+=dt*(5+8*f); }
 function addWind(mat){
   mat.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,WIND);
-    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nuniform float uTime,uFlow,uAmt,uHair;\nuniform vec3 uSwing;\n'+sh.vertexShader
+    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing;\nuniform vec4 uPh;\n'+sh.vertexShader
       .replace('#include <skinning_vertex>',`
       float sw=aSkirt*uAmt, hw=aHair*uHair; vec3 bp=position; float f=uFlow, ang=atan(bp.x,bp.z), ph=ang*2.0+bp.y*9.0;
       float gust=0.65+0.35*sin(uTime*0.9)*sin(uTime*2.3+1.0);
       if(sw>0.0){
-        float wave=sin(uTime*(3.2+5.0*f)+ph)*(0.024+0.040*f)                    /* big slow waves round the hem */
-                  +sin(uTime*(6.5+7.0*f)-ang*4.0-bp.y*15.0)*(0.008+0.014*f)    /* smaller ripples on top */
+        float wave=sin(uPh.x+ph)*(0.024+0.040*f)                    /* big slow waves round the hem */
+                  +sin(uPh.y-ang*4.0-bp.y*15.0)*(0.008+0.014*f)    /* smaller ripples on top */
                   +sin(uTime*1.1+bp.x*3.0)*0.022*gust;                          /* the breeze swaying it */
         vec2 rad=normalize(bp.xz+vec2(0.0,-0.01)+vec2(1e-4));
         float billow=1.0-0.65*clamp((f-0.55)/0.45,0.0,1.0);          /* in flight the air presses it to her legs */
@@ -171,17 +173,17 @@ function addWind(mat){
       if(hw>0.0){
         vec3 hp=bp-vec3(0.0,0.69,-0.01); vec3 hn=normalize(hp+vec3(1e-4));
         float hph=hp.x*9.0+hp.y*7.0+hp.z*8.0;
-        float fl=sin(uTime*(2.4+6.0*f)+hph)*(0.010+0.020*f)+sin(uTime*(5.0+8.0*f)-hph*1.7)*0.006*(0.3+f);
+        float fl=sin(uPh.w+hph)*(0.010+0.020*f)+sin(uPh5-hph*1.7)*0.006*(0.3+f);
         transformed+=hw*(hn*fl+vec3(sin(uTime*1.3+hph)*0.010*gust,0.0,0.0)); }
       #include <skinning_vertex>
       if(sw>0.0){
-        transformed.z-=sw*((0.014+0.055*f*f)*gust*(1.0+0.6*f) + 0.022*f*f*(0.5+0.5*sin(uTime*(7.0+6.0*f)+ph)));
+        transformed.z-=sw*((0.014+0.055*f*f)*gust*(1.0+0.6*f) + 0.022*f*f*(0.5+0.5*sin(uPh.z+ph)));
         transformed+=sw*uSwing; }
       if(hw>0.0){
         transformed.z-=hw*(0.008+0.07*f*f)*gust;
         transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'clothwind2'; return mat;
+  mat.customProgramCacheKey=()=>'clothwind3'; return mat;
 }
 /* the swing spring: driven by how she accelerates, seen from her own body (forward, sideways, up) */
 const SW={x:0,y:0,z:0,vx:0,vy:0,vz:0,px:0,py:0,pz:0,ox:0,oy:0,oz:0,init:false};
@@ -262,7 +264,7 @@ function step(dt){
   runA.timeScale=0.55+0.45*r;   // the animation plays at its own pace; only the distance covered is boosted
   WIND.uTime.value+=dt;
   const gf=jumping?0.65:0.15+0.4*r; WIND.uFlow.value=gf+(1-gf)*fw;
-  swingStep(dt);
+  swingStep(dt); wavesStep(dt);
 }
 
 /* ---------- camera ---------- */
