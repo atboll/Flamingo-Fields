@@ -134,13 +134,20 @@ function paintCloud(seed,wisp,warm){
   g.putImageData(img,0,0); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
 const cloudArt=[]; [0,0.06,0.3,-0.06].forEach((w,i)=>cloudArt.push(paintCloud(101+i*37,false,w))); [0.1,0.26,0].forEach((w,i)=>cloudArt.push(paintCloud(900+i*53,true,w)));
 const clouds=new THREE.Group(); scene.add(clouds);
-{ const r=rng(7), TAU=Math.PI*2, list=[];
-  for(let i=0;i<12;i++){ const v=0.4+r()*0.6; list.push({th:(i+r()*0.7)/12*TAU, v, k:0.45+r()*0.3+v*0.45, art:i%4}); }
-  for(let i=0;i<16;i++) list.push({th:r()*TAU, v:0.1+r()*0.85, k:0.3+r()*0.45, art:4+i%3});
-  const RC=4200;
-  for(const c of list){ const m=new THREE.SpriteMaterial({map:cloudArt[c.art], fog:false, depthWrite:false, transparent:true, opacity:0.95});
-    const s=new THREE.Sprite(m), w=RC*Math.tan(Math.min(1.0,640*c.k/585)*0.55), el=0.02+c.v*0.3;
-    s.scale.set(w,w*240/640,1); s.position.set(-Math.sin(c.th)*RC*Math.cos(el), RC*Math.sin(el), Math.cos(c.th)*RC*Math.cos(el)); s.renderOrder=-9; clouds.add(s); } }
+/* the 2D game's own clouds: the same list, sizes and heights over the horizon, and the same slow drift sideways round the sky,
+   the bigger (nearer) ones drifting faster, so the sky moves with depth */
+const cloudList=[]; const RC=4200;
+{ const r=rng(7), TAU=Math.PI*2;
+  for(let i=0;i<12;i++){ const v=0.4+r()*0.6; cloudList.push({th:(i+r()*0.7)/12*TAU, v, k:0.45+r()*0.3+v*0.45, art:i%4, drift:4+r()*5}); }
+  for(let i=0;i<16;i++) cloudList.push({th:r()*TAU, v:0.1+r()*0.85, k:0.3+r()*0.45, art:4+i%3, drift:7+r()*9});
+  cloudList.sort((a,b)=>a.k-b.k);
+  for(const c of cloudList){ const m=new THREE.SpriteMaterial({map:cloudArt[c.art], fog:false, depthWrite:false, transparent:true, opacity:0.95});
+    const s=new THREE.Sprite(m), aw=640*c.k/(620*0.9), w=RC*aw;          /* the game draws them 640·k·H/620 wide, its focal length is 0.9·H */
+    s.scale.set(w,w*240/640,1); s.renderOrder=-9; c.sprite=s; c.ah=240*c.k/(620*0.9); clouds.add(s); } }
+function moveClouds(t){ for(const c of cloudList){ const th=c.th-t*c.drift*c.k*0.0015,     /* the game's drift, in radians a second */
+    el=Math.atan(0.5*(1-c.v)/0.9+0.1*c.ah);                                                      /* its height: v=1 sits on the horizon, v=0 at the top of the view */
+    c.sprite.position.set(-Math.sin(th)*RC*Math.cos(el), RC*Math.sin(el), Math.cos(th)*RC*Math.cos(el)); } }
+moveClouds(0);
 
 /* ---------- the far ranges: the game's three rings of blue-green hills, dipping between two peaks under the sun ---------- */
 const RANGES=[
@@ -504,7 +511,7 @@ function frame(now){
     stepKid(boy,dt,followInput(girl,boy));
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
-    followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock);
+    followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock); moveClouds(clock);
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
