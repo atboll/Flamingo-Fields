@@ -49,6 +49,7 @@ button[aria-pressed="true"]{background:#3d4a52;color:#fff;border-color:#3d4a52}
   </div>
   <div class="row"><span>Skirt wind</span><input id="wind" type="range" min="0" max="250" value="100" aria-label="How much the girl's skirt moves in the wind"></div>
   <div class="row"><span>Hair wind</span><input id="hairwind" type="range" min="0" max="250" value="100" aria-label="How much both kids' hair moves in the wind"></div>
+  <div class="row"><span>Girl height</span><input id="gsize" type="range" min="80" max="115" value="100" aria-label="The girl's height, from 80 to 115 percent"></div>
   <div class="row"><span>Boy size</span><input id="bsize" type="range" min="70" max="100" value="87" aria-label="The boy's size, from 70 to 100 percent"></div>
   <div class="row"><span>Boy head</span><input id="bhead" type="range" min="100" max="125" value="112" aria-label="The boy's head size, bigger looks younger"></div>
   <div class="row"><span>Boy rolls</span><input id="roll" type="range" min="0" max="100" value="35" aria-label="How often the boy trips and rolls when he lands"></div>
@@ -103,7 +104,7 @@ function paintGirl(m, P){
     else if(n.endsWith('Arm')&&!n.endsWith('ForeArm')) k = ax<0.24?'shirt':'skin';
     else if(n.endsWith('UpLeg')){ const t=Math.min(1,Math.max(0,(-0.156-y)/0.39)), bx=Math.sign(x)*(0.075+0.006*t), bz=0.01-0.034*t; const d=Math.hypot(x-bx,z-bz);
       k = y>-0.03?'shirt': (y<-0.415 && d<0.09) ? 'skin':'bottom'; }
-    else if(n.endsWith('Leg')||n.endsWith('Foot')||n.endsWith('ToeBase')) k = y<-0.875?'shoe':'skin';
+    else if(n.endsWith('Leg')||n.endsWith('Foot')||n.endsWith('ToeBase')) k='skin';   /* barefoot, like the model */
     if(k==='bottom'){ let inner=false;
       if(n.endsWith('UpLeg')){ const t=Math.min(1,Math.max(0,(-0.156-y)/0.39)); inner=Math.hypot(x-Math.sign(x)*(0.075+0.006*t),z-(0.01-0.034*t))<0.085; }
       if(!inner) sk[i]=Math.pow(Math.min(1,Math.max(0,(-0.03-y)/0.38)),1.8); }   // snug at the waist, free at the hem
@@ -450,14 +451,14 @@ async function load(){
   girl=makeKid('girl',{fbx:G_FBX, run:G_RUN, fly:G_FLY, idle:G_IDLE, jump:G_JUMP, land:G_LAND.clip,
     paint:m=>{ paintGirl(m,GIRL_COLOURS); return new THREE.Vector3(0,0.69,-0.01); }, material:()=>new THREE.MeshLambertMaterial({vertexColors:true}), face:GIRL_FACE,
     jumpPush:0.5, jumpFromRun:0.36, landFrom:0.28, landTo:0.78,
-    runPace:(spd,K)=>0.55+0.45*Math.min(1,spd/K.RUN_SPEED)});   // her legs at the animation's own pace
+    runPace:(spd,K)=>(0.55+0.45*Math.min(1,spd/K.RUN_SPEED))/K.scale});   // her legs at the animation's own pace (quicker if she is made smaller)
   boy=makeKid('boy',{fbx:B_FBX, run:B_CLIPS.run, fly:B_CLIPS.fly, idle:B_CLIPS.idle, jump:B_CLIPS.jump, land:B_CLIPS.land, roll:B_CLIPS.roll, rollZ:B_CLIPS.rollZ, rollEnd:1.9,
     paint:m=>boyHair(m,img), material:()=>new THREE.MeshLambertMaterial({map:tex}), face:BOY_FACE,
     jumpPush:B_CLIPS.jumpInfo.push, jumpFromRun:0.27, landFrom:0.28, landTo:0.82,
     runPace:(spd,K)=>Math.max(0.55,Math.min(1.9,spd/(K.animRun*K.scale)))});   // shorter legs: they go faster to keep up with her
   boy.RUN_SPEED=girl.RUN_SPEED;   // he keeps up with her
   boy.W.uAmt.value=0;
-  setBoySize(+$('bsize').value/100); setBoyHead(+$('bhead').value/100);
+  setGirlSize(+$('gsize').value/100); setBoySize(+$('bsize').value/100); setBoyHead(+$('bhead').value/100);
   boy.P.x=-1.0; boy.P.z=-0.9;
   girl.lastState='ground';
   $('load').hidden=true;
@@ -466,6 +467,8 @@ async function load(){
 /* the boy's size and head: a little brother. His whole body scales from his feet; his head bone scales (hair with it),
    which the animations leave alone because they only turn the bones. */
 function setBoySize(s){ if(!boy) return; boy.scale=s; boy.root.scale.setScalar(s); }
+/* the girl's height: her whole body scales from her feet; a shorter girl hops a little lower and steps a little quicker */
+function setGirlSize(s){ if(!girl) return; girl.scale=s; girl.root.scale.setScalar(s); }
 function setBoyHead(h){ if(!boy) return; const b=boy.mesh.skeleton.bones.find(x=>/Head$/.test(x.name)); if(b) b.scale.setScalar(h); }
 
 /* ---------- loop ---------- */
@@ -525,6 +528,7 @@ $('hudToggle').addEventListener('click',e=>{ setMenu($('hudBody').hidden); e.cur
 addEventListener('keydown',e=>{ if(e.key.toLowerCase()==='m'&&!e.repeat) setMenu($('hudBody').hidden); });
 try{ if(localStorage.getItem('kidsMenu')==='0') setMenu(false); }catch(_){}
 $('bsize').addEventListener('input',e=>setBoySize(e.target.value/100));
+$('gsize').addEventListener('input',e=>setGirlSize(e.target.value/100));
 $('bhead').addEventListener('input',e=>setBoyHead(e.target.value/100));
 
 setTimeout(async()=>{ try{ await load(); placeCam(lead(),0,true); } catch(err){ $('load').textContent='Could not load the kids: '+err.message; console.error(err); } requestAnimationFrame(frame); },30);
