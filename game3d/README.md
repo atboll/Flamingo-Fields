@@ -20,14 +20,14 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 - [x] Rolling golden hills (the game's own ground shape)
 - [x] Wind-blown grass
-- [ ] Drifting seeds
+- [x] Drifting seeds
 - [x] Evening sky
 - [x] Low sun
-- [ ] Lens flare
-- [ ] Paper grain
+- [x] Lens flare
+- [x] Paper grain
 - [x] Painted clouds
 - [x] Blue-green ranges, with two peaks under the sun and moon
-- [ ] Groves of trees
+- [x] Groves of trees (3D groves in the field, and the painted treelines on the horizon)
 - [x] The kids run and hop
 - [ ] Sprinting over a crest throws them into the air
 - [x] They fly and glide down

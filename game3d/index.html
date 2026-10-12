@@ -18,11 +18,16 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 #hint{ transition:opacity 1.2s ease }
 #hint.gone{ opacity:0; pointer-events:none }
 #load{ position:fixed; inset:0; display:grid; place-items:center; font-size:15px; color:#5a4526; pointer-events:none }
+.fx{ position:fixed; inset:0; width:100%; height:100%; pointer-events:none }
+#light{ mix-blend-mode:soft-light }
+#grain{ mix-blend-mode:overlay; opacity:.13; background-repeat:repeat }
+#flare{ mix-blend-mode:screen }
 #stats{ position:fixed; right:max(12px,env(safe-area-inset-right)); bottom:max(12px,env(safe-area-inset-bottom)); font:12px ui-monospace,Menlo,monospace; color:#5a4526; background:var(--glass); border-radius:6px; padding:3px 7px }
 </style>
 </head>
 <body>
 <div id="view" tabindex="0" aria-label="The golden field. Use the arrow keys or WASD to run, Space to jump and fly."></div>
+<canvas class="fx" id="light" aria-hidden="true"></canvas><div class="fx" id="grain" aria-hidden="true"></div><canvas class="fx" id="flare" aria-hidden="true"></canvas>
 <div class="chip" id="hint"><b>Flamingo Fields 3D</b> · milestone 1
   <p><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd> run · <kbd>Space</kbd> hop, again to fly, again to land · <kbd>↑</kbd><kbd>↓</kbd> climb and sink in the air.
   On a phone: drag to run, tap to hop. Flying is free for now; feathers come next.</p></div>
@@ -238,6 +243,111 @@ const NEAR={S:56,R:27,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:180,R:88,in
 const grass=makeGrass(isPhone?50000:150000,NEAR), grassMid=makeGrass(isPhone?30000:90000,MIDL);
 const grassAll=[grass,grassMid];
 
+/* ---------- groves: real trees standing out in the field, in clumps, at fixed places ----------
+   The ground is split into squares 260 m across; about a third hold a grove of 5 to 14 trees. Only the squares
+   round the kids are built, and rebuilt as they move on, so the field never runs out of them.
+   The crowns are lumpy balls in the game's three grove greens, shaded in three flat steps like its painted trees. */
+const G_SH=[78,98,58], G_MID=[112,130,66], G_HI=[168,170,88];
+const toonRamp=(()=>{ const d=new Uint8Array([70,150,255]), t=new THREE.DataTexture(d,3,1,THREE.RedFormat); t.minFilter=t.magFilter=THREE.NearestFilter; t.needsUpdate=true; return t; })();
+function blobGeo(seed){ const g=new THREE.IcosahedronGeometry(1,3), P=g.attributes.position, v=new THREE.Vector3();
+  for(let i=0;i<P.count;i++){ v.fromBufferAttribute(P,i).normalize(); const n=fbm(v.x*1.7+3,v.y*1.7+v.z*1.3,seed); v.multiplyScalar(0.8+0.45*n); v.y*=0.85; P.setXYZ(i,v.x,v.y,v.z); }
+  g.computeVertexNormals(); return g; }
+const CELL=260, MAXBLOBS=6000, MAXTRUNKS=600;
+const crownMesh=new THREE.InstancedMesh(blobGeo(5),new THREE.MeshToonMaterial({color:0xffffff, gradientMap:toonRamp}),MAXBLOBS);
+const trunkGeo=new THREE.CylinderGeometry(0.22,0.38,1,7); trunkGeo.translate(0,0.5,0);
+const trunkMesh=new THREE.InstancedMesh(trunkGeo,new THREE.MeshToonMaterial({color:0x2e2418, gradientMap:toonRamp}),MAXTRUNKS);
+for(const m of [crownMesh,trunkMesh]){ m.count=0; m.frustumCulled=false; scene.add(m); }
+crownMesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXBLOBS*3),3);
+let groveCell=null;
+function buildGroves(x,z){
+  const ci=Math.round(x/CELL), cj=Math.round(z/CELL), key=ci+','+cj; if(key===groveCell) return; groveCell=key;
+  const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), T=new THREE.Vector3(), E=new THREE.Euler(); let nb=0, nt=0;
+  for(let a=-4;a<=4;a++) for(let b=-4;b<=4;b++){ const i=ci+a, j=cj+b;
+    if(Math.abs(i)+Math.abs(j)<=0) continue;                                   // the square the kids start in stays open field
+    const r=rng((i*73856093)^(j*19349663)^0x5bd1e995); if(r()>0.36) continue;
+    const gx=(i+(r()-0.5)*0.6)*CELL, gz=(j+(r()-0.5)*0.6)*CELL, n=5+Math.floor(r()*10), spread=10+r()*22, tint=r();
+    for(let k=0;k<n&&nt<MAXTRUNKS;k++){
+      const tx=gx+(r()-0.5)*2*spread, tz=gz+(r()-0.5)*2*spread*0.7, h=6+r()*6, cr=3.2+r()*2.6, gy=groundAt(tx,tz)-0.2, top=gy+h*0.42;
+      M.compose(T.set(tx,gy,tz),Q.identity(),S.set(1+cr*0.05,h*0.48,1+cr*0.05)); trunkMesh.setMatrixAt(nt++,M);
+      /* a full, wide crown of many lumps, the upper ones catching the light, the lower ones in shade */
+      const blobs=6+Math.floor(r()*5);
+      for(let q=0;q<blobs&&nb<MAXBLOBS;q++){ const ang=r()*Math.PI*2, rr=q===0?0:cr*(0.3+r()*0.55), br=cr*(q===0?0.8:0.42+r()*0.3), up=(r()-0.35)*cr*0.9;
+        Q.setFromEuler(E.set(r()*0.6,r()*6.28,r()*0.6));
+        M.compose(T.set(tx+Math.cos(ang)*rr, top+cr*0.6+up, tz+Math.sin(ang)*rr*0.85),Q,S.set(br*1.1,br*(0.75+r()*0.25),br)); crownMesh.setMatrixAt(nb,M);
+        const t=clamp(r()*0.45+tint*0.25+(up/cr)*0.5+0.15,0,1), c=t<0.5?mixA(G_SH,G_MID,t/0.5):mixA(G_MID,G_HI,(t-0.5)/0.5);
+        crownMesh.setColorAt(nb++,rgb(mixA(c,[150,150,80],0.12)).convertSRGBToLinear()); }
+      /* and bushes at its feet, so the grove reads as one thicket */
+      const bushes=2+Math.floor(r()*3);
+      for(let q=0;q<bushes&&nb<MAXBLOBS;q++){ const ang=r()*Math.PI*2, rr=cr*(0.4+r()*0.9), br=0.9+r()*1.4, bx=tx+Math.cos(ang)*rr, bz=tz+Math.sin(ang)*rr;
+        Q.setFromEuler(E.set(0,r()*6.28,0)); M.compose(T.set(bx,groundAt(bx,bz)+br*0.35,bz),Q,S.set(br*1.3,br*0.75,br)); crownMesh.setMatrixAt(nb,M);
+        crownMesh.setColorAt(nb++,rgb(mixA(G_SH,G_MID,r()*0.6)).convertSRGBToLinear()); } } }
+  crownMesh.count=nb; trunkMesh.count=nt; crownMesh.instanceMatrix.needsUpdate=true; crownMesh.instanceColor.needsUpdate=true; trunkMesh.instanceMatrix.needsUpdate=true; }
+
+/* and the game's own painted treelines, far off on the horizon in front of the ranges */
+function paintGrove(seed){
+  const GW=400, GH=140, c=document.createElement('canvas'); c.width=GW; c.height=GH; const g=c.getContext('2d'), img=g.createImageData(GW,GH), px=img.data, r=rng(seed);
+  const dens=(x,y)=>{ const u=(x-100)/92, v=(70-y)/58; return fbm(x/20,y/13,seed)*0.55+(1-u*u-v*v*1.1)*0.8-0.6; };
+  for(let Y=0;Y<GH;Y++) for(let X=0;X<GW;X++){ const x=X/2, y=Y/2, d=dens(x,y); if(d+(r()-0.5)*0.07<=0) continue;
+    const lit=0.42+(d-dens(x+6,y-6))*4.5-d*0.5+(r()-0.5)*0.2, col=lit<0.4?G_SH:lit<0.72?G_MID:G_HI, i=(Y*GW+X)*4;
+    px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=y>64?255*(70-y)/6:235; }
+  g.putImageData(img,0,0); const t=new THREE.CanvasTexture(c); return t; }
+{ const art=[11,23,37,51].map(paintGrove), r=rng(31), RG=2850;
+  for(let i=0;i<11;i++){ const th=(i+r()*0.8)/11*Math.PI*2, k=0.55+r()*0.95, w=RG*200*k/585, h=RG*56*k/585;
+    const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:art[i%4], transparent:true, opacity:0.92, fog:false, depthWrite:false}));
+    m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); };
+    m.position.set(-Math.sin(th)*RG, h/2-RG*0.012, Math.cos(th)*RG); m.lookAt(0,m.position.y,0); m.renderOrder=-7; ranges.add(m); } }
+
+/* ---------- drifting seeds: little lit tufts carried on the wind past the kids ---------- */
+const SEEDS=isPhone?70:160, seedBox=24;
+const seedGeo=new THREE.BufferGeometry(), seedPos=new Float32Array(SEEDS*3), seedInfo=[];
+{ const r=rng(99); for(let i=0;i<SEEDS;i++){ seedInfo.push({x:r()*seedBox,y:0.3+r()*3.5,z:r()*seedBox,sp:0.7+r()*1.6,ph:r()*6.28}); } }
+seedGeo.setAttribute('position',new THREE.BufferAttribute(seedPos,3));
+const seedTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=32; const g=c.getContext('2d'), gr=g.createRadialGradient(16,16,0,16,16,16);
+  gr.addColorStop(0,'rgba(255,250,228,1)'); gr.addColorStop(0.35,'rgba(255,240,200,.8)'); gr.addColorStop(1,'rgba(255,240,200,0)'); g.fillStyle=gr; g.fillRect(0,0,32,32); return new THREE.CanvasTexture(c); })();
+const seeds=new THREE.Points(seedGeo,new THREE.PointsMaterial({map:seedTex, size:0.07, transparent:true, opacity:0.75, depthWrite:false, color:0xfff2d2}));
+seeds.frustumCulled=false; scene.add(seeds);
+function moveSeeds(dt,t){ const w=grass.material.uniforms.uWind.value, cx=cam.position.x, cz=cam.position.z;
+  for(let i=0;i<SEEDS;i++){ const p=seedInfo[i]; p.x+=w.x*p.sp*dt; p.z+=w.y*p.sp*dt;
+    const x=cx+((p.x-cx)%seedBox+seedBox*1.5)%seedBox-seedBox/2, z=cz+((p.z-cz)%seedBox+seedBox*1.5)%seedBox-seedBox/2;
+    seedPos[i*3]=x; seedPos[i*3+1]=groundAt(x,z)+p.y+Math.sin(t*1.3+p.ph)*0.25; seedPos[i*3+2]=z; }
+  seedGeo.attributes.position.needsUpdate=true; }
+
+/* ---------- the evening light, paper grain and lens flare: the game's own, laid over the 3D picture ----------
+   The light is a warm glow round the sun, mixed in soft-light; the grain is the game's noise tile in overlay;
+   the flare's ghosts sit on the line from the sun through the girl, as in the game, so it swings across the
+   frame as she moves and is strongest when she runs in front of the sun. */
+const lightCv=$('light'), lightG=lightCv.getContext('2d'), flareCv=$('flare'), flareG=flareCv.getContext('2d');
+{ const c=document.createElement('canvas'); c.width=c.height=220; const g=c.getContext('2d'), d=g.createImageData(220,220), r=rng(5);
+  for(let i=0;i<d.data.length;i+=4){ const v=128+(r()-0.5)*150; d.data[i]=d.data[i+1]=d.data[i+2]=v; d.data[i+3]=255; } g.putImageData(d,0,0);
+  $('grain').style.backgroundImage=`url(${c.toDataURL()})`; }
+const GHOSTS=[[0.45,26,'190,240,140',.17],[0.8,14,'110,230,170',.16],[1.0,58,'210,240,150',.1],[1.35,22,'150,235,150',.14],[1.7,90,'120,220,170',.08],[2.1,38,'220,245,170',.09]];
+const _sp=new THREE.Vector3(), _fw=new THREE.Vector3();
+function overlays(t){
+  const W=innerWidth, H=innerHeight; if(lightCv.width!==W||lightCv.height!==H){ lightCv.width=flareCv.width=W; lightCv.height=flareCv.height=H; }
+  const focal=H/2/Math.tan(cam.fov*Math.PI/360);
+  cam.getWorldDirection(_fw); const fy=Math.atan2(_fw.x,_fw.z), sy=Math.atan2(SUNDIR.x,SUNDIR.z); let d=sy-fy; d=Math.atan2(Math.sin(d),Math.cos(d));
+  let sunX, horizonY;
+  _sp.copy(cam.position).addScaledVector(new THREE.Vector3(SUNDIR.x,0,SUNDIR.z).normalize(),1000).project(cam);
+  if(Math.abs(d)<1.4&&_sp.z<1){ sunX=(_sp.x+1)/2*W; horizonY=(1-_sp.y)/2*H; }
+  else { sunX=(d>0?-1:1)*(W+2000)+(d>0?0:W); _sp.copy(cam.position).addScaledVector(_fw.setY(0).normalize(),1000).project(cam); horizonY=(1-_sp.y)/2*H; }
+  const off=sunX<0?-sunX:sunX>W?sunX-W:0, sunI=clamp(1-off/350,0,1);
+  /* the warm light */
+  const lx=clamp(sunX,-200,W+200), LR=Math.max(W,H)*1.05, l=lightG.createRadialGradient(lx,horizonY,0,lx,horizonY,LR);
+  l.addColorStop(0,'rgba(255,206,110,.85)'); l.addColorStop(0.45,'rgba(255,176,90,.3)'); l.addColorStop(1,'rgba(30,84,108,.5)');
+  lightG.clearRect(0,0,W,H); lightG.fillStyle=l; lightG.fillRect(0,0,W,H);
+  /* the flare */
+  flareG.clearRect(0,0,W,H); if(sunI<=0.01||!girl) return;
+  _sp.set(girl.P.x,groundAt(girl.P.x,girl.P.z)+girl.P.y+0.65,girl.P.z).project(cam); const kx=(_sp.x+1)/2*W, ky=(1-_sp.y)/2*H;
+  const q=H/650, sY=horizonY-4*q, near=clamp(1-Math.abs(sunX-kx)/(W*0.55),0,1), f=1.7*sunI*(0.4+0.6*near*near)*(0.93+0.07*Math.sin(t*2.3));
+  flareG.save(); flareG.translate(sunX,sY); flareG.scale(1,0.06);
+  const st=flareG.createRadialGradient(0,0,0,0,0,460*q); st.addColorStop(0,'rgba(228,250,190,'+0.5*f+')'); st.addColorStop(1,'rgba(190,240,150,0)');
+  flareG.fillStyle=st; flareG.beginPath(); flareG.arc(0,0,460*q,0,7); flareG.fill(); flareG.restore();
+  const hl=flareG.createRadialGradient(sunX,sY,95*q,sunX,sY,215*q); hl.addColorStop(0,'rgba(170,235,150,0)'); hl.addColorStop(0.5,'rgba(170,235,150,'+0.09*f+')'); hl.addColorStop(1,'rgba(170,235,150,0)');
+  flareG.fillStyle=hl; flareG.beginPath(); flareG.arc(sunX,sY,215*q,0,7); flareG.fill();
+  const dx=kx-sunX, dy=ky-sY;
+  for(const gh of GHOSTS){ const x=sunX+dx*gh[0], y=sY+dy*gh[0], Rr=gh[1]*q*1.8, a=gh[3]*f, gr=flareG.createRadialGradient(x,y,0,x,y,Rr);
+    gr.addColorStop(0,'rgba('+gh[2]+','+a+')'); gr.addColorStop(0.4,'rgba('+gh[2]+','+a*0.5+')'); gr.addColorStop(1,'rgba('+gh[2]+',0)'); flareG.fillStyle=gr; flareG.beginPath(); flareG.arc(x,y,Rr,0,7); flareG.fill(); } }
+
 /* ---------- the kids ---------- */
 let girl, boy, rollChance=0.35;
 let ALT_MAX=33;                                    // free flight for now: up to the full flock's ceiling (the game's 2400 units)
@@ -305,10 +415,10 @@ function frame(now){
     stepKid(boy,dt,followInput(girl,boy));
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); }
     placeCam(girl,dt,false);
-    followGround(girl.P.x,girl.P.z);
+    followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  R.render(scene,cam);
+  R.render(scene,cam); overlays(clock);
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
@@ -317,7 +427,7 @@ function frame(now){
 }
 function size(){ const w=innerWidth,h=innerHeight; R.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix(); }
 addEventListener('resize',size); size();
-followGround(0,0);
+followGround(0,0); buildGroves(0,0);
 (async()=>{
   try{ await loadKids('assets/');
     girl.P.h=0.1; boy.P.x=-1.5; boy.P.z=-1.4; boy.P.h=0.1;
