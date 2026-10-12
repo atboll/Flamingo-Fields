@@ -91,13 +91,13 @@ const B_CLIPS={"run":{"name":"mixamo.com","duration":1.0333333015441895,"tracks"
 function paintGirl(m, P){
   const g=m.geometry, pos=g.attributes.position, si=g.attributes.skinIndex.array, sw=g.attributes.skinWeight.array, N=pos.count;
   const names=m.skeleton.bones.map(b=>b.name.replace('mixamorig',''));
-  const col=new Float32Array(N*3), c=new THREE.Color(), sk=new Float32Array(N), hr=new Float32Array(N);
+  const col=new Float32Array(N*3), c=new THREE.Color(), sk=new Float32Array(N), hr=new Float32Array(N), fc=new Float32Array(N);
   const C={}; for(const k in P) C[k]=new THREE.Color(P[k]).convertSRGBToLinear();
   for(let i=0;i<N;i++){
     let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} }
     const n=names[bi], x=pos.getX(i), y=pos.getY(i), z=pos.getZ(i), ax=Math.abs(x);
     let k='skin';
-    if(n==='Head'){ const face = z>0.04 && y<0.715 && y>0.50 && ax<0.115; k = face ? 'skin' : 'hair'; if(y<0.56 && ax<0.08 && z>-0.02) k='skin'; }
+    if(n==='Head'){ const face = z>0.04 && y<0.698 && y>0.50 && ax<0.115;   /* forehead under the fringe is hair-coloured, so the fringe reads as hair */ k = face ? 'skin' : 'hair'; if(y<0.56 && ax<0.08 && z>-0.02) k='skin'; }
     else if(n==='Neck') k='skin';
     else if(n.startsWith('Spine')||n.endsWith('Shoulder')||n==='Hips') k = y>-0.03?'shirt':'bottom';
     else if(n.endsWith('Arm')&&!n.endsWith('ForeArm')) k = ax<0.24?'shirt':'skin';
@@ -110,11 +110,13 @@ function paintGirl(m, P){
     if(k==='hair'){ const d=Math.hypot(x,y-0.69,z+0.01); let w=Math.pow(Math.min(1,Math.max(0,(d-0.115)/0.16)),1.3);   // tips move, the scalp stays
       if(z>0.03&&y<0.80&&ax<0.15) w*=0.35;   // the fringe over her face moves less
       hr[i]=w; }
+    if(n==='Head'&&k==='skin'&&z>0) fc[i]=1;   // where her painted face may go
     c.copy(C[k]); col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col,3));
   g.setAttribute('aSkirt', new THREE.BufferAttribute(sk,1));
   g.setAttribute('aHair', new THREE.BufferAttribute(hr,1));
+  g.setAttribute('aFace', new THREE.BufferAttribute(fc,1));
 }
 
 </script>
@@ -178,10 +180,14 @@ function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:
   uPh:{value:new THREE.Vector4()},uPh5:{value:0},uHead:{value:head.clone()}}; }
 /* each wave's position is advanced a little every frame at its current speed, so a change of speed never makes the waves jump */
 function wavesStep(W,dt){ const f=W.uFlow.value, p=W.uPh.value; W.uTime.value+=dt; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); W.uPh5.value+=dt*(5+8*f); }
-function addWind(mat,W,key){
+function addWind(mat,W,key,face){
   mat.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,W);
-    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead;\nuniform vec4 uPh;\n'+sh.vertexShader
+    if(face){ sh.uniforms.uFaceTex={value:face.tex}; sh.uniforms.uFaceBox={value:face.box};
+      sh.fragmentShader='uniform sampler2D uFaceTex;\nvarying vec2 vFaceUV;\nvarying float vFace;\n'+sh.fragmentShader.replace('#include <color_fragment>',`#include <color_fragment>
+        if(vFace>0.01 && vFaceUV.x>0.0 && vFaceUV.x<1.0 && vFaceUV.y>0.0 && vFaceUV.y<1.0){ vec4 fp=texture2D(uFaceTex,vFaceUV); diffuseColor.rgb=mix(diffuseColor.rgb,fp.rgb,fp.a*clamp(vFace*1.5,0.0,1.0)); }`); }
+    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\n'+sh.vertexShader
       .replace('#include <skinning_vertex>',`
+      vFace=aFace; vFaceUV=(position.xy-uFaceBox.xy)/(uFaceBox.zw-uFaceBox.xy);   /* the face picture is laid on from the front, in the rest pose, so it moves with the head */
       float sw=aSkirt*uAmt, hw=aHair*uHair; vec3 bp=position; float f=uFlow, ang=atan(bp.x,bp.z), ph=ang*2.0+bp.y*9.0;
       float gust=0.65+0.35*sin(uTime*0.9)*sin(uTime*2.3+1.0);
       if(sw>0.0){
@@ -204,7 +210,7 @@ function addWind(mat,W,key){
         transformed.z-=hw*(0.008+0.07*f*f)*gust;
         transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'kidwind1-'+key; return mat;
+  mat.customProgramCacheKey=()=>'kidwind2-'+key+(face?'f':''); return mat;
 }
 /* the swing spring: driven by how the kid accelerates, seen from their own body (forward, sideways, up) */
 function swingStep(K,dt){
@@ -239,9 +245,73 @@ function boyHair(mesh,img){
     let w=Math.pow(Math.min(1,Math.max(0,(d-0.10)/0.15)),1.3);
     if(rz>0.03&&ry<0.12) w*=0.35;                            // the fringe moves less
     hr[i]=w; }
+  const fc=new Float32Array(N); for(let i=0;i<N;i++) if(onHead[i]&&hr[i]===0&&pos.getZ(i)-C.z>0) fc[i]=1;   // where his painted mouth may go
+  /* his own skin colour, read from his texture on the cheek beside his mouth, to paint over the old closed smile */
+  let best=-1,bd=1e9; for(let i=0;i<N;i++){ if(!fc[i]) continue; const d=Math.hypot(pos.getX(i)-0.06,pos.getY(i)-0.50); if(d<bd&&pos.getZ(i)>C.z+0.05){bd=d;best=i;} }
+  if(best>=0){ const u=uv.getX(best), v=uv.getY(best), X=Math.floor(u*W), Y=Math.floor((1-v)*H), o=(Y*W+X)*4; BOY_SKIN=`rgb(${px[o]},${px[o+1]},${px[o+2]})`; }
+  geo.setAttribute('aFace',new THREE.BufferAttribute(fc,1));
   geo.setAttribute('aHair',new THREE.BufferAttribute(hr,1)); geo.setAttribute('aSkirt',new THREE.BufferAttribute(sk,1));
   return C;
 }
+
+
+/* ---------- painted faces, after the original clip ----------
+   Ghibli-style: big dark eyes with white highlights and a strong upper lid, short raised brows, a tiny nose,
+   soft pink cheeks and an open, happy mouth. Each face is painted on a small canvas in the model's own measurements
+   (metres, rest pose, seen from the front) and laid onto the front of the head. */
+function makeFace(spec){
+  const S=512, c=document.createElement('canvas'); c.width=c.height=S; const g=c.getContext('2d');
+  const [x0,y0,x1,y1]=spec.box, X=x=>(x-x0)/(x1-x0)*S, Y=y=>(y1-y)/(y1-y0)*S, L=d=>d/(x1-x0)*S;
+  g.lineCap='round'; g.lineJoin='round';
+  const F={X,Y,L,g};
+  spec.draw(F);
+  const tex=new THREE.CanvasTexture(c); tex.encoding=THREE.sRGBEncoding; tex.flipY=false; tex.anisotropy=4;
+  // the canvas is drawn top-down; flip so that up on the canvas is up on the face
+  const t2=document.createElement('canvas'); t2.width=t2.height=S; const g2=t2.getContext('2d'); g2.translate(0,S); g2.scale(1,-1); g2.drawImage(c,0,0);
+  tex.image=t2; tex.needsUpdate=true;
+  return {tex, box:new THREE.Vector4(x0,y0,x1,y1), canvas:c};
+}
+function cheek(F,x,y,rx,ry,col){ const {X,Y,L,g}=F, r=g.createRadialGradient(X(x),Y(y),0,X(x),Y(y),L(rx)); r.addColorStop(0,col); r.addColorStop(1,'rgba(240,140,130,0)');
+  g.save(); g.translate(X(x),Y(y)); g.scale(1,ry/rx); g.translate(-X(x),-Y(y)); g.fillStyle=r; g.beginPath(); g.arc(X(x),Y(y),L(rx),0,7); g.fill(); g.restore(); }
+function eye(F,x,y,w,h,side,o){ const {X,Y,L,g}=F, cx=X(x), cy=Y(y), rw=L(w)/2, rh=L(h)/2;
+  // white of the eye: a soft almond
+  g.fillStyle='#fbf7f0'; g.beginPath(); g.ellipse(cx,cy,rw,rh,0,0,7); g.fill();
+  // iris: tall, dark, a little lighter at the bottom
+  const iw=rw*o.iris, ih=rh*0.98, gr=g.createLinearGradient(0,cy-ih,0,cy+ih); gr.addColorStop(0,o.irisTop); gr.addColorStop(0.65,o.irisMid); gr.addColorStop(1,o.irisLow);
+  g.save(); g.beginPath(); g.ellipse(cx,cy,rw,rh,0,0,7); g.clip();
+  g.fillStyle=gr; g.beginPath(); g.ellipse(cx+side*rw*0.05,cy+rh*0.06,iw,ih,0,0,7); g.fill();
+  g.fillStyle='#0d0b10'; g.beginPath(); g.ellipse(cx+side*rw*0.05,cy+rh*0.08,iw*0.5,ih*0.55,0,0,7); g.fill();
+  g.restore();
+  // highlights: a big one up and to the outside, a small one low
+  g.fillStyle='#ffffff'; g.beginPath(); g.ellipse(cx+side*rw*0.32,cy-rh*0.36,rw*0.26,rh*0.22,0,0,7); g.fill();
+  g.beginPath(); g.arc(cx-side*rw*0.22,cy+rh*0.42,rw*0.11,0,7); g.fill();
+  // the strong upper lid, arching over and flicking out at the outer corner
+  g.strokeStyle='#1c1416'; g.lineWidth=L(o.lid); g.beginPath();
+  g.moveTo(cx-side*rw*1.08,cy-rh*0.15); g.quadraticCurveTo(cx,cy-rh*1.45,cx+side*rw*1.12,cy-rh*0.35); g.lineTo(cx+side*rw*1.32,cy-rh*0.62); g.stroke();
+  // a light lower lid
+  g.strokeStyle='rgba(90,50,45,0.55)'; g.lineWidth=L(o.lid*0.35); g.beginPath(); g.moveTo(cx-side*rw*0.55,cy+rh*1.02); g.quadraticCurveTo(cx,cy+rh*1.18,cx+side*rw*0.6,cy+rh*0.98); g.stroke();
+}
+function brow(F,x,y,w,side,lw){ const {X,Y,L,g}=F; g.strokeStyle='#241a1a'; g.lineWidth=L(lw); g.beginPath();
+  g.moveTo(X(x-side*w*0.5),Y(y-w*0.05)); g.quadraticCurveTo(X(x),Y(y+w*0.16),X(x+side*w*0.5),Y(y-w*0.1)); g.stroke(); }
+function openMouth(F,x,y,w,h){ const {X,Y,L,g}=F, cx=X(x), cy=Y(y), rw=L(w)/2, rh=L(h);
+  // a happy shout: flat-ish top, round bottom, dark inside, tongue at the bottom
+  g.save(); g.beginPath(); g.moveTo(cx-rw,cy); g.quadraticCurveTo(cx,cy-rh*0.18,cx+rw,cy); g.quadraticCurveTo(cx+rw*0.9,cy+rh*1.1,cx,cy+rh*1.05); g.quadraticCurveTo(cx-rw*0.9,cy+rh*1.1,cx-rw,cy); g.closePath();
+  g.fillStyle='#5a2220'; g.fill(); g.clip(); g.fillStyle='#d9786d'; g.beginPath(); g.ellipse(cx,cy+rh*1.0,rw*0.62,rh*0.5,0,0,7); g.fill(); g.restore();
+  g.strokeStyle='rgba(70,30,28,0.8)'; g.lineWidth=L(0.0018); g.beginPath(); g.moveTo(cx-rw,cy); g.quadraticCurveTo(cx,cy-rh*0.18,cx+rw,cy); g.stroke(); }
+const GIRL_FACE={box:[-0.13,0.50,0.15,0.75], draw:F=>{
+  const cx=0.01;   // her face is centred a centimetre to one side
+  cheek(F,cx-0.078,0.597,0.026,0.015,'rgba(238,128,118,0.55)'); cheek(F,cx+0.078,0.597,0.026,0.015,'rgba(238,128,118,0.55)');
+  const o={iris:0.8,irisTop:'#1b1a26',irisMid:'#2b3047',irisLow:'#4d5a7a',lid:0.0055};
+  eye(F,cx-0.066,0.650,0.050,0.048,-1,o); eye(F,cx+0.066,0.650,0.050,0.048,1,o);
+  brow(F,cx-0.066,0.688,0.045,-1,0.0032); brow(F,cx+0.066,0.688,0.045,1,0.0032);
+  const {X,Y,L,g}=F; g.strokeStyle='rgba(150,90,70,0.6)'; g.lineWidth=L(0.0022); g.beginPath(); g.moveTo(X(cx-0.004),Y(0.596)); g.quadraticCurveTo(X(cx),Y(0.592),X(cx+0.005),Y(0.595)); g.stroke();   // a hint of nose
+  openMouth(F,cx,0.556,0.044,0.024); }};
+let BOY_SKIN='rgb(245,218,198)';
+const BOY_FACE={box:[-0.13,0.40,0.13,0.70], draw:F=>{
+  const {X,Y,L,g}=F, r=g.createRadialGradient(X(0),Y(0.487),0,X(0),Y(0.487),L(0.05));   // paint over his old closed smile, fading out at the edges
+  r.addColorStop(0,BOY_SKIN); r.addColorStop(0.75,BOY_SKIN); r.addColorStop(1,BOY_SKIN.replace('rgb','rgba').replace(')',',0)'));
+  g.save(); g.translate(X(0),Y(0.487)); g.scale(1,0.42); g.translate(-X(0),-Y(0.487)); g.fillStyle=r; g.beginPath(); g.arc(X(0),Y(0.487),L(0.05),0,7); g.fill(); g.restore();
+  openMouth(F,0.0,0.494,0.044,0.020); }};   // his eyes, brows and cheeks are already painted on his model; he gets the open, happy mouth
 
 /* ---------- a kid: body, animations, state ---------- */
 const G=14, HOP=5.2, CRUISE=4.5, FLY_SPEED=13;
@@ -251,7 +321,8 @@ function makeKid(name,cfg){
   const K={name,cfg,mesh,scale:1,P:{x:0,z:0,y:0,vy:0,h:0,turn:0,bank:0,alt:CRUISE,state:'ground',spd:0,flyW:0,jumpW:0,landW:0,rollW:0,crouch:0,rollT:0,upLock:false},
     SW:{x:0,y:0,z:0,vx:0,vy:0,vz:0,px:0,py:0,pz:0,ox:0,oy:0,oz:0,init:false}};
   K.W=makeWind(cfg.paint(mesh));
-  K.gameMat=addWind(cfg.material(),K.W,name+'g'); K.plainMat=addWind(new THREE.MeshLambertMaterial({color:'#e9e4da'}),K.W,name+'p'); mesh.material=K.gameMat;
+  K.face=cfg.face?makeFace(cfg.face):null;
+  K.gameMat=addWind(cfg.material(),K.W,name+'g',K.face); K.plainMat=addWind(new THREE.MeshLambertMaterial({color:'#e9e4da'}),K.W,name+'p'); mesh.material=K.gameMat;
   const clip=j=>THREE.AnimationClip.parse(j);
   const run=clip(cfg.run), fly=clip(cfg.fly), idle=clip(cfg.idle), jmp=clip(cfg.jump), lnd=clip(cfg.land);
   K.animRun=inPlace(run)||5; inPlace(fly); inPlace(idle);
@@ -377,11 +448,11 @@ async function load(){
   const img=new Image(); img.src=B_TEX; await img.decode();
   const tex=new THREE.Texture(img); tex.encoding=THREE.sRGBEncoding; tex.needsUpdate=true;
   girl=makeKid('girl',{fbx:G_FBX, run:G_RUN, fly:G_FLY, idle:G_IDLE, jump:G_JUMP, land:G_LAND.clip,
-    paint:m=>{ paintGirl(m,GIRL_COLOURS); return new THREE.Vector3(0,0.69,-0.01); }, material:()=>new THREE.MeshLambertMaterial({vertexColors:true}),
+    paint:m=>{ paintGirl(m,GIRL_COLOURS); return new THREE.Vector3(0,0.69,-0.01); }, material:()=>new THREE.MeshLambertMaterial({vertexColors:true}), face:GIRL_FACE,
     jumpPush:0.5, jumpFromRun:0.36, landFrom:0.28, landTo:0.78,
     runPace:(spd,K)=>0.55+0.45*Math.min(1,spd/K.RUN_SPEED)});   // her legs at the animation's own pace
   boy=makeKid('boy',{fbx:B_FBX, run:B_CLIPS.run, fly:B_CLIPS.fly, idle:B_CLIPS.idle, jump:B_CLIPS.jump, land:B_CLIPS.land, roll:B_CLIPS.roll, rollZ:B_CLIPS.rollZ, rollEnd:1.9,
-    paint:m=>boyHair(m,img), material:()=>new THREE.MeshLambertMaterial({map:tex}),
+    paint:m=>boyHair(m,img), material:()=>new THREE.MeshLambertMaterial({map:tex}), face:BOY_FACE,
     jumpPush:B_CLIPS.jumpInfo.push, jumpFromRun:0.27, landFrom:0.28, landTo:0.82,
     runPace:(spd,K)=>Math.max(0.55,Math.min(1.9,spd/(K.animRun*K.scale)))});   // shorter legs: they go faster to keep up with her
   boy.RUN_SPEED=girl.RUN_SPEED;   // he keeps up with her
