@@ -336,6 +336,19 @@ function boyTexSetup(img){
   }
   Object.assign(BOYTEX,{canvas:c,g,orig:new Uint8ClampedArray(d),id,cls,lum,mean:[0,s1/Math.max(1,n1),s2/Math.max(1,n2),s3/Math.max(1,n3)]});
 }
+/* his own cheeks are drawn in the same red as his shirt, so colour alone can't tell them apart:
+   every part of the texture that lands on his head is kept out of the shirt */
+function boyHeadMask(mesh){
+  const T=BOYTEX, W=T.canvas.width, H=T.canvas.height, c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
+  const geo=mesh.geometry, uv=geo.attributes.uv, si=geo.attributes.skinIndex.array, sw=geo.attributes.skinWeight.array, N=uv.count;
+  const head=mesh.skeleton.bones.findIndex(b=>/Head$/.test(b.name)), onHead=new Uint8Array(N);
+  for(let i=0;i<N;i++){ let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} } onHead[i]=bi===head?1:0; }
+  const idx=geo.index?geo.index.array:null, nt=(idx?idx.length:N)/3;
+  g.fillStyle='#fff';
+  for(let t=0;t<nt;t++){ const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, d=idx?idx[t*3+2]:t*3+2; if(!(onHead[a]&&onHead[b]&&onHead[d])) continue;
+    g.beginPath(); for(const v of [a,b,d]) g.lineTo(uv.getX(v)*W,(1-uv.getY(v))*H); g.closePath(); g.fill(); }
+  const m=g.getImageData(0,0,W,H).data; let n=0; for(let i=0;i<T.cls.length;i++) if(T.cls[i]===1&&m[i*4]>128){ T.cls[i]=0; n++; }
+  return n; }
 function boyRecolour(shirt,shorts,skin){
   const T=BOYTEX, d=T.id.data, o=T.orig, cols=[null,shirt?new THREE.Color(shirt):null,shorts?new THREE.Color(shorts):null,skin?new THREE.Color(skin):null];
   /* the patches painted over his own mouth and eyes take the new skin too, at the same light as his own */
@@ -711,7 +724,7 @@ async function load(){
     jumpPush:G_CLIPS.jumpInfo.push, jumpFromRun:0.3, landFrom:0.30, landTo:0.95,
     runPace:(spd,K)=>(0.55+0.45*Math.min(1,spd/K.RUN_SPEED))/K.scale});
   boy=makeKid('boy',{fbx:B_FBX, run:B_CLIPS.run, fly:B_CLIPS.fly, idle:B_CLIPS.idle, jump:B_CLIPS.jump, land:B_CLIPS.land, roll:B_CLIPS.roll, rollZ:B_CLIPS.rollZ, rollEnd:2.0,
-    paint:m=>{ const c=boyHair(m,img); BOY_SKIN=skinMix(m,img,[[0,0.462],[0,0.508],[-0.05,0.508],[0.05,0.508],[-0.095,0.47],[0.095,0.47]]); return c; },
+    paint:m=>{ const c=boyHair(m,img); boyHeadMask(m); BOY_SKIN=skinMix(m,img,[[0,0.462],[0,0.508],[-0.05,0.508],[0.05,0.508],[-0.095,0.47],[0.095,0.47]]); return c; },
     material:()=>new THREE.MeshLambertMaterial({map:boyTex}), face:BOY_FACE, bored:B_CLIPS.bored, rjump:B_CLIPS.rjump, stop:B_CLIPS.stop, mouthBox:[0,0.485,0.085,0.022],
     jumpPush:B_CLIPS.jumpInfo.push, jumpFromRun:0.27, landFrom:0.33, landTo:0.95,
     runPace:(spd,K)=>Math.max(0.55,Math.min(1.9,spd/(K.animRun*K.scale)))});
