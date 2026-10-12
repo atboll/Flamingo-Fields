@@ -643,7 +643,7 @@ function stepKid(K,dt,In){
     if(P.lphase==='drop') P.vy+=(-3.6*Math.sqrt(hs)-P.vy)*ease(9);   /* the landing itself is quick */
     else { const acc=Math.max(-16,Math.min(16,w*w*(tgt-P.y)-2*z*w*P.vy)); P.vy=Math.max(-10,P.vy+acc*dt); }
     P.y+=P.vy*dt;
-    P.landSlow+=((P.lphase==='dive'?1:0.5)-(P.landSlow??1))*ease(3);
+    P.landSlow+=((P.lphase==='dive'?1:K.RUN_SPEED/FLY_SPEED)-(P.landSlow??1))*ease(P.lphase==='dive'?3:9);   /* tipping up, they brake hard, down to running speed */
     P.brakeW+=((P.lphase==='rise'?1:0)-(P.brakeW||0))*ease(5);
     A.land.paused=true; A.land.time=c.landFrom;                          // legs reaching down
     if(P.y<=0.05){ P.y=0; P.vy=0;
