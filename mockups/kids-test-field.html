@@ -656,6 +656,15 @@ function stepKid(K,dt,In){
 function setSp(K,a){ if(K.spA&&K.spA!==a&&K.P.rollW>0.05){ K.spPrev=K.spA; K.spX=1; } else K.spX=0; K.spA=a; a.reset(); a.play(); }
 function startStop(K,from,entry){ const P=K.P, A=K.A; P.state='stop'; setSp(K,A.stop); A.stop.time=from; P.stopFrom=from; P.stopEntry=entry??P.spd; }
 const _pv=new THREE.Vector3();
+/* flying, the arms swing a little at the shoulders with the climb: up when rising, down when sinking.
+   It rides on the same smooth value as the body's tilt, and turns each upper arm round the kid's own left-right line. */
+const ARM_MAX=25*Math.PI/180, ARM_SIGN=-1, _q1=new THREE.Quaternion(), _q2=new THREE.Quaternion(), _ax=new THREE.Vector3();
+function bendArms(K){ const P=K.P, a=Math.max(-1,Math.min(1,-(P.pitch||0)/0.21))*ARM_MAX*ARM_SIGN; if(Math.abs(a)<0.002) return;
+  if(!K.arms) K.arms=K.mesh.skeleton.bones.filter(b=>/(Left|Right)Arm$/.test(b.name));
+  K.root.updateMatrixWorld(true); _ax.set(1,0,0).applyQuaternion(K.root.getWorldQuaternion(_q1)).normalize();
+  for(const b of K.arms){ b.parent.getWorldQuaternion(_q1); const R=_q2.setFromAxisAngle(_ax,a);
+    const inv=_q1.clone().invert(); b.quaternion.premultiply(_q1).premultiply(R).premultiply(inv); }
+  K.root.updateMatrixWorld(true); }
 function placeKid(K){ const P=K.P, pt=P.pitch||0, hip=0.9*K.scale;
   K.root.rotation.set(0,P.h,0); K.root.rotateX(pt); K.root.rotateZ(P.bank);
   /* the tilt turns round the hips, not the feet: the root is moved so the hips stay put */
@@ -896,7 +905,7 @@ function frame(now){
       stepKid(L,dt,keyInput());
       if(F){ watchLeader(L,F,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
         stepKid(F,dt,followInput(L,F)); }
-      for(const K of [girl,boy]) if(K.root.visible){ K.mixer.update(dt); placeKid(K); }
+      for(const K of [girl,boy]) if(K.root.visible){ K.mixer.update(dt); placeKid(K); bendArms(K); }
       centreWorld(L.P.x,L.P.z); placeCam(L,dt,false); hud(L); }
     status(); }
   R.render(scene,cam); requestAnimationFrame(frame);
