@@ -1,0 +1,416 @@
+<title>Kids Editor</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
+<style>
+/* layout: one screen — a slim title row, the canvas taking all spare height, a wrapping row of controls beneath */
+:root{
+  --paper:#f6f4ee; --ink:#27303f; --soft:#6d7686; --line:#d6d2c6; --panel:#ece9df; --accent:#3f5f8f;
+  --display:"Klee One","Hiragino Maru Gothic ProN","Trebuchet MS",sans-serif; --body:system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark } }
+:root[data-theme="dark"]{ --paper:#171b23; --ink:#e6e8ee; --soft:#9aa3b3; --line:#323949; --panel:#1f2530; --accent:#8fb0e6; color-scheme:dark }
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--body);display:flex;flex-direction:column;gap:10px;padding-inline:16px;padding-block:12px;box-sizing:border-box}
+header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+h1{font:600 20px/1.2 var(--display);margin:0;text-wrap:balance}
+header p{margin:0;color:var(--soft);font-size:13px}
+#stage{flex:1 1 auto;min-height:260px;border:1px solid var(--line);border-radius:6px;overflow:hidden;position:relative}
+canvas{display:block;width:100%;height:100%;touch-action:none;cursor:grab}
+canvas.drag{cursor:grabbing}
+.controls{display:flex;flex-wrap:wrap;gap:10px 18px;align-items:center;background:var(--panel);border:1px solid var(--line);border-radius:6px;padding:10px 12px}
+.controls label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--soft);min-width:0}
+.controls input[type=range]{width:120px;max-width:38vw;accent-color:var(--accent)}
+.seg{display:flex;flex-wrap:wrap;gap:0;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-size:13px;padding:6px 10px;border:0;background:transparent;color:var(--ink);cursor:pointer}
+.seg button+button{border-left:1px solid var(--line)}
+.seg button[aria-pressed=true]{background:var(--accent);color:var(--paper)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.tog{font:inherit;font-size:13px;padding:6px 10px;border:1px solid var(--line);border-radius:6px;background:transparent;color:var(--ink);cursor:pointer}
+.tog[aria-pressed=true]{background:var(--accent);color:var(--paper);border-color:var(--accent)}
+[hidden]{display:none!important}
+output{font-variant-numeric:tabular-nums;min-width:2ch;color:var(--ink)}
+#slots button{min-width:44px;font-variant-numeric:tabular-nums;color:var(--soft)}
+#slots button[data-full]{color:var(--ink);font-weight:600;box-shadow:inset 0 -3px 0 var(--accent)}
+#slots button[data-cur]{background:var(--accent);color:var(--paper);box-shadow:none}
+#curS{font-size:13px;font-weight:600;color:var(--ink)}
+#hint,.note{font-size:13px;color:var(--soft)}
+.lib{display:flex;flex-wrap:wrap;gap:6px 8px;flex-basis:100%;align-items:center}
+.grp{font-size:12px;color:var(--soft);flex-basis:100%;margin-top:2px}
+.snd{display:inline-flex;border:1px solid var(--line);border-radius:6px;overflow:hidden}
+.snd button{font:inherit;font-size:12px;padding:6px 9px;border:0;background:transparent;color:var(--ink);cursor:pointer;font-variant-numeric:tabular-nums}
+.snd .pv{border-left:1px solid var(--line);color:var(--accent)}
+.snd .pick[aria-pressed=true]{background:var(--accent);color:var(--paper)}
+.snd .pv.on{background:var(--accent);color:var(--paper)}
+#listtxt{flex:1 1 260px;min-width:0;font:12px/1.5 ui-monospace,Menlo,Consolas,monospace;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;resize:vertical}
+
+#stage{min-height:min(60vh,520px)}
+.look{display:grid;width:100%;box-sizing:border-box;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px 14px;flex-basis:100%}
+.look label{justify-content:space-between}
+.look input[type=color]{width:38px;height:26px;padding:0;border:1px solid var(--line);border-radius:4px;background:transparent;cursor:pointer}
+#txt{flex-basis:100%;min-height:96px;font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace;background:var(--paper);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;box-sizing:border-box;resize:vertical}
+details.controls{display:block}
+details.controls>.seg{display:inline-flex;margin:6px 0 10px}
+details.controls>summary{cursor:pointer;font-size:13px;font-weight:600;color:var(--ink);flex-basis:100%;list-style-position:inside}
+details.controls[open]>summary{margin-bottom:4px}
+</style>
+<header>
+  <h1>Kids Editor</h1>
+  <p>The game's two kids, drawn by the game's own code, in every pose. Drag to turn them. Change their looks, save them in a slot, and copy the settings to send back.</p>
+</header>
+<div id="stage"><canvas id="cv" aria-label="The two kids from the game, which can be turned by dragging"></canvas></div>
+<div class="controls" aria-label="Who and how">
+  <div class="seg" role="group" aria-label="Which kid">
+    <button type="button" data-who="both">Both kids</button>
+    <button type="button" data-who="lead">Big kid</button>
+    <button type="button" data-who="pal">Small kid</button>
+  </div>
+  <div class="seg" role="group" aria-label="Pose">
+    <button type="button" data-pose="stand">Standing</button>
+    <button type="button" data-pose="walk">Walking</button>
+    <button type="button" data-pose="run">Running</button>
+    <button type="button" data-pose="wings">Arms out</button>
+    <button type="button" data-pose="hop">Hop</button>
+    <button type="button" data-pose="fall">Falling</button>
+    <button type="button" data-pose="fly">Flying</button>
+    <button type="button" data-pose="dive">Diving</button>
+    <button type="button" data-pose="climb">Climbing</button>
+  </div>
+  <div class="seg" role="group" aria-label="View">
+    <button type="button" data-view="front">Front</button>
+    <button type="button" data-view="three">Three-quarter</button>
+    <button type="button" data-view="side">Side</button>
+    <button type="button" data-view="behind">Behind</button>
+  </div>
+</div>
+<div class="controls" aria-label="Motion">
+  <button type="button" class="tog" id="freeze" aria-pressed="false">Freeze</button>
+  <label for="step">Step <input id="step" type="range" min="0" max="100" value="20"></label>
+  <label for="spd">Speed <input id="spd" type="range" min="0" max="200" value="100"></label>
+  <label for="bank">Bank <input id="bank" type="range" min="-100" max="100" value="0"></label>
+  <label for="wind">Wind <input id="wind" type="range" min="-100" max="100" value="30"></label>
+  <label for="cloth">Cloth moving <input id="cloth" type="range" min="0" max="100" value="100"></label>
+</div>
+<div class="controls" aria-label="Looking">
+  <label for="zoom">Zoom <input id="zoom" type="range" min="40" max="300" value="120"></label>
+  <div class="seg" role="group" aria-label="Sun">
+    <button type="button" data-sun="left">Sun left</button>
+    <button type="button" data-sun="right">Sun right</button>
+    <button type="button" data-sun="none">No sun</button>
+  </div>
+  <button type="button" class="tog" id="paint" aria-pressed="true">Painted texture</button>
+  <button type="button" class="tog" id="guides" aria-pressed="false">Height guides</button>
+  <div class="seg" role="group" aria-label="Background">
+    <button type="button" data-bg="blank">Blank</button>
+    <button type="button" data-bg="grass">Grass</button>
+    <button type="button" data-bg="sky">Sky</button>
+    <button type="button" data-bg="night">Night</button>
+  </div>
+</div>
+<details class="controls" open>
+  <summary>Looks</summary>
+  <div class="seg" role="group" aria-label="Edit which kid">
+    <button type="button" data-edit="lead">Big kid</button>
+    <button type="button" data-edit="pal">Small kid</button>
+  </div>
+  <div class="look" id="look"></div>
+</details>
+<div class="controls" aria-label="Saving">
+  <span id="curS">Not saved</span>
+  <div class="seg" role="group" aria-label="Save slots" id="slots"></div>
+  <button type="button" class="tog" id="save">Save in slot</button>
+  <button type="button" class="tog" id="reset">Back to the game's kids</button>
+  <button type="button" class="tog" id="show">Show settings</button>
+  <button type="button" class="tog" id="copy" hidden>Copy</button>
+  <span id="hint" role="status"></span>
+  <textarea id="txt" hidden aria-label="The kids' settings as text, to copy"></textarea>
+</div>
+<div class="controls" aria-label="Reference picture">
+  <div class="seg" role="group" aria-label="Reference">
+    <button type="button" data-ref="off">No picture</button>
+    <button type="button" data-ref="side">Picture beside</button>
+    <button type="button" data-ref="over">Picture over the kids</button>
+  </div>
+  <label for="refA">Picture strength <input id="refA" type="range" min="10" max="100" value="100"></label>
+  <label for="refS">Picture size <input id="refS" type="range" min="40" max="200" value="100"></label>
+  <label class="tog" for="refFile" style="cursor:pointer">Add a picture<input id="refFile" type="file" accept="image/*" style="position:absolute;width:1px;height:1px;opacity:0"></label>
+</div>
+
+<script>
+const cv=document.getElementById('cv'), stage=document.getElementById('stage'); let ctx=cv.getContext('2d');
+let W=0,H=0,DPR=1;
+function fit(){ const r=stage.getBoundingClientRect(); DPR=Math.min(window.devicePixelRatio||1,2); W=Math.max(50,r.width); H=Math.max(50,r.height); cv.width=Math.round(W*DPR); cv.height=Math.round(H*DPR); }
+new ResizeObserver(fit).observe(stage); fit();
+
+/* ---- what the game's kid code expects to find around it ---- */
+function h2(i,j){ let n = (Math.imul(i,374761393) + Math.imul(j,668265263))|0; n = Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967296; }
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+function rng(seed){ let s=seed>>>0; return ()=>{ s=(Math.imul(s,1664525)+1013904223)>>>0; return s/4294967296; }; }
+function vnoise(x,y,sd){ const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy, ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy);
+  const a=h2(ix+sd,iy), b=h2(ix+1+sd,iy), c=h2(ix+sd,iy+1), d=h2(ix+1+sd,iy+1);
+  return a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy; }
+function fbm(x,y,sd){ return 0.5*vnoise(x,y,sd)+0.27*vnoise(x*2.1,y*2.1,sd+71)+0.15*vnoise(x*4.3,y*4.3,sd+173)+0.08*vnoise(x*8.7,y*8.7,sd+311); }
+// Torn, wind-swept clouds: a sheared noise field cut off at a threshold gives ragged banks with loose scraps.
+// Bodies are dusky mauve; edges facing the light (upper left) catch peach and cream. Edges are speckled, not smooth.
+const C_SH=[146,116,124], C_MID=[232,166,120], C_HI=[255,220,164];
+function paintCloud(seed,wisp,warm){
+  const CW=640, CH=240, c=document.createElement('canvas'); c.width=CW; c.height=CH; const g=c.getContext('2d'); const r=rng(seed);
+  const img=g.createImageData(CW,CH), px=img.data;
+  const dens=(x,y)=>{ const u=(x-320)/300, v=(y-125)/(wisp?52:105); return fbm((x+(CH-y)*0.8)/95, y/40, seed)-0.6+(0.5-u*u-v*v)*0.75; };
+  for(let y=0;y<CH;y++) for(let x=0;x<CW;x++){
+    const d=dens(x,y); if(d+(r()-0.5)*0.06<=0) continue;
+    const lit=0.45+(d-dens(x-13,y-11))*5-d*1.1+warm+(r()-0.5)*0.18;
+    const col=lit<0.42?C_SH:lit<0.74?C_MID:C_HI, i=(y*CW+x)*4;
+    px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=238;
+  }
+  g.putImageData(img,0,0); return c;
+}
+function fbm(x,y,sd){ return 0.5*vnoise(x,y,sd)+0.27*vnoise(x*2.1,y*2.1,sd+71)+0.15*vnoise(x*4.3,y*4.3,sd+173)+0.08*vnoise(x*8.7,y*8.7,sd+311); }
+let time=0, rgtX=1, rgtZ=0, fwdX=0, fwdZ=1, sunX=1e9, sunI=1, calm=1, windNow=0.3;
+function windR(){ return windNow; }
+const lead={x:0,z:0,y:0,fx:0,fz:-1,run:0,phase:0,sprint:0,flyT:0,vy:0,turn:0}, pal={x:120,z:0,y:0,fx:0,fz:-1,run:0,phase:0.6,sprint:0,flyT:0,vy:0,turn:0};
+
+/* ---- the kids, exactly as index.html draws them (copied from the game by the build script; do not edit here) ---- */
+/* ---------- the kids: jointed figures posed in 3D and flattened to the camera, so one rig covers every angle ---------- */
+let SKIN='#eeb98c', EYE='#2b2220';   // (let in the editor, so the skin colour can be tried out)
+const LOOKS={
+  lead:{hair:'#1f1b1e',hi:'#e8842c',shirt:'#dcd5c2',shade:'#a39e8e',trim:'#6b4a2a',bottom:'#3b4547',belt:'#7a5230',shoe:'#4a3424',skirt:true, spike:5.5,size:1.15},
+  pal: {hair:'#2f2a22',hi:'#ead6a2',shirt:'#bd4431',shade:'#8a2d23',trim:'#8a2d23',bottom:'#d9d6cb',belt:null,     shoe:'#b3312a',skirt:false,spike:3.5,size:1}};
+// Each kid is painted flat into a small buffer, then given the same treatment as the clouds:
+// edges broken into dry-brush speckle, colour split into shadow / body / highlight patches lit from the sun side,
+// and the speckle pattern swapped a few times a second so the figures "boil" like hand-painted frames.
+const KBW=264, KBH=236, KS=2.2;
+const kcv=document.createElement('canvas'); kcv.width=KBW; kcv.height=KBH; const kctx=kcv.getContext('2d',{willReadFrequently:true});
+const kout=document.createElement('canvas'); kout.width=KBW; kout.height=KBH; const koutx=kout.getContext('2d'); const kimg=koutx.createImageData(KBW,KBH);
+const KBOIL=[0,1,2].map(f=>{ const r=rng(77+f*13), off=new Int32Array(KBW*KBH), tone=new Float32Array(KBW*KBH);
+  for(let y=0;y<KBH;y++) for(let x=0;x<KBW;x++){ const i=y*KBW+x;
+    const dx=Math.round((vnoise(x/5,y/5,300+f*40)-0.5)*2.8+(r()-0.5)*1.1), dy=Math.round((vnoise(x/5,y/5,700+f*40)-0.5)*2.8+(r()-0.5)*1.1);
+    off[i]=(Math.min(KBH-1,Math.max(0,y+dy))*KBW+Math.min(KBW-1,Math.max(0,x+dx)))*4;
+    tone[i]=fbm((x+y*0.5)/34,y/20,900+f*7)+(r()-0.5)*0.2; }
+  return {off,tone}; });
+function drawKid(k,sx,sy,s){
+  const L=LOOKS[k===lead?'lead':'pal'], run=Math.min(1,k.run), sun=sunX>=sx?1:-1;
+  paintKid(kctx,k,sx);
+  const src=kctx.getImageData(0,0,KBW,KBH).data, out=kimg.data, B=KBOIL[k===lead?0:1], off=B.off, tone=B.tone;
+  for(let y=0,i=0;y<KBH;y++){ const vy=(KBH*0.45-y)/KBH*0.3; for(let x=0;x<KBW;x++,i++){
+    const j=off[i], o=i*4;
+    if(src[j+3]<128){ out[o+3]=0; continue; }
+    const v=tone[i]+(x-KBW/2)/KBW*sun*1.1+vy;
+    let r=src[j], g=src[j+1], b=src[j+2];
+    if(v<0.37){ r*=0.86; g*=0.81; b*=0.87; } else if(v>0.72){ r=r*1.05+8; g=g*1.04+6; b=b*0.99+2; }
+    out[o]=r; out[o+1]=g; out[o+2]=b; out[o+3]=255;
+  } }
+  koutx.putImageData(kimg,0,0);
+  const sc=s*L.size/KS;
+  ctx.drawImage(kout, sx-KBW/2*sc, sy-(k.y+Math.abs(Math.sin(k.phase))*3.5*run)*s-(KBH-12)*sc, KBW*sc, KBH*sc);
+}
+function paintKid(ctx,k,sx){
+  const L=LOOKS[k===lead?'lead':'pal'];
+  let cfx=k.fx*rgtX+k.fz*rgtZ, cfz=k.fx*fwdX+k.fz*fwdZ; { const m=Math.hypot(cfx,cfz)||1; cfx/=m; cfz/=m; }
+  const run=Math.min(1,k.run), ph=k.phase, air=k.y>2, away=cfz>0.3, ft=k.flyT||0, lean=(0.2*run+0.1*k.sprint)*(1-ft), acz=Math.abs(cfz);
+  // flying: the body lies forward about the hips, nose down in a dive and up in a climb
+  const pitch=ft*clamp(1.05-k.vy/260,0.6,1.3), cp=Math.cos(pitch), spn=Math.sin(pitch);
+  // body space: lat = to the kid's right, fwd = the way they face, up. Returns [screen x, screen y, depth].
+  const P=(lat,fwd,up)=>{ if(up>26) fwd+=lean*(up-26); const u=up-27, f2=fwd*cp+u*spn, u2=u*cp-fwd*spn; return [lat*cfz+f2*cfx, -(27+u2), -lat*cfx+f2*cfz]; };
+  const line=(pts,col,w)=>{ ctx.strokeStyle=col; ctx.lineWidth=w; ctx.beginPath(); ctx.moveTo(pts[0][0],pts[0][1]); for(let i=1;i<pts.length;i++) ctx.lineTo(pts[i][0],pts[i][1]); ctx.stroke(); };
+  const part=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t];
+  ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,KBW,KBH); ctx.save(); ctx.translate(KBW/2,KBH-12); ctx.scale(KS,KS); ctx.lineCap='round'; ctx.lineJoin='round';
+  // bank into turns: a little when running, a lot when flying
+  { const roll=clamp((k.turn||0)*(0.1+0.5*ft),-0.85,0.85)*cfz; ctx.translate(0,-34); ctx.rotate(roll); ctx.translate(0,34); }
+
+  const legs=[], arms=[], wing=Math.max(k.sprint, air?1:0);
+  for(const sd of [-1,1]){
+    const p=ph+(sd>0?Math.PI:0);
+    let th=Math.sin(p)*0.8*run+0.08*run, kn=(0.2+Math.max(0,Math.cos(p)))*run;
+    if(air){ th=sd*0.55; kn=0.9; }
+    if(ft>0){ th+=(sd*0.14*Math.sin(time*3+sd)-th)*ft; kn+=(0.1-kn)*ft; }   // flying: legs trail straight out behind
+    const kf=13*Math.sin(th), ku=27-13*Math.cos(th), ff=kf+13*Math.sin(th-kn), fu=ku-13*Math.cos(th-kn);
+    legs.push({h:P(sd*4,0,27), k:P(sd*4,kf,ku), f:P(sd*4,ff,fu), t:P(sd*4,ff+4,fu-0.5)});
+    const a=-Math.sin(p)*0.9*run, eb=0.2+1.3*run, fl=Math.sin(time*7+sd)*1.5;
+    let E=[sd*10,10*Math.sin(a),47-10*Math.cos(a)], Hd=[sd*10,E[1]+9*Math.sin(a+eb),E[2]-9*Math.cos(a+eb)];
+    const E2=[sd*18.5,-1,48], H2=[sd*27.5,-2,50+fl];
+    E=E.map((v,i)=>v+(E2[i]-v)*wing); Hd=Hd.map((v,i)=>v+(H2[i]-v)*wing);
+    arms.push({s:P(sd*8.5,0,47), e:P(E[0],E[1],E[2]), h:P(Hd[0],Hd[1],Hd[2])});
+  }
+  const drawLeg=g=>{ line([g.h,g.k,g.f],SKIN,5.6); if(!L.skirt) line([g.h,part(g.h,g.k,0.7)],L.bottom,8.5);
+    ctx.fillStyle=L.shoe; ctx.beginPath(); ctx.ellipse((g.f[0]+g.t[0])/2,(g.f[1]+g.t[1])/2+0.5,3.2+Math.abs(g.t[0]-g.f[0])*0.5,3.2,0,0,7); ctx.fill(); };
+  const drawArm=g=>{ line([g.s,g.e,g.h],SKIN,4.6); const cuff=part(g.s,g.e,0.75), wv=Math.sin(time*10+g.s[0])*calm; line([g.s,[cuff[0]+clamp(windR(),-1,1)*(1.2+0.8*wv),cuff[1]+0.8*wv]],L.shirt,7.5); ctx.fillStyle=SKIN; ctx.beginPath(); ctx.arc(g.h[0],g.h[1],2.9,0,7); ctx.fill(); };
+
+  const hip=P(0,0,27), sh=P(0,0,49), hw=6.5+3*acz, sun=sunX>=sx?1:-1;
+  const hc=P(0,0.5,61.5), hx=hc[0], hy=hc[1], R=12.5;
+  const drawLegs=()=>legs.sort((a,b)=>b.f[2]-a.f[2]).forEach(drawLeg);
+  // cloth: hems swing downwind (and back from the run) and ripple along their edge
+  const wx=clamp(windR()-cfx*run*0.8,-1.4,1.4), flap=i=>Math.sin(time*9+i*1.3+k.x*0.02)*calm;
+  const drawBottom=()=>{
+  if(L.skirt){
+    const sw=-cfx*run*2.5+Math.sin(ph*2)*0.8;
+    ctx.fillStyle=L.bottom; ctx.beginPath(); ctx.moveTo(hip[0]-hw-0.5,hip[1]-5); ctx.lineTo(hip[0]+hw+0.5,hip[1]-5); for(let j=0;j<=5;j++){ const t=j/5, dn=(wx>0?1-t:t); ctx.lineTo(hip[0]+(hw+5)*(1-2*t)+sw+wx*(3.2+1.6*flap(j))+wx*3*dn*(0.5+0.5*flap(9)), hip[1]+3+6*cp+1.3*flap(j*1.7+2)-Math.abs(wx)*1.5*dn); } ctx.closePath(); ctx.fill();
+  } else { ctx.fillStyle=L.bottom; ctx.beginPath(); ctx.roundRect(hip[0]-hw-0.5,hip[1]-6,hw*2+1,9,3); ctx.fill(); }
+  };
+  const drawBody=()=>{
+    drawBottom();
+  arms.filter(a=>a.e[2]>0.5).forEach(drawArm);
+  // shirt, with the side away from the sun in shade
+  ctx.fillStyle=ctx.strokeStyle=L.shirt; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.moveTo(sh[0]-hw-1.5,sh[1]); ctx.lineTo(sh[0]+hw+1.5,sh[1]); for(let j=0;j<=4;j++){ const t=j/4, dn=(wx>0?1-t:t); ctx.lineTo(hip[0]+(hw+2.5)*(1-2*t)+wx*(2+1.1*flap(j+3))+wx*3.2*dn*dn*(0.55+0.45*flap(6)), hip[1]-4+1.1*flap(j*1.9)+0.8*Math.abs(wx)*flap(j+0.5)); } ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=L.shade; ctx.globalAlpha=0.6;
+  ctx.beginPath(); ctx.moveTo(sh[0]-sun*1,sh[1]-1); ctx.lineTo(sh[0]-sun*(hw+2.5),sh[1]-0.5); ctx.lineTo(hip[0]-sun*(hw+3.5),hip[1]-3); ctx.lineTo(hip[0]+sun*1,hip[1]-2.6); ctx.closePath(); ctx.fill(); ctx.globalAlpha=1;
+  if(L.belt) line([[hip[0]-hw-1,hip[1]-4.6],[hip[0]+hw+1,hip[1]-4.6]],L.belt,2.6);
+  line([sh,[hx,hy+R-2]],SKIN,5);
+  ctx.strokeStyle=L.trim; ctx.lineWidth=1.9; ctx.beginPath();
+  if(away) ctx.arc(sh[0],sh[1]-2.2,4.2,0.15*Math.PI,0.85*Math.PI); else ctx.arc(sh[0]+cfx*2.5,sh[1]-2.6,4.6,0.05*Math.PI,0.95*Math.PI);
+  ctx.stroke();
+  arms.filter(a=>a.e[2]<=0.5).forEach(drawArm);
+  };
+  const drawHead=()=>{
+
+  // head: hair streams downwind and back from the run
+  let dx=windR()*1.0-cfx*run*0.7, dy=-0.28; { const m=Math.hypot(dx,dy)||1; dx/=m; dy/=m; }
+  const hb=P(0,-3.5,63), bx=away?hx:hb[0], by=(away?hy:hb[1])-0.5, a0=Math.atan2(dy,dx);
+  const hairMass=()=>{
+    ctx.fillStyle=L.hair; ctx.beginPath(); ctx.arc(bx,by,R+1.6,0,7); ctx.fill();
+    for(let i=0;i<7;i++){
+      const ai=a0+(i-3)*0.4, len=L.spike*(1+(i%3)*0.45)*(0.75+0.25*run), fl=Math.sin(time*9+i*1.9+k.x*0.01)*1.6*calm;
+      ctx.fillStyle=Math.sin(ai)<(L.skirt?-0.8:-0.5)?L.hi:L.hair;
+      ctx.beginPath(); ctx.moveTo(bx+Math.cos(ai-0.26)*(R+0.6),by+Math.sin(ai-0.26)*(R+0.6)); ctx.lineTo(bx+Math.cos(ai+0.26)*(R+0.6),by+Math.sin(ai+0.26)*(R+0.6));
+      ctx.lineTo(bx+Math.cos(ai)*(R+len)+dx*len*0.6-dy*fl, by+Math.sin(ai)*(R+len)+dy*len*0.6+dx*fl); ctx.closePath(); ctx.fill();
+    }
+  };
+  const face=()=>{ ctx.fillStyle=SKIN; ctx.beginPath(); ctx.arc(hx,hy,R,0,7); ctx.fill(); };
+  if(away){ face(); hairMass(); }
+  else {
+    hairMass(); face();
+    for(const sd of [-1,1]){
+      const e=P(sd*4.6,11,60.5), c=P(sd*7.2,9.4,56.6);
+      if(c[2]<3){ ctx.fillStyle='rgba(226,104,84,.34)'; ctx.beginPath(); ctx.ellipse(c[0],c[1],2.6*Math.max(0.45,acz),2.1,0,0,7); ctx.fill(); }
+      if(e[2]<2){ ctx.fillStyle=EYE; ctx.beginPath(); ctx.ellipse(e[0],e[1],1.7*Math.max(0.5,acz)+0.2,2.9,0,0,7); ctx.fill();
+        ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(e[0]+0.6,e[1]-1,0.75,0,7); ctx.fill(); }
+    }
+    const mp=P(0,11.8,55); ctx.fillStyle='#8a3626'; ctx.beginPath(); ctx.ellipse(mp[0],mp[1],2.3*Math.max(0.4,acz),1.3+0.9*run,0,0,7); ctx.fill();
+    // fringe: a cap that slides toward the back of the head as the kid turns side-on
+    const rot=-cfx*0.95, cx=hx-cfx*2.2, cy=hy-1.2, s0=Math.PI*1.1+rot, s1=Math.PI*1.9+rot;
+    ctx.fillStyle=L.hair; ctx.beginPath(); ctx.arc(cx,cy,R+1.3,s0,s1); ctx.closePath(); ctx.fill();
+    const p0=[cx+Math.cos(s0)*(R+1.3),cy+Math.sin(s0)*(R+1.3)], p1=[cx+Math.cos(s1)*(R+1.3),cy+Math.sin(s1)*(R+1.3)];
+    ctx.beginPath(); for(let i=0;i<4;i++){ const a=part(p0,p1,i/4), b=part(p0,p1,(i+1)/4), m=part(p0,p1,(i+0.5)/4); ctx.moveTo(a[0],a[1]); ctx.lineTo(b[0],b[1]); ctx.lineTo(m[0]+Math.sin(rot)*-3.4,m[1]+Math.cos(rot)*3.4); ctx.closePath(); } ctx.fill();
+  }
+  // the coloured top layer: orange streak on one kid, straw-blond crown on the other
+  ctx.fillStyle=L.hi; ctx.beginPath();
+  if(L.skirt) ctx.ellipse(bx+dx*4,by-R+1,5,1.9,Math.atan2(dy,dx)*0.4,0,7); else ctx.ellipse(bx+dx*2.5,by-R+2,8.5,3.2,0,0,7);
+  ctx.fill();
+  if(sunI>0.05){ ctx.strokeStyle='rgba(255,238,176,'+0.8*sunI+')'; ctx.lineWidth=1.3; ctx.beginPath(); const c0=sun>0?-0.2:Math.PI+0.2; ctx.arc(hx,hy,R+1.2,c0-0.75,c0+0.75); ctx.stroke(); }
+  };
+  // seen from behind while lying forward, the head is farthest away and the legs nearest
+  if(ft>0.5 && hc[2]>hip[2]+6){ drawHead(); drawBody(); drawLegs(); drawBottom(); }   // skirt and shorts go back on top so the trailing legs come out from under them
+  else { drawLegs(); drawBody(); drawHead(); }
+  ctx.restore();
+}
+
+/* ---- the editor ---- */
+const $=id=>document.getElementById(id);
+const GAME_LOOKS=JSON.parse(JSON.stringify(LOOKS)), GAME_SKIN=SKIN;
+let who='both', pose='stand', yaw=Math.PI, yawTo=null, bg='grass', sunMode='left', painted=true, guides=false, frozen=false, refMode='off', editKid='lead', refImg=null, hopT=0, last=0;
+const VIEWS={front:Math.PI, three:Math.PI*0.75, side:Math.PI/2, behind:0};
+const POSES={ stand:{run:0,sprint:0,air:0,fly:0,vy:0,rate:0}, walk:{run:0.38,sprint:0,air:0,fly:0,vy:0,rate:5}, run:{run:1,sprint:0,air:0,fly:0,vy:0,rate:9},
+  wings:{run:1,sprint:1,air:0,fly:0,vy:0,rate:9}, hop:{run:0.6,sprint:0,air:0,fly:0,vy:0,rate:7}, fall:{run:0,sprint:0,air:1,fly:0,vy:-180,rate:0},
+  fly:{run:0,sprint:0,air:1,fly:1,vy:0,rate:0}, dive:{run:0,sprint:0,air:1,fly:1,vy:-260,rate:0}, climb:{run:0,sprint:0,air:1,fly:1,vy:260,rate:0} };
+function mark(kind,v){ document.querySelectorAll('[data-'+kind+']').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset[kind]===v))); }
+
+function drawBg(){
+  const g=ctx.createLinearGradient(0,0,0,H);
+  if(bg==='blank'){ ctx.fillStyle=getComputedStyle(document.documentElement).getPropertyValue('--paper'); ctx.fillRect(0,0,W,H); return; }
+  if(bg==='grass'){ g.addColorStop(0,'#8fc3c0'); g.addColorStop(0.5,'#e9d9a0'); g.addColorStop(0.52,'#d9b25a'); g.addColorStop(1,'#b8832e'); }
+  else if(bg==='sky'){ g.addColorStop(0,'#7fb5e2'); g.addColorStop(1,'#e6f0f2'); }
+  else { g.addColorStop(0,'#0c1030'); g.addColorStop(0.7,'#232a5c'); g.addColorStop(1,'#3a3f74'); }
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H); }
+// the kid as the game paints it, with or without the dry-brush texture
+function showKid(k,sx,sy,s){
+  if(painted){ drawKid(k,sx,sy,s); return; }
+  const L=LOOKS[k===lead?'lead':'pal'], run=Math.min(1,k.run); paintKid(kctx,k,sx); const sc=s*L.size/KS;
+  ctx.drawImage(kcv, sx-KBW/2*sc, sy-(k.y+Math.abs(Math.sin(k.phase))*3.5*run)*s-(KBH-12)*sc, KBW*sc, KBH*sc); }
+function setKid(k,P,dt,off){
+  k.fx=Math.sin(yaw); k.fz=Math.cos(yaw); k.run=P.run; k.sprint=P.sprint; k.flyT=P.fly; k.vy=P.vy; k.turn=(+$('bank').value/100)*1.7;
+  if(frozen) k.phase=(+$('step').value/100)*Math.PI*2+off; else k.phase+=dt*P.rate;
+  if(pose==='hop'){ const t=hopT%1.25; k.y=t<0.667?Math.max(0,240*t-360*t*t):0; k.vy=t<0.667?240-720*t:0; }
+  else k.y=P.air?36:0; }
+function tick(now){ const dt=Math.min(0.05,(now-last)/1000||0), sp=+$('spd').value/100; last=now;
+  if(!frozen){ time+=dt*sp; hopT+=dt*sp; }
+  if(yawTo!==null){ const k=1-Math.exp(-dt*7); let d=yawTo-yaw; d=Math.atan2(Math.sin(d),Math.cos(d)); yaw+=d*k; if(Math.abs(d)<0.002) yawTo=null; }
+  calm=+$('cloth').value/100; windNow=(+$('wind').value/100)*1.2;
+  ctx=cv.getContext('2d'); ctx.setTransform(DPR,0,0,DPR,0,0); drawBg();
+  const P=POSES[pose], zoom=+$('zoom').value/100, side=refMode==='side'&&refImg, cx=side?W*0.34:W*0.5;
+  /* room above the kids: a hop goes up about 40, the air poses are drawn 36 up */
+  const env=pose==='hop'?195:pose==='fall'?185:P.air?150:150;
+  const s=zoom*Math.min(H/env, (side?W*0.6:W)/(who==='both'?190:120));
+  const gy=P.air&&P.fly?H*(pose==='climb'?0.6:0.5)+(36+18)*s:H*0.88;
+  sunX=sunMode==='left'?-1e9:1e9; sunI=sunMode==='none'?0:1;
+  if(refMode!=='off' && refImg){ const k=+$('refS').value/100, ih=H*0.84*k, iw=ih*refImg.naturalWidth/refImg.naturalHeight;
+    ctx.globalAlpha=(+$('refA').value/100)*(refMode==='over'?0.55:1); ctx.drawImage(refImg,(side?W*0.76:cx)-iw/2,(refMode==='over'?gy-ih:H*0.5-ih/2),iw,ih); ctx.globalAlpha=1; }
+  if(!P.air){ ctx.fillStyle='rgba(20,24,50,0.12)'; ctx.beginPath(); ctx.ellipse(cx,gy,(who==='both'?70:36)*s,4*s,0,0,7); ctx.fill(); }
+  if(guides){ ctx.save(); ctx.strokeStyle='rgba(60,70,90,.45)'; ctx.fillStyle='rgba(60,70,90,.8)'; ctx.font='12px system-ui,sans-serif'; ctx.setLineDash([5,5]); ctx.lineWidth=1;
+    for(const [h,t] of [[98*1.15,'big kid, about '+Math.round(98*LOOKS.lead.size/1.15)+' units'],[98*LOOKS.pal.size/1.15*1.0,'small kid'],[77,'a standing flamingo']]){ const y=gy-h*s*1.0; ctx.beginPath(); ctx.moveTo(8,y); ctx.lineTo(W-8,y); ctx.stroke(); ctx.fillText(t,10,y-4); } ctx.restore(); }
+  setKid(lead,P,dt*sp,0); setKid(pal,P,dt*sp,0.6);
+  /* side by side like a line-up: big kid on the left, small kid on the right, whichever way they face */
+  const sep=who==='both'?44*s:0;
+  if(who!=='pal') showKid(lead,cx-sep,gy,s);
+  if(who!=='lead') showKid(pal,cx+sep,gy,s);
+  ctx=cv.getContext('2d');
+  requestAnimationFrame(tick); }
+
+/* ---- looks: colour pickers and sliders for the kid being edited ---- */
+const FIELDS=[['hair','Hair'],['hi','Hair streak'],['shirt','Shirt'],['shade','Shirt shade'],['trim','Collar'],['bottom','Skirt or shorts'],['belt','Belt'],['shoe','Shoes']];
+function buildLook(){ const L=LOOKS[editKid], box=$('look'); box.innerHTML='';
+  const add=html=>{ const d=document.createElement('div'); d.innerHTML=html; box.appendChild(d.firstElementChild); };
+  for(const [f,t] of FIELDS){ if(f==='belt' && !L.belt){ add('<label>'+t+' <button type="button" class="tog" data-belt="on">Add belt</button></label>'); continue; }
+    add('<label for="c_'+f+'">'+t+' <input type="color" id="c_'+f+'" value="'+L[f]+'"></label>'); }
+  add('<label for="c_skin">Skin, both kids <input type="color" id="c_skin" value="'+SKIN+'"></label>');
+  add('<label>Bottom <button type="button" class="tog" id="c_skirt" aria-pressed="'+L.skirt+'">'+(L.skirt?'Skirt':'Shorts')+'</button></label>');
+  add('<label for="c_spike">Hair spikes <input id="c_spike" type="range" min="10" max="90" value="'+Math.round(L.spike*10)+'"></label>');
+  add('<label for="c_size">Size <input id="c_size" type="range" min="70" max="150" value="'+Math.round(L.size*100)+'"></label>');
+  if(L.belt) add('<label>Belt <button type="button" class="tog" data-belt="off">Remove belt</button></label>');
+  for(const [f] of FIELDS){ const el=$('c_'+f); if(el) el.addEventListener('input',()=>{ LOOKS[editKid][f]=el.value; changed(); }); }
+  $('c_skin').addEventListener('input',e=>{ SKIN=e.target.value; changed(); });
+  $('c_skirt').addEventListener('click',()=>{ LOOKS[editKid].skirt=!LOOKS[editKid].skirt; changed(); buildLook(); });
+  $('c_spike').addEventListener('input',e=>{ LOOKS[editKid].spike=+e.target.value/10; changed(); });
+  $('c_size').addEventListener('input',e=>{ LOOKS[editKid].size=+e.target.value/100; changed(); });
+  box.querySelectorAll('[data-belt]').forEach(b=>b.addEventListener('click',()=>{ LOOKS[editKid].belt=b.dataset.belt==='on'?'#7a5230':null; changed(); buildLook(); }));
+  mark('edit',editKid); }
+
+/* ---- save slots (kept in this browser), and the settings as text ---- */
+const KEY='kids-slots-v1'; let slots=[], cur=-1, dirty=false;
+try{ slots=JSON.parse(localStorage.getItem(KEY)||'[]'); }catch(_){ slots=[]; }
+if(!Array.isArray(slots)) slots=[]; while(slots.length<10) slots.push(null);
+const snap=()=>({looks:JSON.parse(JSON.stringify(LOOKS)),skin:SKIN});
+function apply(o){ for(const k of ['lead','pal']) Object.assign(LOOKS[k],JSON.parse(JSON.stringify(o.looks[k]))); SKIN=o.skin||GAME_SKIN; buildLook(); }
+function saveAll(){ try{ localStorage.setItem(KEY,JSON.stringify(slots)); return true; }catch(_){ return false; } }
+function drawSlots(){ const b=$('slots'); b.innerHTML='';
+  for(let i=0;i<10;i++){ const x=document.createElement('button'); x.type='button'; x.textContent=i+1; x.setAttribute('aria-label','Slot '+(i+1)+(slots[i]?', saved':', empty')); if(slots[i]) x.dataset.full=''; if(i===cur) x.dataset.cur='';
+    x.addEventListener('click',()=>{ if(slots[i]){ apply(slots[i]); cur=i; dirty=false; say('Slot '+(i+1)+' loaded.'); } else { cur=i; say('Slot '+(i+1)+' is empty. Press Save in slot to keep the kids here.'); } drawSlots(); label(); }); b.appendChild(x); } }
+function label(){ $('curS').textContent=cur<0?(dirty?'Changed, not saved':'The game\'s kids'):'Slot '+(cur+1)+(dirty?', changed':''); }
+function changed(){ dirty=true; label(); if(!$('txt').hidden) $('txt').value=text(); }
+function say(t){ $('hint').textContent=t; }
+function text(){ const o=snap(), r=[]; r.push('SKIN '+o.skin);
+  for(const k of ['lead','pal']){ const L=o.looks[k]; r.push((k==='lead'?'BIG KID':'SMALL KID')+': '+Object.entries(L).map(([a,b])=>a+'='+(b===null?'none':b)).join(' ')); } return r.join('\n'); }
+$('save').addEventListener('click',()=>{ if(cur<0) cur=slots.findIndex(x=>!x); if(cur<0) cur=0; slots[cur]=snap(); dirty=false; say(saveAll()?'Saved in slot '+(cur+1)+'.':'Saved for now; this browser would not keep it.'); drawSlots(); label(); });
+$('reset').addEventListener('click',()=>{ apply({looks:GAME_LOOKS,skin:GAME_SKIN}); cur=-1; dirty=false; drawSlots(); label(); say('Back to the kids as the game has them.'); });
+$('show').addEventListener('click',()=>{ const t=$('txt'); t.hidden=!t.hidden; $('copy').hidden=t.hidden; $('show').textContent=t.hidden?'Show settings':'Hide settings'; if(!t.hidden) t.value=text(); });
+$('copy').addEventListener('click',()=>{ const t=$('txt'); navigator.clipboard.writeText(t.value).then(()=>say('Copied. Paste it to me in the chat.'),()=>{ t.focus(); t.select(); say('Select all and copy, then paste it to me.'); }); });
+
+/* ---- controls ---- */
+let dragging=false, lx0=0;
+cv.addEventListener('pointerdown',e=>{ dragging=true; lx0=e.clientX; yawTo=null; cv.classList.add('drag'); try{ cv.setPointerCapture(e.pointerId); }catch(_){} mark('view',null); });
+cv.addEventListener('pointermove',e=>{ if(!dragging) return; yaw-=(e.clientX-lx0)*0.01; lx0=e.clientX; });
+const up=()=>{ dragging=false; cv.classList.remove('drag'); }; cv.addEventListener('pointerup',up); cv.addEventListener('pointercancel',up);
+document.querySelectorAll('[data-who]').forEach(b=>b.addEventListener('click',()=>{ who=b.dataset.who; mark('who',who); }));
+document.querySelectorAll('[data-pose]').forEach(b=>b.addEventListener('click',()=>{ pose=b.dataset.pose; hopT=0; mark('pose',pose); }));
+document.querySelectorAll('[data-view]').forEach(b=>b.addEventListener('click',()=>{ yawTo=VIEWS[b.dataset.view]; mark('view',b.dataset.view); }));
+document.querySelectorAll('[data-sun]').forEach(b=>b.addEventListener('click',()=>{ sunMode=b.dataset.sun; mark('sun',sunMode); }));
+document.querySelectorAll('[data-bg]').forEach(b=>b.addEventListener('click',()=>{ bg=b.dataset.bg; mark('bg',bg); }));
+document.querySelectorAll('[data-edit]').forEach(b=>b.addEventListener('click',()=>{ editKid=b.dataset.edit; buildLook(); }));
+document.querySelectorAll('[data-ref]').forEach(b=>b.addEventListener('click',()=>{ if(b.dataset.ref!=='off' && !refImg){ say('Add a picture first.'); return; } refMode=b.dataset.ref; mark('ref',refMode); }));
+$('freeze').addEventListener('click',()=>{ frozen=!frozen; $('freeze').setAttribute('aria-pressed',String(frozen)); });
+$('step').addEventListener('input',()=>{ if(!frozen) $('freeze').click(); });
+$('paint').addEventListener('click',()=>{ painted=!painted; $('paint').setAttribute('aria-pressed',String(painted)); });
+$('guides').addEventListener('click',()=>{ guides=!guides; $('guides').setAttribute('aria-pressed',String(guides)); });
+$('refFile').addEventListener('change',e=>{ const f=e.target.files&&e.target.files[0]; if(!f) return; const im=new Image(); im.onload=()=>{ refImg=im; refMode='side'; mark('ref','side'); say('Picture added.'); }; im.src=URL.createObjectURL(f); });
+mark('who',who); mark('pose',pose); mark('view','front'); mark('sun',sunMode); mark('bg',bg); mark('ref','off');
+buildLook(); drawSlots(); label();
+requestAnimationFrame(tick);
+</script>
