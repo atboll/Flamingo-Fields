@@ -446,7 +446,7 @@ view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel
 /* ---------- sound: the field recording, looped forever, each pass starting 4 s before the last one ends (as the 2D game does).
    It starts with the first key or tap, since browsers only play sound after the player has done something. ---------- */
 const OVERLAP=4, soundBtn=$('sound'), fadeOut=new Float32Array(48).map((_,i)=>Math.cos(i/47*Math.PI/2));
-let actx=null, master=null, fieldBuf=null, fieldGain=null, nextAt=0, soundOn=true;
+let actx=null, master=null, fieldBuf=null, fieldGain=null, nextAt=0, soundOn=true, runGain=null, runSrc=null, palGain=null, palSrc=null;
 try{ soundOn=localStorage.getItem('ff3dSound')!=='off'; }catch(_){ }
 function showSound(){ soundBtn.textContent=soundOn?'Sound on':'Sound off'; soundBtn.setAttribute('aria-pressed',String(soundOn)); }
 function scheduleField(){
@@ -462,7 +462,19 @@ function startSound(){
   fieldGain=actx.createGain(); fieldGain.gain.value=0; fieldGain.connect(master);
   fetch('assets/field01.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
     .then(buf=>{ fieldBuf=buf; scheduleField(); setInterval(scheduleField,2000); fieldGain.gain.setTargetAtTime(1,actx.currentTime,0.8); })   /* it fades in */
-    .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; }); }
+    .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; });
+  /* footsteps, as the 2D game: the big kid's steps looped, heard only while running on the ground; the small kid has the same
+     steps 10% faster, started part-way in so the two don't land together */
+  fetch('assets/run_big.wav').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ runGain=actx.createGain(); runGain.gain.value=0; runGain.connect(master);
+      runSrc=actx.createBufferSource(); runSrc.buffer=buf; runSrc.loop=true; runSrc.connect(runGain); runSrc.start();
+      palGain=actx.createGain(); palGain.gain.value=0; palGain.connect(master);
+      palSrc=actx.createBufferSource(); palSrc.buffer=buf; palSrc.loop=true; palSrc.playbackRate.value=1.1; palSrc.connect(palGain); palSrc.start(0,1.29); })
+    .catch(()=>{}); }
+function stepsFor(K){ const P=K.P; return (P.state==='ground'||P.state==='touch')&&P.y<0.02 ? clamp((P.spd/K.RUN_SPEED-0.25)/0.5,0,1) : 0; }
+function updateRunSound(){ if(!runGain||!girl) return; const t=actx.currentTime, on=stepsFor(girl), pon=stepsFor(boy);
+  runGain.gain.setTargetAtTime(on*0.9,t,on>0?0.05:0.09); runSrc.playbackRate.setTargetAtTime(1+0.28*on,t,0.15);
+  palGain.gain.setTargetAtTime(pon*0.75,t,pon>0?0.05:0.09); palSrc.playbackRate.setTargetAtTime(1.1*(1+0.28*pon),t,0.15); }
 soundBtn.addEventListener('click',e=>{ e.stopPropagation(); startSound(); soundOn=!soundOn; showSound(); try{ localStorage.setItem('ff3dSound',soundOn?'on':'off'); }catch(_){ }
   if(master) master.gain.setTargetAtTime(soundOn?0.85:0,actx.currentTime,0.15); });
 soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
@@ -484,7 +496,7 @@ function frame(now){
     groundTime.value=clock;
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  R.render(scene,cam); overlays(clock);
+  R.render(scene,cam); overlays(clock); updateRunSound();
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }

@@ -58,7 +58,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 ### Sound
 
 - [x] Field ambience (`assets/field01.mp3`, the new field recording, looped with a 4 s crossfade)
-- [ ] Footsteps
+- [x] Footsteps (the 2D game's `run_big.wav`, the small kid's 10% faster and offset)
 - [ ] Flock calls
 - [ ] Music
 - [ ] Wind
