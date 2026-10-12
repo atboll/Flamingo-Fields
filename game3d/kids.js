@@ -433,7 +433,7 @@ function stepKid(K,dt,In){
   else if(P.state==='stop'){ const t=A.stop.time, v=Math.max(0,(curveAt(c.stopZ,'z',t+0.04)-curveAt(c.stopZ,'z',Math.max(0,t-0.04)))/0.08)*BOOST*K.scale;
     speed=P.stopEntry+(v-P.stopEntry)*Math.min(1,(t-P.stopFrom)/0.15); P.spd=speed; }   // from his running speed into the skid's own slide
   else if(P.state==='turn'){ const t=K.spA.time, d=K.spA.getClip().duration; speed=In.speed*Math.max(0,Math.min(1,(t-(d-0.6))/0.6)); P.spd=speed; }
-  else speed=P.spd*(1-P.flyW)+(In.airSpeed??FLY_SPEED)*P.flyW;
+  else speed=P.spd*(1-P.flyW)+(In.airSpeed??FLY_SPEED)*(P.state==='land'?(P.landSlow??1):1)*P.flyW;
   P.x+=Math.sin(P.h)*speed*dt; P.z+=Math.cos(P.h)*speed*dt;
   if(P.state==='crouch'){ P.crouch-=dt; if(P.crouch<=0){ P.state='hop'; P.vy=HOP*Math.sqrt(K.scale); } }   // a smaller kid hops lower
   else if(P.state==='hop'){ P.vy-=G*dt; P.y+=P.vy*dt; if(P.y<=0){ P.y=0; P.vy=0; P.state='ground'; } }
@@ -442,7 +442,14 @@ function stepKid(K,dt,In){
     else { if(!In.climb) P.upLock=false;   // ↑ held from the run does not count; let go once, then ↑ climbs
       if(In.climb&&!P.upLock) P.alt=Math.min(ALT_MAX,P.alt+4*dt); if(In.sink) P.alt=Math.max(1.2,P.alt-4*dt); }
     const want=(P.alt-P.y)*2.2; P.vy+=(want-P.vy)*ease(3); P.y+=P.vy*dt; }
-  else if(P.state==='land'){ P.vy+=(-Math.max(2.6,P.y*0.55)-P.vy)*ease(3); P.y+=P.vy*dt;
+  else if(P.state==='land'){
+    /* landing is a swoop: they dive at the ground in a curve that flattens as it comes up (the sink slows with the height left),
+       pull up and slow down over the last few metres, and only reach their legs down for the last metre */
+    const hs=K.scale, low=P.y<UPRIGHT_H*hs;
+    P.flare=Math.max(0,Math.min(1,(4.2*hs-P.y)/(2.6*hs)));
+    const want=low?-2.2:-Math.max(1.2,(P.y-1.0*hs)*(1.15-0.45*P.flare));
+    P.vy+=(want-P.vy)*ease(low?6:2.6+4*P.flare); P.y+=P.vy*dt;
+    P.landSlow=1-0.42*P.flare;
     A.land.paused=true; A.land.time=c.landFrom;                          // legs reaching down
     if(P.y<=0.05){ P.y=0; P.vy=0;
       if(A.roll && Math.random()<rollChance){ P.state='roll'; setSp(K,A.roll); P.spd=K.RUN_SPEED; }   // sometimes he trips and rolls
@@ -455,8 +462,10 @@ function stepKid(K,dt,In){
   const r=Math.min(1,P.spd/K.RUN_SPEED);
   P.bank+=((air?-P.turn*0.35:-P.turn*0.06*r)-P.bank)*ease(5);
   /* flying, they tilt a little with the climb: chest up rising, head dipping sinking, at most about 12 degrees, and upright again for the landing */
-  const upr=P.state==='land'?Math.max(0,Math.min(1,(P.y-UPRIGHT_H*K.scale)/1.5)):1;   /* coming down to land: upright again before the feet touch */
-  P.pitch=(P.pitch||0)+(-Math.max(-1,Math.min(1,P.vy/3))*0.21*P.flyW*upr-(P.pitch||0))*ease(P.state==='land'?6:3);
+  if(P.state==='land'){ const hs=K.scale, dive=-Math.max(-1,Math.min(1,P.vy/3))*0.26, f=P.flare||0;   /* up to 15° head-down in the dive, 10° chest-up in the pull-up */
+    let tgt=dive*(1-f)-0.17*f; if(P.y<UPRIGHT_H*hs) tgt*=Math.max(0,P.y/(UPRIGHT_H*hs));
+    P.pitch=(P.pitch||0)+(tgt-(P.pitch||0))*ease(7); }
+  else P.pitch=(P.pitch||0)+(-Math.max(-1,Math.min(1,P.vy/3))*0.21*P.flyW-(P.pitch||0))*ease(P.state==='fly'?3:6);
   const fw=P.flyW, ow=rolling?1-fw:P.rollW*(1-fw), lw=landing?1-fw-ow:P.landW*Math.max(0,1-fw-ow), jw=P.jumpW*Math.max(0,1-fw-ow-lw), g=Math.max(0,1-fw-ow-lw-jw);
   A.fly.setEffectiveWeight(fw); K.spX=Math.max(0,(K.spX||0)-dt/0.2); for(const k of ['roll','stop','turn','turnL']) if(A[k]) A[k].setEffectiveWeight(K.spA===A[k]?ow*(1-K.spX):K.spPrev===A[k]?ow*K.spX:0); A.land.setEffectiveWeight(lw); A.jump.setEffectiveWeight(K.jumpA===A.jump?jw:0); if(A.rjump) A.rjump.setEffectiveWeight(K.jumpA===A.rjump?jw:0);
   /* standing still a while, he gets bored: the bored animation plays once, then he is back to standing */
