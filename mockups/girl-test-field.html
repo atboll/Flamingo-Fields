@@ -134,6 +134,7 @@ function placeScatter(mesh,list,px,pz){ list.forEach((t,i)=>{ const x=t.x+FIELD*
   M4.compose(P3.set(x,0,z),Q.setFromAxisAngle(UP,t.a),S3.set(t.k,t.k,t.k)); mesh.setMatrixAt(i,M4); }); mesh.instanceMatrix.needsUpdate=true; }
 
 /* ---------- the girl ---------- */
+const BOOST=1.5;   // she runs 1.5× the speed of the animation, and the animation plays 1.5× as fast, so her feet still match the ground
 let girl, mesh, mixer, runA, flyA, idleA, jumpA, RUN_SPEED=5, gameMat, plainMat;
 function b64(s){ const b=atob(s), u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u.buffer; }
 /* Mixamo moves the hips forward through the clip; take that out so she runs on the spot and the game moves her.
@@ -168,7 +169,7 @@ function load(){
   plainMat=addWind(new THREE.MeshLambertMaterial({color:'#e9e4da'}));
   paintGirl(mesh,GIRL); gameMat=addWind(new THREE.MeshLambertMaterial({vertexColors:true})); mesh.material=gameMat;
   const run=THREE.AnimationClip.parse(RUN_CLIP), fly=THREE.AnimationClip.parse(FLY_CLIP), idle=THREE.AnimationClip.parse(IDLE_CLIP), jmp=THREE.AnimationClip.parse(JUMP_CLIP);
-  RUN_SPEED=inPlace(run)||5; inPlace(fly);
+  RUN_SPEED=(inPlace(run)||5)*BOOST; inPlace(fly);
   girl=new THREE.Group(); girl.add(o); scene.add(girl);
   mixer=new THREE.AnimationMixer(o);
   runA=mixer.clipAction(run); flyA=mixer.clipAction(fly); idleA=mixer.clipAction(idle); jumpA=mixer.clipAction(jmp);
@@ -179,7 +180,7 @@ function load(){
 }
 
 /* ---------- the rules: stand, run, jump, take off, fly, land ---------- */
-const G=14, HOP=5.2, CRUISE=4.5, FLY_SPEED=8.5;
+const G=14, HOP=5.2, CRUISE=4.5, FLY_SPEED=13;
 const JUMP_PUSH=0.5;      // in the jump animation she crouches until 0.5 s, then pushes off
 const P={x:0,z:0,y:0,vy:0,h:0,turn:0,bank:0,alt:CRUISE,state:'ground',spd:0,flyW:0,jumpW:0,crouch:0};
 const keys=new Set();
@@ -216,7 +217,7 @@ function step(dt){
   // mixing the four animations: flying over everything, then the jump, then running and standing by speed
   const fw=P.flyW, jw=P.jumpW*(1-fw), g=(1-fw)*(1-P.jumpW);
   flyA.setEffectiveWeight(fw); jumpA.setEffectiveWeight(jw); runA.setEffectiveWeight(g*r); idleA.setEffectiveWeight(g*(1-r));
-  runA.timeScale=0.55+0.45*r;
+  runA.timeScale=BOOST*(0.55+0.45*r);
   WIND.uTime.value+=dt;
   const gf=jumping?0.65:0.15+0.4*r; WIND.uFlow.value=gf+(1-gf)*fw;
 }
