@@ -11,6 +11,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 ## Files
 
 - `index.html`: the world (hills, grass, sky, clouds, ranges), the camera, the controls and the loop.
+- `flock.js`: the wild flamingo flocks: the 2D game's own rules (in its units), drawn with the FAB American flamingo.
 - `kids.js`: the two kids, lifted from `mockups/kids-test-field.html`. It holds their models, animations, wind in hair and skirt, painted faces, recolouring, the default look ("Look 1"), and all their movement rules.
 - `assets/`: the kids' FBX models, textures and animation clips. Where `.fbx` files can't be served, the loader also accepts each model as base64 text (`girl.fbx.b64.txt`).
 
@@ -36,7 +37,8 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [ ] The great feather
 - [ ] Ten feathers give ten seconds of flight
 - [ ] Blue feathers give a burst of speed
-- [ ] Wild flamingo flocks: fly with one for 8 s and a bird joins
+- [x] Wild flamingo flocks pass overhead (`flock.js`: the 2D game's flock rules, with the FAB flamingo)
+- [ ] Fly with a flock for 8 s and a bird joins
 - [ ] A full flock of five gives free, high, fast flight
 - [ ] The flamingo icons
 - [ ] Golden evening until the 4th flamingo, then the 8-minute day and night
@@ -59,6 +61,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 - [x] Field ambience (`assets/field01.mp3`, the new field recording, looped with a 4 s crossfade)
 - [x] Footsteps (the 2D game's `run_big.wav`, the small kid's 10% faster and offset)
+- [x] The chimes when you fall in with a flock
 - [ ] Flock calls
 - [ ] Music
 - [ ] Wind

@@ -44,7 +44,10 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/curves/NURBSUtils.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/curves/NURBSCurve.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/SkeletonUtils.js"></script>
 <script src="kids.js"></script>
+<script src="flock.js"></script>
 <script>
 /* Flamingo Fields in 3D — milestone 1: the golden field of level 1, walkable, with both kids.
    The world is in metres. The game's own units are converted with U: one game unit is U metres
@@ -511,6 +514,7 @@ function frame(now){
     stepKid(boy,dt,followInput(girl,boy));
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
+    updateFlock(girl,dt,clock); placeFlock(dt,clock);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock); moveClouds(clock);
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
@@ -528,7 +532,8 @@ followGround(0,0); buildGroves(0,0);
 (async()=>{
   try{ await loadKids('assets/');
     girl.P.h=0.1; boy.P.x=-1.5; boy.P.z=-1.4; boy.P.h=0.1;
-    placeCam(girl,0,true); $('load').hidden=true; }
+    placeCam(girl,0,true); $('load').hidden=true;
+    loadFlamingo('assets/').catch(err=>console.error('Could not load the flamingos',err)); }   /* the flocks load behind the scenes; the first comes after 30 s */
   catch(err){ $('load').textContent='Could not load the kids: '+err.message; console.error(err); }
   requestAnimationFrame(frame);
 })();
