@@ -40,6 +40,7 @@ button[aria-pressed="true"]{background:#3d4a52;color:#fff;border-color:#3d4a52}
     <button type="button" data-col="plain" aria-pressed="false">Plain model</button>
   </div>
   <div class="row"><span>Skirt wind</span><input id="wind" type="range" min="0" max="250" value="100" aria-label="How much the skirt moves in the wind"></div>
+  <div class="row"><span>Hair wind</span><input id="hairwind" type="range" min="0" max="250" value="100" aria-label="How much the hair moves in the wind"></div>
   <div class="row"><span>Speed</span>
     <button type="button" data-spd="1" aria-pressed="true">Normal</button>
     <button type="button" data-spd="0.3" aria-pressed="false">Slow motion</button>
@@ -71,7 +72,7 @@ const LAND_DATA={"clip":{"name":"mixamo.com","duration":2.0999999046325684,"trac
 function paintGirl(m, P){
   const g=m.geometry, pos=g.attributes.position, si=g.attributes.skinIndex.array, sw=g.attributes.skinWeight.array, N=pos.count;
   const names=m.skeleton.bones.map(b=>b.name.replace('mixamorig',''));
-  const col=new Float32Array(N*3), c=new THREE.Color(), sk=new Float32Array(N);
+  const col=new Float32Array(N*3), c=new THREE.Color(), sk=new Float32Array(N), hr=new Float32Array(N);
   const C={}; for(const k in P) C[k]=new THREE.Color(P[k]).convertSRGBToLinear();
   for(let i=0;i<N;i++){
     let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} }
@@ -86,11 +87,15 @@ function paintGirl(m, P){
     else if(n.endsWith('Leg')||n.endsWith('Foot')||n.endsWith('ToeBase')) k = y<-0.875?'shoe':'skin';
     if(k==='bottom'){ let inner=false;
       if(n.endsWith('UpLeg')){ const t=Math.min(1,Math.max(0,(-0.156-y)/0.39)); inner=Math.hypot(x-Math.sign(x)*(0.075+0.006*t),z-(0.01-0.034*t))<0.085; }
-      if(!inner) sk[i]=Math.pow(Math.min(1,Math.max(0,(-0.03-y)/0.38)),1.4); }
+      if(!inner) sk[i]=Math.pow(Math.min(1,Math.max(0,(-0.03-y)/0.38)),1.8); }   // snug at the waist, free at the hem
+    if(k==='hair'){ const d=Math.hypot(x,y-0.69,z+0.01); let w=Math.pow(Math.min(1,Math.max(0,(d-0.115)/0.16)),1.3);   // tips move, the scalp stays
+      if(z>0.03&&y<0.80&&ax<0.15) w*=0.35;   // the fringe over her face moves less
+      hr[i]=w; }
     c.copy(C[k]); col[i*3]=c.r; col[i*3+1]=c.g; col[i*3+2]=c.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col,3));
   g.setAttribute('aSkirt', new THREE.BufferAttribute(sk,1));
+  g.setAttribute('aHair', new THREE.BufferAttribute(hr,1));
 }
 
 </script>
@@ -144,26 +149,52 @@ function b64(s){ const b=atob(s), u=new Uint8Array(b.length); for(let i=0;i<b.le
 function inPlace(clip){ const t=clip.tracks.find(k=>/Hips\.position$/.test(k.name)); if(!t) return 0;
   const v=t.values, n=t.times.length, d=clip.duration||t.times[n-1], slope=(v[(n-1)*3+2]-v[2])/(t.times[n-1]-t.times[0]||1);
   const z0=v[2], t0=t.times[0]; for(let i=0;i<n;i++){ v[i*3+2]-=z0+slope*(t.times[i]-t0); } return Math.abs(slope); }
-/* The skirt in the wind. It has no bones of its own, so the graphics card moves its points every frame,
-   more toward the hem: a flutter around the body, plus the air she runs or flies through pushing it back
-   (towards her feet when she flies). It is not real cloth, so it does not collide with her legs. */
-const WIND={uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1}};
+/* The skirt and hair in the wind. Neither has bones of its own, so the graphics card moves their points every frame:
+   - waves rolling around the skirt hem, and a flutter on the hair tips (bigger and slower than before, so it reads as soft);
+   - the air she runs or flies through pushing both back (the skirt toward her feet when she flies);
+   - swing: a soft spring that lags behind her when she speeds up, stops, turns or lands, then settles.
+   It is not real cloth, so nothing collides with her legs. */
+const WIND={uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()}};
 function addWind(mat){
   mat.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,WIND);
-    sh.vertexShader='attribute float aSkirt;\nuniform float uTime,uFlow,uAmt;\n'+sh.vertexShader
+    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nuniform float uTime,uFlow,uAmt,uHair;\nuniform vec3 uSwing;\n'+sh.vertexShader
       .replace('#include <skinning_vertex>',`
-      float sw=aSkirt*uAmt; vec3 bp=position; float f=uFlow, ang=atan(bp.x,bp.z), ph=ang*3.0+bp.y*16.0;
+      float sw=aSkirt*uAmt, hw=aHair*uHair; vec3 bp=position; float f=uFlow, ang=atan(bp.x,bp.z), ph=ang*2.0+bp.y*9.0;
+      float gust=0.65+0.35*sin(uTime*0.9)*sin(uTime*2.3+1.0);
       if(sw>0.0){
-        float flap=sin(uTime*(7.0+9.0*f)+ph)*(0.010+0.026*f)+sin(uTime*(12.0+10.0*f)-ang*5.0-bp.y*27.0)*0.009*f
-                  +sin(uTime*1.6+bp.x*4.0)*0.012;
+        float wave=sin(uTime*(3.2+5.0*f)+ph)*(0.024+0.040*f)                    /* big slow waves round the hem */
+                  +sin(uTime*(6.5+7.0*f)-ang*4.0-bp.y*15.0)*(0.008+0.014*f)    /* smaller ripples on top */
+                  +sin(uTime*1.1+bp.x*3.0)*0.022*gust;                          /* the breeze swaying it */
         vec2 rad=normalize(bp.xz+vec2(0.0,-0.01)+vec2(1e-4));
-        float billow=1.0-0.7*clamp((f-0.55)/0.45,0.0,1.0);          /* in flight the air presses it to her legs, so less billowing out */
-        transformed.xz+=rad*sw*flap*billow; transformed.y+=sw*abs(flap)*0.6*billow; }
+        float billow=1.0-0.65*clamp((f-0.55)/0.45,0.0,1.0);          /* in flight the air presses it to her legs */
+        transformed.xz+=rad*sw*wave*billow; transformed.y+=sw*abs(wave)*0.5*billow; }
+      if(hw>0.0){
+        vec3 hp=bp-vec3(0.0,0.69,-0.01); vec3 hn=normalize(hp+vec3(1e-4));
+        float hph=hp.x*9.0+hp.y*7.0+hp.z*8.0;
+        float fl=sin(uTime*(2.4+6.0*f)+hph)*(0.010+0.020*f)+sin(uTime*(5.0+8.0*f)-hph*1.7)*0.006*(0.3+f);
+        transformed+=hw*(hn*fl+vec3(sin(uTime*1.3+hph)*0.010*gust,0.0,0.0)); }
       #include <skinning_vertex>
-      if(sw>0.0){ float gust=0.7+0.3*sin(uTime*0.9)*sin(uTime*2.3+1.0);
-        transformed.z-=sw*((0.012+0.05*f*f)*gust*(1.0+0.6*f) + 0.02*f*f*(0.5+0.5*sin(uTime*(10.0+8.0*f)+ph))); }`);
+      if(sw>0.0){
+        transformed.z-=sw*((0.014+0.055*f*f)*gust*(1.0+0.6*f) + 0.022*f*f*(0.5+0.5*sin(uTime*(7.0+6.0*f)+ph)));
+        transformed+=sw*uSwing; }
+      if(hw>0.0){
+        transformed.z-=hw*(0.008+0.07*f*f)*gust;
+        transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'skirtwind'; return mat;
+  mat.customProgramCacheKey=()=>'clothwind2'; return mat;
+}
+/* the swing spring: driven by how she accelerates, seen from her own body (forward, sideways, up) */
+const SW={x:0,y:0,z:0,vx:0,vy:0,vz:0,px:0,py:0,pz:0,ox:0,oy:0,oz:0,init:false};
+function swingStep(dt){
+  if(dt<=0) return;
+  if(!SW.init){ SW.px=P.x; SW.py=P.y; SW.pz=P.z; SW.init=true; }
+  const vx=(P.x-SW.px)/dt, vy=(P.y-SW.py)/dt, vz=(P.z-SW.pz)/dt; SW.px=P.x; SW.py=P.y; SW.pz=P.z;
+  const ax=(vx-SW.ox)/dt, ay=(vy-SW.oy)/dt, az=(vz-SW.oz)/dt; SW.ox=vx; SW.oy=vy; SW.oz=vz;
+  const c=Math.cos(P.h), s=Math.sin(P.h), lim=v=>Math.max(-0.11,Math.min(0.11,v));
+  const tx=lim(-(ax*c-az*s)*0.006), ty=lim(-ay*0.004), tz=lim(-(ax*s+az*c)*0.006);   // the hem lags opposite to the push
+  const w=7, z=0.32, k=w*w, d=2*z*w;
+  for(const [p,v,t] of [['x','vx',tx],['y','vy',ty],['z','vz',tz]]){ SW[v]+=(-k*(SW[p]-t)-d*SW[v])*dt; SW[p]+=SW[v]*dt; }
+  WIND.uSwing.value.set(SW.x,SW.y,SW.z);
 }
 function load(){
   const o=new THREE.FBXLoader().parse(b64(RUN_FBX),'');
@@ -231,6 +262,7 @@ function step(dt){
   runA.timeScale=0.55+0.45*r;   // the animation plays at its own pace; only the distance covered is boosted
   WIND.uTime.value+=dt;
   const gf=jumping?0.65:0.15+0.4*r; WIND.uFlow.value=gf+(1-gf)*fw;
+  swingStep(dt);
 }
 
 /* ---------- camera ---------- */
@@ -287,6 +319,7 @@ group('data-cam',v=>{ camMode=v; });
 group('data-col',v=>{ if(mesh) mesh.material=v==='plain'?plainMat:gameMat; });
 group('data-spd',v=>{ slow=+v; });
 $('wind').addEventListener('input',e=>{ WIND.uAmt.value=e.target.value/100; });
+$('hairwind').addEventListener('input',e=>{ WIND.uHair.value=e.target.value/100; });
 
 setTimeout(()=>{ try{ load(); placeCam(0,true); } catch(err){ $('load').textContent='Could not load the girl: '+err.message; } requestAnimationFrame(frame); },30);
 </script>
