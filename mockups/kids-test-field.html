@@ -349,6 +349,28 @@ function boyHeadMask(mesh){
     g.beginPath(); for(const v of [a,b,d]) g.lineTo(uv.getX(v)*W,(1-uv.getY(v))*H); g.closePath(); g.fill(); }
   const m=g.getImageData(0,0,W,H).data; let n=0; for(let i=0;i<T.cls.length;i++) if(T.cls[i]===1&&m[i*4]>128){ T.cls[i]=0; n++; }
   return n; }
+/* his shorts and legs, found by the model rather than by colour alone: every little piece of texture on his hips and legs is looked at,
+   and if it is mostly khaki, all of it is shorts (the lighter, almost skin-coloured bits and the seams too), so the shorts recolour evenly;
+   if it is mostly skin, any red that has bled in from the shirt is painted over with his skin */
+function boyLegFix(mesh){
+  const T=BOYTEX, W=T.canvas.width, H=T.canvas.height, d=T.orig, cls=T.cls, lum=T.lum;
+  const geo=mesh.geometry, uv=geo.attributes.uv, si=geo.attributes.skinIndex.array, sw=geo.attributes.skinWeight.array, N=uv.count, bones=mesh.skeleton.bones;
+  const legB=new Set(bones.map((b,i)=>/(Hips|Spine|UpLeg|Leg)$/.test(b.name)?i:-1).filter(i=>i>=0)), thighB=new Set(bones.map((b,i)=>/(UpLeg|Leg)$/.test(b.name)?i:-1).filter(i=>i>=0)), onLeg=new Uint8Array(N), onThigh=new Uint8Array(N);
+  for(let i=0;i<N;i++){ let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} } onLeg[i]=legB.has(bi)?1:0; onThigh[i]=thighB.has(bi)?1:0; }
+  const idx=geo.index?geo.index.array:null, nt=(idx?idx.length:N)/3, px=[];
+  let skR=0,skG=0,skB=0,skN=0; for(let i=0;i<cls.length;i++) if(cls[i]===3){ skR+=d[i*4]; skG+=d[i*4+1]; skB+=d[i*4+2]; skN++; }
+  const sk=[skR/skN,skG/skN,skB/skN], m2=T.mean[2];
+  for(let t=0;t<nt;t++){ const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, c=idx?idx[t*3+2]:t*3+2; if(!(onLeg[a]&&onLeg[b]&&onLeg[c])) continue;
+    const ax=uv.getX(a)*W, ay=(1-uv.getY(a))*H, bx=uv.getX(b)*W, by=(1-uv.getY(b))*H, cx=uv.getX(c)*W, cy=(1-uv.getY(c))*H;
+    const x0=Math.max(0,Math.floor(Math.min(ax,bx,cx))), x1=Math.min(W-1,Math.ceil(Math.max(ax,bx,cx))), y0=Math.max(0,Math.floor(Math.min(ay,by,cy))), y1=Math.min(H-1,Math.ceil(Math.max(ay,by,cy)));
+    const den=(by-cy)*(ax-cx)+(cx-bx)*(ay-cy); if(Math.abs(den)<1e-6) continue; px.length=0; let kh=0,skn=0,all=0;
+    const ex=(x,y,px1,py1,px2,py2)=>{ const L=Math.hypot(px2-px1,py2-py1)||1; return ((px2-px1)*(y-py1)-(py2-py1)*(x-px1))/L*Math.sign(den); };   /* signed distance inside each edge, in pixels */
+    for(let y=Math.max(0,y0-1);y<=Math.min(H-1,y1+1);y++) for(let x=Math.max(0,x0-1);x<=Math.min(W-1,x1+1);x++){ const X=x+0.5,Y=y+0.5, m=-1.2;
+      if(ex(X,Y,ax,ay,bx,by)<m||ex(X,Y,bx,by,cx,cy)<m||ex(X,Y,cx,cy,ax,ay)<m) continue; const i=y*W+x; px.push(i); all++; if(cls[i]===2) kh++; else if(cls[i]===3) skn++; }
+    if(!all) continue;
+    if(kh>=all*0.5){ for(const i of px){ const v=Math.max(d[i*4],d[i*4+1],d[i*4+2])/255; if(cls[i]!==2&&v>0.22){ cls[i]=2; lum[i]=Math.min(lum[i],m2*1.12); } } }
+    else if(skn>=all*0.5||(onThigh[a]&&onThigh[b]&&onThigh[c])){ for(const i of px) if(cls[i]===1){ d[i*4]=sk[0]; d[i*4+1]=sk[1]; d[i*4+2]=sk[2]; cls[i]=3; lum[i]=T.mean[3]; } } }
+  const out=T.id.data; for(let i=0;i<d.length;i++) out[i]=d[i]; T.g.putImageData(T.id,0,0); }
 function boyRecolour(shirt,shorts,skin){
   const T=BOYTEX, d=T.id.data, o=T.orig, cols=[null,shirt?new THREE.Color(shirt):null,shorts?new THREE.Color(shorts):null,skin?new THREE.Color(skin):null];
   /* the patches painted over his own mouth and eyes take the new skin too, at the same light as his own */
@@ -724,7 +746,7 @@ async function load(){
     jumpPush:G_CLIPS.jumpInfo.push, jumpFromRun:0.3, landFrom:0.30, landTo:0.95,
     runPace:(spd,K)=>(0.55+0.45*Math.min(1,spd/K.RUN_SPEED))/K.scale});
   boy=makeKid('boy',{fbx:B_FBX, run:B_CLIPS.run, fly:B_CLIPS.fly, idle:B_CLIPS.idle, jump:B_CLIPS.jump, land:B_CLIPS.land, roll:B_CLIPS.roll, rollZ:B_CLIPS.rollZ, rollEnd:2.0,
-    paint:m=>{ const c=boyHair(m,img); boyHeadMask(m); BOY_SKIN=skinMix(m,img,[[0,0.462],[0,0.508],[-0.05,0.508],[0.05,0.508],[-0.095,0.47],[0.095,0.47]]); return c; },
+    paint:m=>{ const c=boyHair(m,img); boyHeadMask(m); boyLegFix(m); BOY_SKIN=skinMix(m,img,[[0,0.462],[0,0.508],[-0.05,0.508],[0.05,0.508],[-0.095,0.47],[0.095,0.47]]); return c; },
     material:()=>new THREE.MeshLambertMaterial({map:boyTex}), face:BOY_FACE, bored:B_CLIPS.bored, rjump:B_CLIPS.rjump, stop:B_CLIPS.stop, mouthBox:[0,0.485,0.085,0.022],
     jumpPush:B_CLIPS.jumpInfo.push, jumpFromRun:0.27, landFrom:0.33, landTo:0.95,
     runPace:(spd,K)=>Math.max(0.55,Math.min(1.9,spd/(K.animRun*K.scale)))});
