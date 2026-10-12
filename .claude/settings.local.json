@@ -8,7 +8,12 @@
       "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/72c4e1da-image.png mockups/flamingo-ref-2-flying.png)",
       "Bash(git commit -qm 'Flamingo Editor: rebuilt flying wing from the reference, freeze and wing-position controls *)",
       "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/a4e4f033-image.png mockups/wing-structure-ref.png)",
-      "Bash(git commit -q -m 'Flamingo Editor: longer brown feathers nearest the body; add wing structure reference *)"
+      "Bash(git commit -q -m 'Flamingo Editor: longer brown feathers nearest the body; add wing structure reference *)",
+      "Bash(mkdir -p /tmp/claude-0/-home-claude-flamingo-fields/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/scratchpad/fbx)",
+      "Bash(npm init *)",
+      "Bash(npm i *)",
+      "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/55071d95-Girl_Flying_3169226870.fbx fly.fbx)",
+      "Bash(cp /root/.claude/uploads/19cc0fdd-964a-5c4c-bee2-aa6e68f43cc6/19c160d1-Girl_Standard_Run_6970112.fbx run.fbx)"
     ]
   }
 }
