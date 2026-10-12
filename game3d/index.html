@@ -142,10 +142,10 @@ const cloudList=[]; const RC=4200;
   for(let i=0;i<16;i++) cloudList.push({th:r()*TAU, v:0.1+r()*0.85, k:0.3+r()*0.45, art:4+i%3, drift:7+r()*9});
   cloudList.sort((a,b)=>a.k-b.k);
   for(const c of cloudList){ const m=new THREE.SpriteMaterial({map:cloudArt[c.art], fog:false, depthWrite:false, transparent:true, opacity:0.95});
-    const s=new THREE.Sprite(m), aw=640*c.k/(620*0.9), w=RC*aw;          /* the game draws them 640·k·H/620 wide, its focal length is 0.9·H */
-    s.scale.set(w,w*240/640,1); s.renderOrder=-9; c.sprite=s; c.ah=240*c.k/(620*0.9); clouds.add(s); } }
+    const s=new THREE.Sprite(m), aw=640*c.k*0.7/(620*0.9), w=RC*aw;                   /* the game draws its clouds at 0.7 of their size */          /* the game draws them 640·k·H/620 wide, its focal length is 0.9·H */
+    s.scale.set(w,w*240/640,1); s.renderOrder=-9; c.sprite=s; c.ah=240*c.k*0.7/(620*0.9); clouds.add(s); } }
 function moveClouds(t){ for(const c of cloudList){ const th=c.th-t*c.drift*c.k*0.0015,     /* the game's drift, in radians a second */
-    el=Math.atan(0.5*(1-c.v)/0.9+0.1*c.ah);                                                      /* its height: v=1 sits on the horizon, v=0 at the top of the view */
+    el=Math.atan(0.5*(1-c.v*0.74)/0.9+0.1*c.ah);                                                /* and their heights scaled by 0.74 */                                                      /* its height: v=1 sits on the horizon, v=0 at the top of the view */
     c.sprite.position.set(-Math.sin(th)*RC*Math.cos(el), RC*Math.sin(el), Math.cos(th)*RC*Math.cos(el)); } }
 moveClouds(0);
 
