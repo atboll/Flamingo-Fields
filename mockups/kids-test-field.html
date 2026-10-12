@@ -479,8 +479,16 @@ function setHead(K,h){ const b=K.mesh.skeleton.bones.find(x=>/Head$/.test(x.name
 function takeYaw(c){ const hq=c.tracks.find(t=>/Hips\.quaternion$/.test(t.name)), q=new THREE.Quaternion(), q0i=new THREE.Quaternion().fromArray(hq.values,0).invert(), d=new THREE.Quaternion(), Y=[], T=[], up=new THREE.Vector3(0,1,0);
   for(let i=0;i<hq.times.length;i++){ q.fromArray(hq.values,i*4); d.copy(q).multiply(q0i); Y.push(2*Math.atan2(d.y,d.w)); T.push(hq.times[i]); }
   for(let i=1;i<Y.length;i++){ while(Y[i]-Y[i-1]>Math.PI) Y[i]-=2*Math.PI; while(Y[i]-Y[i-1]<-Math.PI) Y[i]+=2*Math.PI; }
-  for(let i=0;i<hq.times.length;i++){ q.fromArray(hq.values,i*4); const r=new THREE.Quaternion().setFromAxisAngle(up,-Y[i]); r.multiply(q); r.toArray(hq.values,i*4); }
-  return {t:T, yaw:Y}; }
+  /* The hips also sway with every stride, so steering the kid by them makes the turn swing back and forth.
+     The kid is steered by one smooth sweep instead, timed to when the clip really pivots, ending where the clip ends up;
+     the body keeps the clip's own movement on top, and once round, its extra sway is calmed to that of the ordinary run. */
+  const n=Y.length, tail=Math.max(1,Math.round(n*0.2)); let F=0; for(let i=n-tail;i<n;i++) F+=Y[i]; F/=tail;
+  const at=f=>{ for(let i=0;i<n;i++) if(Math.abs(Y[i])>=Math.abs(F)*f) return T[i]; return T[n-1]; };
+  const t0=Math.max(T[0],at(0.1)-0.15), t1=Math.max(t0+0.2,at(0.9)+0.1);
+  const S=T.map(t=>{ const u=Math.max(0,Math.min(1,(t-t0)/(t1-t0))); return F*u*u*(3-2*u); });
+  for(let i=0;i<n;i++){ const k=T[i]<=t1?0:0.6*Math.min(1,(T[i]-t1)/0.2), rem=Y[i]-(Y[i]-S[i])*k;
+    q.fromArray(hq.values,i*4); const r=new THREE.Quaternion().setFromAxisAngle(up,-rem); r.multiply(q); r.toArray(hq.values,i*4); }
+  return {t:T, yaw:S}; }
 function takeTravel(c){ const hp=c.tracks.find(t=>/Hips\.position$/.test(t.name)), T=[],Z=[], z0=hp.values[2], x0=hp.values[0];
   for(let i=0;i<hp.times.length;i++){ T.push(hp.times[i]); Z.push(hp.values[i*3+2]-z0); hp.values[i*3+2]=z0; hp.values[i*3]=x0; } return {t:T,z:Z}; }
 /* the same move to the other side: left and right bones swapped and reflected across the body's middle */
@@ -557,7 +565,7 @@ function stepKid(K,dt,In){
   if(P.state==='ground'&&A.stop&&P.spd>0.55*K.RUN_SPEED&&In.speed<0.3) startStop(K,0);   // running and told to stop: he brakes and skids to a stand
   if(P.state==='ground'&&A.turn&&P.spd<1&&(In.face??In.heading)!=null&&In.speed>1){ let d=(In.face??In.heading)-P.h; d=Math.atan2(Math.sin(d),Math.cos(d));
     if(Math.abs(d)>1.35){ const right=d<0, cv=right?c.turnYaw:c.turnLYaw; P.state='turn'; P.turnH0=P.h; P.turnCurve=cv; P.turnScale=d/cv.yaw[cv.yaw.length-1];
-      K.spA=right?A.turn:A.turnL; K.spA.reset(); K.spA.play(); } }   // far round to either side: he turns and sets off (the left turn is the right one mirrored)
+      setSp(K,right?A.turn:A.turnL); } }   // far round to either side: he turns and sets off (the left turn is the right one mirrored)
   if(P.state==='ground'||P.state==='touch'){ const want=In.speed; P.spd+=(want-P.spd)*ease(want>P.spd?3:2.5); }
   let speed;
   if(P.state==='roll'){ const t=A.roll.time; speed=Math.max(0,(curveAt(c.rollZ,'z',t+0.05)-curveAt(c.rollZ,'z',Math.max(0,t-0.05)))/0.1)*BOOST*K.scale; P.spd=speed; }
@@ -576,7 +584,7 @@ function stepKid(K,dt,In){
   else if(P.state==='land'){ P.vy+=(-2.6-P.vy)*ease(3); P.y+=P.vy*dt;
     A.land.paused=true; A.land.time=c.landFrom;                          // legs reaching down
     if(P.y<=0.05){ P.y=0; P.vy=0;
-      if(A.roll && Math.random()<rollChance){ P.state='roll'; K.spA=A.roll; A.roll.reset(); A.roll.play(); P.spd=K.RUN_SPEED; }   // sometimes he trips and rolls
+      if(A.roll && Math.random()<rollChance){ P.state='roll'; setSp(K,A.roll); P.spd=K.RUN_SPEED; }   // sometimes he trips and rolls
       else if(A.stop&&In.speed<0.3) startStop(K,0.08,K.RUN_SPEED*0.8);   // not running on: he lands straight into the skid and stops
       else { P.state='touch'; P.spd=K.RUN_SPEED; A.land.paused=false; } } }
   else if(P.state==='touch'){ if(A.land.time>=c.landTo) P.state='ground'; }
@@ -586,7 +594,7 @@ function stepKid(K,dt,In){
   const r=Math.min(1,P.spd/K.RUN_SPEED);
   P.bank+=((air?-P.turn*0.35:-P.turn*0.06*r)-P.bank)*ease(5);
   const fw=P.flyW, ow=rolling?1-fw:P.rollW*(1-fw), lw=landing?1-fw-ow:P.landW*Math.max(0,1-fw-ow), jw=P.jumpW*Math.max(0,1-fw-ow-lw), g=Math.max(0,1-fw-ow-lw-jw);
-  A.fly.setEffectiveWeight(fw); for(const k of ['roll','stop','turn','turnL']) if(A[k]) A[k].setEffectiveWeight(K.spA===A[k]?ow:0); A.land.setEffectiveWeight(lw); A.jump.setEffectiveWeight(K.jumpA===A.jump?jw:0); if(A.rjump) A.rjump.setEffectiveWeight(K.jumpA===A.rjump?jw:0);
+  A.fly.setEffectiveWeight(fw); K.spX=Math.max(0,(K.spX||0)-dt/0.2); for(const k of ['roll','stop','turn','turnL']) if(A[k]) A[k].setEffectiveWeight(K.spA===A[k]?ow*(1-K.spX):K.spPrev===A[k]?ow*K.spX:0); A.land.setEffectiveWeight(lw); A.jump.setEffectiveWeight(K.jumpA===A.jump?jw:0); if(A.rjump) A.rjump.setEffectiveWeight(K.jumpA===A.rjump?jw:0);
   /* standing still a while, he gets bored: the bored animation plays once, then he is back to standing */
   if(A.bored){ const still=P.state==='ground'&&P.spd<0.2;
     if(!still){ P.standT=Math.min(P.standT,0); if(P.bored){ P.bored=false; } }
@@ -599,7 +607,9 @@ function stepKid(K,dt,In){
   const gf=jumping?0.65:rolling?0.3:0.15+0.4*r; K.W.uFlow.value=gf+(1-gf)*fw;
   swingStep(K,dt); wavesStep(K.W,dt);
 }
-function startStop(K,from,entry){ const P=K.P, A=K.A; P.state='stop'; K.spA=A.stop; A.stop.reset(); A.stop.play(); A.stop.time=from; P.stopFrom=from; P.stopEntry=entry??P.spd; }
+/* starting one whole-body move: if another was still showing, it fades out over a fifth of a second instead of snapping */
+function setSp(K,a){ if(K.spA&&K.spA!==a&&K.P.rollW>0.05){ K.spPrev=K.spA; K.spX=1; } else K.spX=0; K.spA=a; a.reset(); a.play(); }
+function startStop(K,from,entry){ const P=K.P, A=K.A; P.state='stop'; setSp(K,A.stop); A.stop.time=from; P.stopFrom=from; P.stopEntry=entry??P.spd; }
 function placeKid(K){ const P=K.P; K.root.position.set(P.x,P.y,P.z); K.root.rotation.set(0,P.h,0); K.root.rotateZ(P.bank); }
 
 /* ---------- the boy follows the girl, as in the game ---------- */
