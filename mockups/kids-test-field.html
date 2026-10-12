@@ -658,7 +658,7 @@ function startStop(K,from,entry){ const P=K.P, A=K.A; P.state='stop'; setSp(K,A.
 const _pv=new THREE.Vector3();
 /* flying, the arms swing a little at the shoulders with the climb: up when rising, down when sinking.
    It rides on the same smooth value as the body's tilt, and turns each upper arm round the kid's own left-right line. */
-const ARM_MAX=25*Math.PI/180, ARM_SIGN=-1, _q1=new THREE.Quaternion(), _q2=new THREE.Quaternion(), _ax=new THREE.Vector3();
+const ARM_MAX=35*Math.PI/180, ARM_SIGN=-1, _q1=new THREE.Quaternion(), _q2=new THREE.Quaternion(), _ax=new THREE.Vector3();
 function bendArms(K){ const P=K.P, a=Math.max(-1,Math.min(1,-(P.pitch||0)/0.21))*ARM_MAX*ARM_SIGN; if(Math.abs(a)<0.002) return;
   if(!K.arms) K.arms=K.mesh.skeleton.bones.filter(b=>/(Left|Right)Arm$/.test(b.name));
   K.root.updateMatrixWorld(true); _ax.set(1,0,0).applyQuaternion(K.root.getWorldQuaternion(_q1)).normalize();
