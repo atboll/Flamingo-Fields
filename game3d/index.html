@@ -74,7 +74,18 @@ R.shadowMap.enabled=true; R.shadowMap.type=THREE.PCFSoftShadowMap;
 $('view').appendChild(R.domElement);
 const scene=new THREE.Scene();
 const HAZE=[250,228,165];
-scene.fog=new THREE.Fog(rgb(HAZE).convertSRGBToLinear(),70,900);
+/* the haze, on the 2D game's own curve: strokes fade toward the pale horizon colour from about 4.7 m out, almost fully by 136 m,
+   rising steeply at first (a power of 0.6). From high up the air clears, as in the game. The groves take a gentler haze so they stay in view. */
+THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
+  #ifdef SOFT_HAZE
+  float fogFactor=pow(clamp((vFogDepth-fogNear)/(fogFar*4.0-fogNear),0.0,1.0),0.8)*0.9;
+  #else
+  float fogFactor=pow(clamp((vFogDepth-fogNear)/(fogFar-fogNear),0.0,1.0),0.6)*0.96;
+  #endif
+  gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,fogFactor);
+#endif`;
+const FOG_NEAR=320*U, FOG_FAR=(320+9000)*U;
+scene.fog=new THREE.Fog(rgb(HAZE).convertSRGBToLinear(),FOG_NEAR,FOG_FAR);
 const cam=new THREE.PerspectiveCamera(58,1,0.1,6000);     // the game's view: focal = 0.9 × the screen's height, so 58° tall
 
 /* the evening light: a low warm sun at the game's bearing, and a golden sky light */
@@ -156,8 +167,16 @@ const GOLD_DEEP=[196,148,52], GOLD=[226,184,86], GOLD_HI=[242,208,122];
 function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
-  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES}));
+  const mat=new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES});
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
+    sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nfloat hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }')
+      .replace('#include <map_fragment>',`{ vec2 cell=floor(vWXZ*vec2(2.2,3.4)+vec2(floor(vWXZ.y*3.4)*0.5,0.0)); float rr=hash2(cell);
+          float k=toneAt(rr,gustAt(vWXZ,uTime),litAt(vWXZ,uSunXZ)); vec3 tone=bladeCol(k,uC0,uC1,uC2,uC3,uC4);
+          vec4 st=texture2D(map,vUv); diffuseColor.rgb=tone*(0.78+0.3*st.r)*0.92; }`); };
+  const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
+const groundTime={value:0};
 const groundNear=makeGround(260,260,true), groundFar=makeGround(3200,200,false);
 /* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
    it is sunk well out of the way, on the graphics card, following the near piece as it moves */
@@ -181,57 +200,68 @@ function followGround(x,z){
    Each blade has a fixed spot in a square of ground that repeats under the kids, so the field never runs out.
    Blades bend downwind in travelling gusts, bow away from the kids as they run through, and glow when the sun is behind them. */
 const BLADE=[[136,86,14],[176,120,22],[212,158,38],[238,192,66],[255,226,122]];
-function bladeGeo(){ const NS=4, pos=[], idx=[];
+function bladeGeo(){ const NS=3, pos=[], idx=[];
   for(let i=0;i<NS;i++){ const t=i/NS; pos.push(-1,t,0, 1,t,0); } pos.push(0,1,0);
   for(let i=0;i<NS-1;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); } const a=(NS-1)*2; idx.push(a,a+1,NS*2);
   const g=new THREE.InstancedBufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); return g; }
+/* the light on the field, the 2D game's own rule: each stroke takes one of five flat golds, chosen by a little chance,
+   by the gusts rolling downwind (paler where a gust passes) and by the hills (slopes facing the sun lighter, the others darker).
+   The gusts are the game's formula on its own units, so they roll at the same size, speed and direction. */
+const LIGHT_GLSL=`
+${GROUND_GLSL}
+float gustAt(vec2 p, float t){ float x=-p.x/${U.toFixed(8)}, z=p.y/${U.toFixed(8)};
+  return clamp(0.5+0.36*sin(x*0.0028+z*0.0042-t*1.5+sin(z*0.0016+t*0.25)*2.2)+0.18*sin(x*0.011-z*0.007-t*2.6),0.0,1.0); }
+float litAt(vec2 p, vec2 sunXZ){ float e=0.6; vec2 gr=vec2(groundAt(p+vec2(e,0.0))-groundAt(p-vec2(e,0.0)), groundAt(p+vec2(0.0,e))-groundAt(p-vec2(0.0,e)))/(2.0*e);
+  return -dot(gr,sunXZ); }
+float toneAt(float rr, float gust, float lit){ return clamp(floor(rr*2.2+gust*2.9+lit*6.0),0.0,4.0); }
+vec3 bladeCol(float k, vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4){ return k<0.5?c0: k<1.5?c1: k<2.5?c2: k<3.5?c3: c4; }`;
+const SUNXZ=new THREE.Vector2(SUNDIR.x,SUNDIR.z).normalize();
+/* the grass: brush strokes, as the 2D game paints it — short flat strokes, always turned to face you, all combed downwind
+   together, swept harder as a gust goes over, packed so the ground hardly shows, parting round the kids */
 function makeGrass(count,L){
   const g=bladeGeo(), off=new Float32Array(count*3), rnd=new Float32Array(count*4), r=rng(L.seed);
   for(let i=0;i<count;i++){ off[i*3]=r()*L.S; off[i*3+1]=r()*L.S; off[i*3+2]=r();
-    const tall=0.42+Math.pow(r(),1.6)*0.5;                         // most blades knee to thigh high on the girl, a few taller
-    rnd[i*4]=tall*L.tall; rnd[i*4+1]=(0.009+r()*0.012)*L.wide; rnd[i*4+2]=r()*Math.PI*2; rnd[i*4+3]=r(); }
+    rnd[i*4]=(0.35+r()*0.35)*L.tall; rnd[i*4+1]=(0.018+r()*0.02)*L.wide; rnd[i*4+2]=r(); rnd[i*4+3]=r(); }   /* the game's strokes: 24 to 48 units tall */
   g.setAttribute('aOff',new THREE.InstancedBufferAttribute(off,3)); g.setAttribute('aRnd',new THREE.InstancedBufferAttribute(rnd,4));
   g.instanceCount=count;
   const pal=BLADE.map(c=>rgb(c).convertSRGBToLinear());
   const mat=new THREE.ShaderMaterial({ fog:true, side:THREE.DoubleSide,
-    uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{ uCentre:{value:new THREE.Vector2()}, uTime:{value:0}, uWind:{value:new THREE.Vector2(-1,0.15).normalize()},
-      uKid0:{value:new THREE.Vector3(0,9,0)}, uKid1:{value:new THREE.Vector3(0,9,0)}, uSun:{value:SUNDIR}, uLight:{value:LIGHTDIR},
-      uC0:{value:pal[0]}, uC1:{value:pal[1]}, uC2:{value:pal[2]}, uC3:{value:pal[3]}, uC4:{value:pal[4]} }]),
+    uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{ uCentre:{value:new THREE.Vector2()}, uTime:{value:0}, uWind:{value:new THREE.Vector2(-1,0)},
+      uKid0:{value:new THREE.Vector3(0,9,0)}, uKid1:{value:new THREE.Vector3(0,9,0)}, uSunXZ:{value:SUNXZ},
+      uC0:{value:pal[0]}, uC1:{value:pal[1]}, uC2:{value:pal[2]}, uC3:{value:pal[3]}, uC4:{value:pal[4]}, uDeep:{value:rgb([104,62,10]).convertSRGBToLinear()} }]),
     vertexShader:`
       attribute vec3 aOff; attribute vec4 aRnd;
-      uniform vec2 uCentre; uniform float uTime; uniform vec2 uWind; uniform vec3 uKid0; uniform vec3 uKid1; uniform vec3 uSun; uniform vec3 uLight;
-      varying float vT; varying float vTone; varying float vGlow; varying float vLit;
-      ${GROUND_GLSL}
+      uniform vec2 uCentre; uniform float uTime; uniform vec2 uWind; uniform vec3 uKid0; uniform vec3 uKid1; uniform vec2 uSunXZ;
+      varying float vTone; varying float vT; varying float vNear;
+      ${LIGHT_GLSL}
       #include <fog_pars_vertex>
-      vec2 push(vec2 p, vec3 k){ vec2 d=p-k.xz; float dd=length(d); float w=(1.0-smoothstep(0.25,1.0,dd))*(1.0-smoothstep(0.4,1.0,k.y)); return d/(dd+0.001)*w*1.4; }
+      vec2 push(vec2 p, vec3 k){ vec2 d=p-k.xz; float dd=length(d); float w=(1.0-smoothstep(0.25,0.9,dd))*(1.0-smoothstep(0.4,1.0,k.y)); return d/(dd+0.001)*w*1.3; }
       void main(){
         vec2 p=aOff.xy+${L.S.toFixed(1)}*floor((uCentre-aOff.xy)/${L.S.toFixed(1)}+0.5);
         float dist=length(p-uCentre), fade=(1.0-smoothstep(${(L.R*0.62).toFixed(1)},${L.R.toFixed(1)},dist))*smoothstep(${L.in0.toFixed(1)},${L.in1.toFixed(1)},dist);
-        float t=position.y, h=aRnd.x*(0.35+0.65*fade)*step(0.001,fade);
-        vec2 side=vec2(cos(aRnd.z),sin(aRnd.z));
-        float w=aRnd.y*(1.0-t*0.8)*(0.6+0.4*fade);
+        float rr=aRnd.z, gust=gustAt(p,uTime);
+        float t=position.y, h=aRnd.x*(1.0-0.18*gust)*(0.35+0.65*fade)*step(0.001,fade);
+        /* turned to face you, like a stroke on paper */
+        vec2 toCam=normalize(cameraPosition.xz-p+0.0001), side=vec2(toCam.y,-toCam.x);
+        float w=aRnd.y*(1.0-t*0.55)*(0.6+0.4*fade);
         vec3 pos=vec3(p.x,groundAt(p),p.y); pos.xz+=side*position.x*w;
-        /* wind: gusts rolling downwind across the field, a flutter on top, and each blade's own lean */
-        float g1=sin(dot(p,uWind)*0.32-uTime*2.1), g2=sin(dot(p,vec2(0.21,-0.13))*0.9-uTime*1.35+aOff.z*2.0);
-        float gust=0.55+0.35*g1+0.15*g2;
-        vec2 bend=uWind*(0.18+0.62*gust)+vec2(cos(aOff.z*40.0),sin(aOff.z*40.0))*0.16+vec2(sin(uTime*4.3+aOff.z*31.0),cos(uTime*3.7+aOff.z*17.0))*0.05;
-        bend+=push(p,uKid0)+push(p,uKid1);
-        float tt=t*t; pos.xz+=bend*h*tt; pos.y+=h*t*(1.0-0.3*min(1.0,dot(bend,bend))*tt);
-        vT=t; vTone=aRnd.w;
-        vec3 toCam=normalize(cameraPosition-pos);
-        vGlow=pow(max(dot(-toCam,uSun),0.0),5.0)*t;                   /* the sun behind the blades lights their tips */
-        vLit=0.72+0.28*max(0.0,dot(normalize(vec3(side.y,0.6,-side.x)),uLight))+0.18*gust*t;
+        /* combed downwind: the game's bend, harder in a gust, each stroke's own lean, and a flutter */
+        float lean=(0.4+0.85*gust)+0.15+(fract(rr*7.31)-0.5)*0.45+sin(uTime*4.5+rr*40.0)*0.07;
+        vec2 bend=uWind*lean*0.8+push(p,uKid0)+push(p,uKid1);
+        float tt=t*t; pos.xz+=bend*h*tt; pos.y+=h*t*(1.0-0.22*min(1.0,dot(bend,bend))*tt);
+        vTone=toneAt(rr,gust,litAt(p,uSunXZ)); vT=t;
         vec4 mvPosition=modelViewMatrix*vec4(pos,1.0); gl_Position=projectionMatrix*mvPosition;
+        vNear=clamp((${(330*U).toFixed(3)}+mvPosition.z)/${(220*U).toFixed(3)},0.0,1.0)*0.55;
         #include <fog_vertex>
       }`,
     fragmentShader:`
-      uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;
-      varying float vT; varying float vTone; varying float vGlow; varying float vLit;
+      uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4; uniform vec3 uDeep;
+      varying float vTone; varying float vT; varying float vNear;
+      vec3 bladeCol(float k, vec3 c0, vec3 c1, vec3 c2, vec3 c3, vec3 c4){ return k<0.5?c0: k<1.5?c1: k<2.5?c2: k<3.5?c3: c4; }
       #include <fog_pars_fragment>
       void main(){
-        float k=clamp(vT*0.85+vTone*0.35-0.05,0.0,1.0)*4.0;
-        vec3 col= k<1.0?mix(uC0,uC1,k): k<2.0?mix(uC1,uC2,k-1.0): k<3.0?mix(uC2,uC3,k-2.0): mix(uC3,uC4,min(1.0,k-3.0));
-        col*=vLit; col+=vec3(1.0,0.72,0.35)*vGlow*0.55;
+        vec3 col=bladeCol(vTone,uC0,uC1,uC2,uC3,uC4)*(0.86+0.14*smoothstep(0.0,0.35,vT));   /* one flat gold per stroke, a touch darker at its foot */
+        col=mix(col,uDeep,vNear);                                                              /* and darker close to you, as in the game */
         gl_FragColor=vec4(col,1.0);
         #include <tonemapping_fragment>
         #include <encodings_fragment>
@@ -239,8 +269,8 @@ function makeGrass(count,L){
       }`});
   const mesh=new THREE.Mesh(g,mat); mesh.frustumCulled=false; scene.add(mesh); return mesh; }
 const isPhone=matchMedia('(pointer: coarse)').matches;
-const NEAR={S:56,R:27,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:180,R:88,in0:17,in1:26,seed:77,tall:1.15,wide:2.6};
-const grass=makeGrass(isPhone?50000:150000,NEAR), grassMid=makeGrass(isPhone?30000:90000,MIDL);
+const NEAR={S:50,R:24,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:170,R:84,in0:15,in1:23,seed:77,tall:1.2,wide:3.2};
+const grass=makeGrass(isPhone?60000:170000,NEAR), grassMid=makeGrass(isPhone?30000:90000,MIDL);
 const grassAll=[grass,grassMid];
 
 /* ---------- groves: real trees standing out in the field, in clumps, at fixed places ----------
@@ -254,8 +284,10 @@ function blobGeo(seed){ const g=new THREE.IcosahedronGeometry(1,3), P=g.attribut
   g.computeVertexNormals(); return g; }
 const CELL=260, MAXBLOBS=6000, MAXTRUNKS=600;
 const crownMesh=new THREE.InstancedMesh(blobGeo(5),new THREE.MeshToonMaterial({color:0xffffff, gradientMap:toonRamp}),MAXBLOBS);
+crownMesh.material.defines={SOFT_HAZE:''};
 const trunkGeo=new THREE.CylinderGeometry(0.22,0.38,1,7); trunkGeo.translate(0,0.5,0);
 const trunkMesh=new THREE.InstancedMesh(trunkGeo,new THREE.MeshToonMaterial({color:0x2e2418, gradientMap:toonRamp}),MAXTRUNKS);
+trunkMesh.material.defines={SOFT_HAZE:''};
 for(const m of [crownMesh,trunkMesh]){ m.count=0; m.frustumCulled=false; scene.add(m); }
 crownMesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXBLOBS*3),3);
 let groveCell=null;
@@ -302,9 +334,9 @@ const SEEDS=isPhone?70:160, seedBox=24;
 const seedGeo=new THREE.BufferGeometry(), seedPos=new Float32Array(SEEDS*3), seedInfo=[];
 { const r=rng(99); for(let i=0;i<SEEDS;i++){ seedInfo.push({x:r()*seedBox,y:0.3+r()*3.5,z:r()*seedBox,sp:0.7+r()*1.6,ph:r()*6.28}); } }
 seedGeo.setAttribute('position',new THREE.BufferAttribute(seedPos,3));
-const seedTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=32; const g=c.getContext('2d'), gr=g.createRadialGradient(16,16,0,16,16,16);
-  gr.addColorStop(0,'rgba(255,250,228,1)'); gr.addColorStop(0.35,'rgba(255,240,200,.8)'); gr.addColorStop(1,'rgba(255,240,200,0)'); g.fillStyle=gr; g.fillRect(0,0,32,32); return new THREE.CanvasTexture(c); })();
-const seeds=new THREE.Points(seedGeo,new THREE.PointsMaterial({map:seedTex, size:0.07, transparent:true, opacity:0.75, depthWrite:false, color:0xfff2d2}));
+const seedTex=(()=>{ const c=document.createElement('canvas'); c.width=c.height=64; const g=c.getContext('2d');   /* the game's seeds: little white streaks, tilted */
+  g.translate(32,32); g.rotate(-0.25); g.fillStyle='rgba(255,246,214,1)'; g.beginPath(); g.ellipse(0,0,26,6.5,0,0,7); g.fill(); return new THREE.CanvasTexture(c); })();
+const seeds=new THREE.Points(seedGeo,new THREE.PointsMaterial({map:seedTex, size:0.16, transparent:true, opacity:0.7, depthWrite:false, color:0xffffff}));
 seeds.frustumCulled=false; scene.add(seeds);
 function moveSeeds(dt,t){ const w=grass.material.uniforms.uWind.value, cx=cam.position.x, cz=cam.position.z;
   for(let i=0;i<SEEDS;i++){ const p=seedInfo[i]; p.x+=w.x*p.sp*dt; p.z+=w.y*p.sp*dt;
@@ -375,6 +407,7 @@ function placeCam(K,dt,snap){
   const pitch=-Math.atan(0.1*Math.min(lift,1.7)/0.9);                   // in the air the horizon rises, so the view tips down a little
   cam.lookAt(px+fx*Math.cos(pitch),camY+Math.sin(pitch),pz+fz*Math.cos(pitch));
   /* the sky, clouds and ranges stay at the horizon; the sun's shadow box follows the kids */
+  { const hk=Math.pow(Math.max(1,(camY-groundAt(focX,focZ))/CAM_H),0.75); scene.fog.near=FOG_NEAR*hk; scene.fog.far=FOG_FAR*hk; }
   sky.position.copy(cam.position); clouds.position.set(cam.position.x,cam.position.y-30,cam.position.z); ranges.position.set(cam.position.x,cam.position.y-CAM_H,cam.position.z);
   sun.target.position.set(P.x,groundAt(P.x,P.z),P.z); sun.position.copy(sun.target.position).addScaledVector(LIGHTDIR,40);
 }
@@ -416,6 +449,7 @@ function frame(now){
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); }
     placeCam(girl,dt,false);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock);
+    groundTime.value=clock;
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
   R.render(scene,cam); overlays(clock);
