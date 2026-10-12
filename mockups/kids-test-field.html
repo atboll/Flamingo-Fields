@@ -59,7 +59,7 @@ button:disabled{opacity:.45;cursor:default}
   <div class="modes"><button type="button" data-mode="field" aria-pressed="true">Field</button><button type="button" data-mode="editor" aria-pressed="false">Editor</button></div>
   <div id="state">Loading</div>
   <div id="hudBody">
-  <p class="keys"><kbd>↑</kbd> run · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>↓</kbd> turn round and run back · <kbd>Space</kbd> jump, again in the air to take off, again when flying to land · <kbd>↑</kbd><kbd>↓</kbd> climb or sink when flying · wheel to zoom · <kbd>M</kbd> hide menu</p>
+  <p class="keys"><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> run that way, as the camera sees it (<kbd>↓</kbd> comes back toward you) · <kbd>Space</kbd> jump, again in the air to take off, again when flying to land · <kbd>↑</kbd><kbd>↓</kbd> climb or sink when flying · wheel to zoom · <kbd>M</kbd> hide menu</p>
   <div class="row"><span>Who</span>
     <button type="button" data-who="both" aria-pressed="true">Both</button>
     <button type="button" data-who="girl" aria-pressed="false">Girl</button>
@@ -112,8 +112,8 @@ button:disabled{opacity:.45;cursor:default}
   </div>
 </div>
 
-<div class="pad" id="padL"><button type="button" data-hold="left" aria-label="Steer left">◀</button><button type="button" data-hold="right" aria-label="Steer right">▶</button></div>
-<div class="pad" id="padR"><button type="button" data-hold="up" aria-label="Run, or climb when flying">▲</button><button type="button" data-hold="down" aria-label="Turn round, or sink when flying">▼</button><button type="button" id="jumpBtn" aria-label="Jump">⤒</button></div>
+<div class="pad" id="padL"><button type="button" data-hold="left" aria-label="Run left">◀</button><button type="button" data-hold="right" aria-label="Run right">▶</button></div>
+<div class="pad" id="padR"><button type="button" data-hold="up" aria-label="Run, or climb when flying">▲</button><button type="button" data-hold="down" aria-label="Run toward the camera, or sink when flying">▼</button><button type="button" id="jumpBtn" aria-label="Jump">⤒</button></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
@@ -551,12 +551,9 @@ function stepKid(K,dt,In){
   const rolling=P.state==='roll'||P.state==='stop'||P.state==='turn';   // one of his whole-body moves: roll, stop or turn
   P.rollW+=((rolling?1:0)-P.rollW)*ease(rolling?9:4);
   /* ↓ on the ground: turn round and run the other way (skid to a stop first if running) */
-  if(P.backReq&&P.state==='ground'){
-    if(P.spd>=1&&A.stop) startStop(K,0);
-    else if(A.turn){ const right=P.backSide<=0, cv=right?c.turnYaw:c.turnLYaw; P.state='turn'; P.turnH0=P.h; P.turnCurve=cv; P.turnScale=(right?-Math.PI:Math.PI)/cv.yaw[cv.yaw.length-1];
-      K.spA=right?A.turn:A.turnL; K.spA.reset(); K.spA.play(); P.backReq=false; }
-    else { P.h+=Math.PI; P.backReq=false; } }
-  else if(P.backReq&&P.state!=='stop') P.backReq=false;   // only from the ground
+  /* told to go back the way they came while running: skid to a stop first; the turn-and-run below then takes them round */
+  if(In.steered&&P.state==='ground'&&A.stop&&P.spd>=1&&In.heading!=null&&In.speed>1){ let d=In.heading-P.h; d=Math.atan2(Math.sin(d),Math.cos(d));
+    if(Math.abs(d)>2.5){ startStop(K,0); P.backReq=true; } }
   if(P.state==='ground'&&A.stop&&P.spd>0.55*K.RUN_SPEED&&In.speed<0.3) startStop(K,0);   // running and told to stop: he brakes and skids to a stand
   if(P.state==='ground'&&A.turn&&P.spd<1&&(In.face??In.heading)!=null&&In.speed>1){ let d=(In.face??In.heading)-P.h; d=Math.atan2(Math.sin(d),Math.cos(d));
     if(Math.abs(d)>1.35){ const right=d<0, cv=right?c.turnYaw:c.turnLYaw; P.state='turn'; P.turnH0=P.h; P.turnCurve=cv; P.turnScale=d/cv.yaw[cv.yaw.length-1];
@@ -584,7 +581,7 @@ function stepKid(K,dt,In){
       else { P.state='touch'; P.spd=K.RUN_SPEED; A.land.paused=false; } } }
   else if(P.state==='touch'){ if(A.land.time>=c.landTo) P.state='ground'; }
   else if(P.state==='roll'){ if(A.roll.time>=c.rollEnd){ P.state='ground'; P.spd=Math.max(P.spd,K.RUN_SPEED*0.6); } }
-  else if(P.state==='stop'){ const t=A.stop.time, d=A.stop.getClip().duration; if(t>=d-0.05){ P.state='ground'; P.spd=0; P.standT=0; } else if(In.speed>0.5&&t>0.35&&!P.backReq){ P.state='ground'; } }
+  else if(P.state==='stop'){ const t=A.stop.time, d=A.stop.getClip().duration; if(t>=d-0.05){ P.state='ground'; P.spd=0; P.standT=0; P.backReq=false; } else if(In.speed>0.5&&t>0.35&&!P.backReq){ P.state='ground'; } }
   else if(P.state==='turn'){ if(K.spA.time>=K.spA.getClip().duration-0.05){ P.state='ground'; } }
   const r=Math.min(1,P.spd/K.RUN_SPEED);
   P.bank+=((air?-P.turn*0.35:-P.turn*0.06*r)-P.bank)*ease(5);
@@ -622,7 +619,7 @@ function followInput(L,F){
   let vx=fx*lspd+(tx-fp.x)*1.8, vz=fz*lspd+(tz-fp.z)*1.8; const v=Math.hypot(vx,vz);
   const In={climb:false,sink:false};
   /* when you let go of ↑ she stops, and so does he (unless he is far off): he waits where he is, facing her way */
-  const near=Math.hypot(lp.x-fp.x,lp.z-fp.z)<4.5, sheStops=!keys.has('up')&&!keys.has('down')&&(lp.state==='ground'||lp.state==='touch');
+  const near=Math.hypot(lp.x-fp.x,lp.z-fp.z)<4.5, sheStops=!arrowsHeld()&&(lp.state==='ground'||lp.state==='touch');
   if(sheStops&&near&&fp.state!=='fly'){ In.heading=fp.h; In.speed=0; In.airSpeed=FLY_SPEED; In.alt=Math.max(1.2,lp.alt-(slot.below||0)); return In; }
   In.face=lp.h;   // the way she is going, for his turn-and-run
   if(v>0.7){ In.heading=Math.atan2(vx,vz); In.speed=Math.min(v,F.RUN_SPEED*1.35); }
@@ -633,11 +630,15 @@ function followInput(L,F){
 }
 
 /* ---------- field camera ---------- */
-let camMode='behind', dist=4.5; const camPos=new THREE.Vector3(0,3,-6), look=new THREE.Vector3();
+let camMode='behind', dist=4.5, camYaw=0, backYaw=null; const camPos=new THREE.Vector3(0,3,-6), look=new THREE.Vector3();
+/* like the game: the camera has its own direction and swings round slowly after the kids, only while they are on the move,
+   so a sharp turn brings them back toward you and you see their faces until it comes round */
 function placeCam(K,dt,snap){
-  const P=K.P, fx=Math.sin(P.h), fz=Math.cos(P.h), side=camMode==='side', a=camMode==='front'?-1:1;
+  const P=K.P, moving=(P.spd>0.5&&P.state!=='stop'&&P.state!=='turn')||P.state==='fly'||P.state==='land';   // it holds still while they skid and turn round
+  if(snap) camYaw=P.h; else if(moving){ let d=P.h-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); camYaw+=d*(1-Math.exp(-dt*1.5)); }
+  const fx=Math.sin(camYaw), fz=Math.cos(camYaw), side=camMode==='side', a=camMode==='front'?-1:1;
   const tx=P.x+(side?fz*dist:-fx*dist*a), tz=P.z+(side?-fx*dist:-fz*dist*a), ty=P.y+1.0+dist*0.32;
-  const k=snap?1:1-Math.exp(-dt*4); camPos.x+=(tx-camPos.x)*k; camPos.y+=(ty-camPos.y)*k; camPos.z+=(tz-camPos.z)*k;
+  const k=snap?1:1-Math.exp(-dt*3.2); camPos.x+=(tx-camPos.x)*k; camPos.y+=(ty-camPos.y)*k; camPos.z+=(tz-camPos.z)*k;
   look.set(P.x,P.y+0.9,P.z); cam.position.copy(camPos); cam.lookAt(look);
 }
 const LABEL={stand:'Standing — hold ↑ to run, Space to jump',run:'Running — Space to jump',crouch:'Jump!',hop:'In the air — Space again to take off',fly:'Flying — Space to land',land:'Landing…',touch:'Landing…',roll:'Tumble!'};
@@ -649,12 +650,20 @@ let girl, boy, boyTex, girlTex, who='both', rollChance=0.35, mode='field';
 const keys=new Set();
 function lead(){ return who==='boy'?boy:girl; }
 function follower(){ return who==='both'?boy:null; }
-function keyInput(){ const steer=(keys.has('left')?1:0)-(keys.has('right')?1:0), In={steer, speed:(keys.has('up')||keys.has('down'))?lead().RUN_SPEED:0, climb:keys.has('up'), sink:keys.has('down')};
-  if(steer&&keys.has('up')) In.face=lead().P.h+steer*2.4;   // standing, ↑ with ← or →: she (or he) turns round that way and sets off
+/* the arrows are read against where the camera looks, as in the game: ↑ away from you, ↓ toward you, ← → to the sides.
+   A straight ↓ keeps the direction it had when first pressed, so they turn round once and run at you while the camera slowly comes round.
+   In the air ↑ ↓ climb and sink, and only ← → steer. */
+function keyInput(){ const L=lead(), P=L.P, air=P.state==='fly'||P.state==='land';
+  let ix=(keys.has('right')?1:0)-(keys.has('left')?1:0), iz=(keys.has('up')?1:0)-(keys.has('down')?1:0);
+  const In={speed:0, climb:keys.has('up'), sink:keys.has('down'), steered:true};
+  if(air) iz=0;
+  const back=!air&&iz<0&&ix===0; if(back&&backYaw==null) backYaw=camYaw; if(!back) backYaw=null;
+  if(ix||iz){ const y=back?backYaw:camYaw, fx=Math.sin(y), fz=Math.cos(y), wx=fx*iz-fz*ix, wz=fz*iz+fx*ix;
+    In.heading=Math.atan2(wx,wz); In.speed=L.RUN_SPEED; }
   return In; }
+function arrowsHeld(){ return keys.has('up')||keys.has('down')||keys.has('left')||keys.has('right'); }
 function jump(){ if(mode==='field'&&lead()) jumpKid(lead()); }
-/* ↓ on the ground asks the one you steer to turn round; the side is the one you hold, else right */
-function turnBack(){ if(mode!=='field'||!lead()) return; const P=lead().P; if(P.state!=='ground') return; P.backReq=true; P.backSide=(keys.has('left')?1:0)-(keys.has('right')?1:0); }
+function turnBack(){}
 async function load(){
   const img=new Image(); img.src=B_TEX; await img.decode();
   const gimg=new Image(); gimg.src=G_TEX; await gimg.decode();
