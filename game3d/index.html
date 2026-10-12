@@ -252,7 +252,7 @@ function placeCam(K,dt,snap){
   const P=K.P, moving=(P.spd>0.6*K.RUN_SPEED&&P.state!=='stop')||P.state==='fly'||P.state==='land';
   if(snap){ camYaw=P.h; focX=P.x; focZ=P.z; lastX=P.x; lastZ=P.z; velX=velZ=0; }
   else if(dt>0){ const k=1-Math.exp(-dt*8); velX+=((P.x-lastX)/dt-velX)*k; velZ+=((P.z-lastZ)/dt-velZ)*k; lastX=P.x; lastZ=P.z; }   /* their real speed, running or flying */
-  else if(moving){ let d=P.h-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); camYaw+=d*(1-Math.exp(-dt*1.5)); }
+  if(!snap&&moving){ let d=P.h-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); camYaw+=d*(1-Math.exp(-dt*1.5)); }
   const ce=snap?1:1-Math.exp(-dt*3.2);
   focX+=(P.x+velX*0.12-focX)*ce; focZ+=(P.z+velZ*0.12-focZ)*ce;
   const air=P.state==='fly'||P.state==='land', hy=Math.max(0,P.y);
