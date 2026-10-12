@@ -79,9 +79,9 @@ button:disabled{opacity:.45;cursor:default}
   <div class="row"><span>Boy rolls</span><input id="roll" type="range" min="0" max="100" value="35" aria-label="How often the boy trips and rolls when he lands"></div>
   <h2>Landing</h2>
   <div class="row"><span>Dip to</span><input id="lDip" type="range" min="0.5" max="3" step="0.1" value="1.2" aria-label="How low they skim at the bottom of the landing dive, in metres"><output id="lDipO">1.2 m</output></div>
-  <div class="row"><span>Swing up</span><input id="lSwing" type="range" min="0" max="2.5" step="0.1" value="1.0" aria-label="How far they swing back up before the legs come down, in metres"><output id="lSwingO">1.0 m</output></div>
+  <div class="row"><span>Swing up</span><input id="lSwing" type="range" min="0" max="3" step="0.1" value="1.6" aria-label="How far they swing back up before the legs come down, in metres"><output id="lSwingO">1.6 m</output></div>
   <div class="row"><span>Curves</span><input id="lSoft" type="range" min="1.5" max="4.5" step="0.1" value="3.0" aria-label="How tight the landing curves are: low is soft and slow, high is sharp and quick"><output id="lSoftO">3.0</output></div>
-  <div class="row"><span>Brake tilt</span><input id="lBrake" type="range" min="0" max="40" step="1" value="15" aria-label="Extra chest-up tilt while braking on the swing up, in degrees"><output id="lBrakeO">15°</output></div>
+  <div class="row"><span>Brake tilt</span><input id="lBrake" type="range" min="0" max="50" step="1" value="28" aria-label="Extra chest-up tilt while braking on the swing up, in degrees"><output id="lBrakeO">28°</output></div>
   <div class="row"><span>Speed</span>
     <button type="button" data-spd="1" aria-pressed="true">Normal</button>
     <button type="button" data-spd="0.3" aria-pressed="false">Slow motion</button>
@@ -749,7 +749,7 @@ function hud(K){ const P=K.P, k=P.state==='ground'?(P.spd>0.5?'run':'stand'):P.s
 
 /* ---------- the two kids ---------- */
 let girl, boy, boyTex, girlTex, who='both', rollChance=0.35, mode='field';
-const LANDING={dip:1.2, swing:1.0, soft:3.0, brake:15*Math.PI/180};   /* skimming height (m), swing back up (m), how tight the curves are, extra chest-up when braking */
+const LANDING={dip:1.2, swing:1.6, soft:3.0, brake:28*Math.PI/180};   /* skimming height (m), swing back up (m), how tight the curves are, extra chest-up when braking */
 const keys=new Set();
 function lead(){ return who==='boy'?boy:girl; }
 function follower(){ return who==='both'?boy:null; }
