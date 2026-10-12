@@ -46,6 +46,8 @@ button[aria-pressed="true"]{background:#3d4a52;color:#fff;border-color:#3d4a52}
   </div>
   <div class="row"><span>Skirt wind</span><input id="wind" type="range" min="0" max="250" value="100" aria-label="How much the girl's skirt moves in the wind"></div>
   <div class="row"><span>Hair wind</span><input id="hairwind" type="range" min="0" max="250" value="100" aria-label="How much both kids' hair moves in the wind"></div>
+  <div class="row"><span>Boy size</span><input id="bsize" type="range" min="70" max="100" value="87" aria-label="The boy's size, from 70 to 100 percent"></div>
+  <div class="row"><span>Boy head</span><input id="bhead" type="range" min="100" max="125" value="112" aria-label="The boy's head size, bigger looks younger"></div>
   <div class="row"><span>Boy rolls</span><input id="roll" type="range" min="0" max="100" value="35" aria-label="How often the boy trips and rolls when he lands"></div>
   <div class="row"><span>Speed</span>
     <button type="button" data-spd="1" aria-pressed="true">Normal</button>
@@ -242,7 +244,7 @@ const G=14, HOP=5.2, CRUISE=4.5, FLY_SPEED=13;
 function makeKid(name,cfg){
   const o=new THREE.FBXLoader().parse(b64(cfg.fbx),''); let mesh;
   o.traverse(n=>{ if(n.isSkinnedMesh){ mesh=n; n.castShadow=true; n.frustumCulled=false; } });
-  const K={name,cfg,mesh,P:{x:0,z:0,y:0,vy:0,h:0,turn:0,bank:0,alt:CRUISE,state:'ground',spd:0,flyW:0,jumpW:0,landW:0,rollW:0,crouch:0,rollT:0,upLock:false},
+  const K={name,cfg,mesh,scale:1,P:{x:0,z:0,y:0,vy:0,h:0,turn:0,bank:0,alt:CRUISE,state:'ground',spd:0,flyW:0,jumpW:0,landW:0,rollW:0,crouch:0,rollT:0,upLock:false},
     SW:{x:0,y:0,z:0,vx:0,vy:0,vz:0,px:0,py:0,pz:0,ox:0,oy:0,oz:0,init:false}};
   K.W=makeWind(cfg.paint(mesh));
   K.gameMat=addWind(cfg.material(),K.W,name+'g'); K.plainMat=addWind(new THREE.MeshLambertMaterial({color:'#e9e4da'}),K.W,name+'p'); mesh.material=K.gameMat;
@@ -282,7 +284,7 @@ function stepKid(K,dt,In){
   else if(In.heading!=null){ let d=In.heading-P.h; d=Math.atan2(Math.sin(d),Math.cos(d)); const mx=air?1.6:3.5; P.turn+=(Math.max(-mx,Math.min(mx,d*4))-P.turn)*ease(8); }
   else P.turn+=((In.steer||0)*(air?1.3:2.2)-P.turn)*ease(6);
   P.h+=P.turn*dt;
-  const flying=P.state==='fly'||(P.state==='land'&&P.y>UPRIGHT_H);
+  const flying=P.state==='fly'||(P.state==='land'&&P.y>UPRIGHT_H*K.scale);
   P.flyW+=((flying?1:0)-P.flyW)*ease(flying?4.5:5);
   const landing=(P.state==='land'&&!flying)||P.state==='touch';
   P.landW+=((landing?1:0)-P.landW)*ease(landing?10:6);
@@ -292,10 +294,10 @@ function stepKid(K,dt,In){
   P.rollW+=((rolling?1:0)-P.rollW)*ease(rolling?9:4);
   if(P.state==='ground'||P.state==='touch'){ const want=In.speed; P.spd+=(want-P.spd)*ease(want>P.spd?3:2.5); }
   let speed;
-  if(P.state==='roll'){ const t=A.roll.time; speed=Math.max(0,(curveAt(c.rollZ,'z',t+0.05)-curveAt(c.rollZ,'z',Math.max(0,t-0.05)))/0.1)*BOOST; P.spd=speed; }
+  if(P.state==='roll'){ const t=A.roll.time; speed=Math.max(0,(curveAt(c.rollZ,'z',t+0.05)-curveAt(c.rollZ,'z',Math.max(0,t-0.05)))/0.1)*BOOST*K.scale; P.spd=speed; }   // a smaller kid tumbles a shorter way
   else speed=P.spd*(1-P.flyW)+(In.airSpeed??FLY_SPEED)*P.flyW;
   P.x+=Math.sin(P.h)*speed*dt; P.z+=Math.cos(P.h)*speed*dt;
-  if(P.state==='crouch'){ P.crouch-=dt; if(P.crouch<=0){ P.state='hop'; P.vy=HOP; } }
+  if(P.state==='crouch'){ P.crouch-=dt; if(P.crouch<=0){ P.state='hop'; P.vy=HOP*Math.sqrt(K.scale); } }   // a smaller kid hops lower
   else if(P.state==='hop'){ P.vy-=G*dt; P.y+=P.vy*dt; if(P.y<=0){ P.y=0; P.vy=0; P.state='ground'; } }
   else if(P.state==='fly'){
     if(In.alt!=null) P.alt=In.alt;
@@ -335,7 +337,7 @@ function watchLeader(L,F,now){
 function followInput(L,F){
   const lp=L.P, fp=F.P, inAir=lp.state==='fly'||lp.state==='land'||fp.state==='fly';
   const slot=inAir?FOLLOW.air:FOLLOW.ground, fx=Math.sin(lp.h), fz=Math.cos(lp.h), rx=-fz, rz=fx;   // her forward and her right
-  const tx=lp.x+rx*slot.right-fx*slot.back, tz=lp.z+rz*slot.right-fz*slot.back;
+  const k=0.4+0.6*F.scale, tx=lp.x+rx*slot.right*k-fx*slot.back*k, tz=lp.z+rz*slot.right*k-fz*slot.back*k;   // a smaller kid keeps a little closer
   const lspd=(lp.state==='fly'||lp.state==='land')?FLY_SPEED*lp.flyW+lp.spd*(1-lp.flyW):lp.spd;
   let vx=fx*lspd+(tx-fp.x)*1.8, vz=fz*lspd+(tz-fp.z)*1.8; const v=Math.hypot(vx,vz);
   const In={climb:false,sink:false};
@@ -377,13 +379,19 @@ async function load(){
   boy=makeKid('boy',{fbx:B_FBX, run:B_CLIPS.run, fly:B_CLIPS.fly, idle:B_CLIPS.idle, jump:B_CLIPS.jump, land:B_CLIPS.land, roll:B_CLIPS.roll, rollZ:B_CLIPS.rollZ, rollEnd:1.9,
     paint:m=>boyHair(m,img), material:()=>new THREE.MeshLambertMaterial({map:tex}),
     jumpPush:B_CLIPS.jumpInfo.push, jumpFromRun:0.27, landFrom:0.28, landTo:0.82,
-    runPace:(spd,K)=>Math.max(0.55,Math.min(1.45,spd/K.animRun))});   // shorter legs: they go faster to keep up with her
+    runPace:(spd,K)=>Math.max(0.55,Math.min(1.9,spd/(K.animRun*K.scale)))});   // shorter legs: they go faster to keep up with her
   boy.RUN_SPEED=girl.RUN_SPEED;   // he keeps up with her
   boy.W.uAmt.value=0;
+  setBoySize(+$('bsize').value/100); setBoyHead(+$('bhead').value/100);
   boy.P.x=-1.0; boy.P.z=-0.9;
   girl.lastState='ground';
   $('load').hidden=true;
 }
+
+/* the boy's size and head: a little brother. His whole body scales from his feet; his head bone scales (hair with it),
+   which the animations leave alone because they only turn the bones. */
+function setBoySize(s){ if(!boy) return; boy.scale=s; boy.root.scale.setScalar(s); }
+function setBoyHead(h){ if(!boy) return; const b=boy.mesh.skeleton.bones.find(x=>/Head$/.test(x.name)); if(b) b.scale.setScalar(h); }
 
 /* ---------- loop ---------- */
 let last=performance.now(), slow=1, clock=0;
@@ -436,6 +444,8 @@ group('data-spd',v=>{ slow=+v; });
 $('wind').addEventListener('input',e=>{ if(girl) girl.W.uAmt.value=e.target.value/100; });
 $('hairwind').addEventListener('input',e=>{ for(const K of [girl,boy]) if(K) K.W.uHair.value=e.target.value/100; });
 $('roll').addEventListener('input',e=>{ rollChance=e.target.value/100; });
+$('bsize').addEventListener('input',e=>setBoySize(e.target.value/100));
+$('bhead').addEventListener('input',e=>setBoyHead(e.target.value/100));
 
 setTimeout(async()=>{ try{ await load(); placeCam(lead(),0,true); } catch(err){ $('load').textContent='Could not load the kids: '+err.message; console.error(err); } requestAnimationFrame(frame); },30);
 </script>
