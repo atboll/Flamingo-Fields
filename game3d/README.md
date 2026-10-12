@@ -57,7 +57,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 ### Sound
 
-- [ ] Field ambience
+- [x] Field ambience (`assets/field01.mp3`, the new field recording, looped with a 4 s crossfade)
 - [ ] Footsteps
 - [ ] Flock calls
 - [ ] Music
@@ -69,7 +69,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 ### Interface
 
 - [ ] Feather counter
-- [ ] Sound button
+- [x] Sound button
 - [ ] Hint
 - [ ] `#test` buttons
 - [x] Phone controls

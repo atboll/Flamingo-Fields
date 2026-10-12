@@ -22,6 +22,10 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 #light{ mix-blend-mode:soft-light }
 #grain{ mix-blend-mode:overlay; opacity:.13; background-repeat:repeat }
 #flare{ mix-blend-mode:screen }
+#sound{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:max(12px,env(safe-area-inset-top)); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
+  background:rgba(58,42,18,.62); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#sound[aria-pressed="false"]{ opacity:.7 }
+#sound:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #stats{ position:fixed; right:max(12px,env(safe-area-inset-right)); bottom:max(12px,env(safe-area-inset-bottom)); font:12px ui-monospace,Menlo,monospace; color:#5a4526; background:var(--glass); border-radius:6px; padding:3px 7px }
 </style>
 </head>
@@ -31,6 +35,7 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 <div class="chip" id="hint"><b>Flamingo Fields 3D</b> · milestone 1
   <p><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd> run · <kbd>Space</kbd> hop, again to fly, again to land · <kbd>↑</kbd><kbd>↓</kbd> climb and sink in the air.
   On a phone: drag to run, tap to hop. Flying is free for now; feathers come next.</p></div>
+<button id="sound" type="button" aria-pressed="true">Sound on</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
 
@@ -437,6 +442,33 @@ view.addEventListener('pointermove',e=>{ if(!drag||e.pointerId!==drag.id) return
   if(dx<-14) keys.add('left'); else if(dx>14) keys.add('right'); if(dy<-14) keys.add('up'); else if(dy>40) keys.add('down'); if(drag.far>14) nudge(); });
 function endDrag(e){ if(!drag||e.pointerId!==drag.id) return; if(drag.far<10&&performance.now()-drag.t<260&&girl) jumpKid(girl); for(const k of ['left','right','up','down']) keys.delete(k); drag=null; }
 view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel',endDrag);
+
+/* ---------- sound: the field recording, looped forever, each pass starting 4 s before the last one ends (as the 2D game does).
+   It starts with the first key or tap, since browsers only play sound after the player has done something. ---------- */
+const OVERLAP=4, soundBtn=$('sound'), fadeOut=new Float32Array(48).map((_,i)=>Math.cos(i/47*Math.PI/2));
+let actx=null, master=null, fieldBuf=null, fieldGain=null, nextAt=0, soundOn=true;
+try{ soundOn=localStorage.getItem('ff3dSound')!=='off'; }catch(_){ }
+function showSound(){ soundBtn.textContent=soundOn?'Sound on':'Sound off'; soundBtn.setAttribute('aria-pressed',String(soundOn)); }
+function scheduleField(){
+  if(!fieldBuf) return;
+  while(nextAt<actx.currentTime+12){
+    const t=Math.max(nextAt,actx.currentTime+0.05), dur=fieldBuf.duration, src=actx.createBufferSource(), g=actx.createGain();
+    src.buffer=fieldBuf; g.gain.setValueAtTime(1,t); g.gain.setValueCurveAtTime(fadeOut,t+dur-OVERLAP,OVERLAP);
+    src.connect(g); g.connect(fieldGain); src.start(t); nextAt=t+dur-OVERLAP; } }
+function startSound(){
+  if(actx){ if(actx.state==='suspended'&&!document.hidden) actx.resume(); return; }
+  const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
+  actx=new AC(); master=actx.createGain(); master.gain.value=soundOn?0.85:0; master.connect(actx.destination);
+  fieldGain=actx.createGain(); fieldGain.gain.value=0; fieldGain.connect(master);
+  fetch('assets/field01.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ fieldBuf=buf; scheduleField(); setInterval(scheduleField,2000); fieldGain.gain.setTargetAtTime(1,actx.currentTime,0.8); })   /* it fades in */
+    .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; }); }
+soundBtn.addEventListener('click',e=>{ e.stopPropagation(); startSound(); soundOn=!soundOn; showSound(); try{ localStorage.setItem('ff3dSound',soundOn?'on':'off'); }catch(_){ }
+  if(master) master.gain.setTargetAtTime(soundOn?0.85:0,actx.currentTime,0.15); });
+soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
+addEventListener('keydown',()=>startSound()); addEventListener('pointerdown',()=>startSound());
+document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
+showSound();
 
 /* ---------- loop ---------- */
 let last=performance.now(), clock=0, fpsT=0, fpsN=0, slowFrames=0;
