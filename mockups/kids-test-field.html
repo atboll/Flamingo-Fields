@@ -690,7 +690,10 @@ function editorFrame(dt){
   if(faceZoom){ const K=ekid==='boy'&&showB?boy:(showG?girl:boy); K.root.updateMatrixWorld(true); tgt=K.mesh.skeleton.bones.find(b=>/Head$/.test(b.name)).getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0,0.1*K.scale,0)); d=Math.min(d,0.9); }
   else if(eshow!=='both'){ tgt.y=0.75*(eshow==='boy'?boy.scale:girl.scale); d=Math.min(d,2.6); }
   /* on a narrow screen the panel covers the bottom half, so the picture is shifted up above it */
-  const narrow=innerWidth<=640, w=innerWidth, h=innerHeight; if(narrow) d*=1.6; if(narrow){ if(!cam.view||!cam.view.enabled||cam.view.offsetY!==Math.round(h*0.24)) cam.setViewOffset(w,h,0,Math.round(h*0.24),w,h); } else if(cam.view&&cam.view.enabled) cam.clearViewOffset();
+  const narrow=innerWidth<=640, w=innerWidth, h=innerHeight; if(narrow) d*=1.6;
+  /* centre the picture in the space the panel leaves free: above it on a phone, to its left on a wider screen */
+  const ox=narrow?0:Math.round(($('ed').offsetWidth+12)/2), oy=narrow?Math.round(h*0.24):0;
+  if(!cam.view||!cam.view.enabled||cam.view.offsetX!==ox||cam.view.offsetY!==oy||cam.view.fullWidth!==w||cam.view.fullHeight!==h) cam.setViewOffset(w,h,ox,oy,w,h);
   cam.position.set(tgt.x+Math.sin(orbit.yaw)*Math.cos(orbit.pitch)*d, tgt.y+Math.sin(orbit.pitch)*d, tgt.z+Math.cos(orbit.yaw)*Math.cos(orbit.pitch)*d); cam.lookAt(tgt);
 }
 
@@ -699,8 +702,8 @@ function setMode(m){ mode=m; $('fieldHud').hidden=m!=='field'; $('ed').hidden=m!
   document.querySelectorAll('.pad').forEach(p=>p.hidden=m!=='field');
   document.querySelectorAll('[data-mode]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.mode===m)));
   if(!girl) return;
-  if(m==='editor'){ setLight(edLight); applyLook(draft); buildControls(); drawSlots(); status(); keys.clear(); }
-  else { setLight('day'); if(cam.view&&cam.view.enabled) cam.clearViewOffset(); applyLook(deployed); for(const K of [girl,boy]){ Object.assign(K.P,{y:0,vy:0,state:'ground',spd:0,flyW:0,landW:0,jumpW:0,rollW:0}); K.SW.init=false; }
+  if(m==='editor'){ setLight(edLight); useMaterials(false); applyLook(draft); buildControls(); drawSlots(); status(); keys.clear(); }
+  else { setLight('day'); if(cam.view&&cam.view.enabled) cam.clearViewOffset(); useMaterials(plainOn); applyLook(deployed); for(const K of [girl,boy]){ Object.assign(K.P,{y:0,vy:0,state:'ground',spd:0,flyW:0,landW:0,jumpW:0,rollW:0}); K.SW.init=false; }
     boy.P.x=girl.P.x-Math.cos(girl.P.h)*1.0-Math.sin(girl.P.h)*0.9; boy.P.z=girl.P.z+Math.sin(girl.P.h)*1.0-Math.cos(girl.P.h)*0.9; boy.P.h=girl.P.h; girl.lastState='ground'; events.length=0; placeCam(lead(),0,true); }
   try{ history.replaceState(null,'',m==='editor'?'#editor':'#field'); }catch(_){ } }
 let edLight='sunset';
@@ -754,7 +757,8 @@ group('data-who',v=>{ if(!girl) return; const from=lead(); who=v; const to=lead(
   if(v==='both'){ const F=boy, L=girl, fx=Math.sin(L.P.h), fz=Math.cos(L.P.h); if(boy!==from) Object.assign(F.P,{x:L.P.x-fz*1.0-fx*0.9,z:L.P.z+fx*1.0-fz*0.9,h:L.P.h,y:L.P.y,state:L.P.state==='fly'?'fly':'ground',spd:L.P.spd}); girl.lastState=girl.P.state; }
   events.length=0; shown=''; });
 group('data-cam',v=>{ camMode=v; });
-group('data-col',v=>{ for(const K of [girl,boy]) if(K) K.mesh.material=v==='plain'?K.plainMat:K.gameMat; });
+let plainOn=false; function useMaterials(plain){ for(const K of [girl,boy]) if(K) K.mesh.material=plain?K.plainMat:K.gameMat; }
+group('data-col',v=>{ plainOn=v==='plain'; useMaterials(plainOn); });
 group('data-spd',v=>{ slow=+v; });
 group('data-eshow',v=>{ eshow=v; if(v!=='both'){ ekid=v; document.querySelectorAll('[data-ekid]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.ekid===v))); buildControls(); } });
 group('data-ekid',v=>{ ekid=v; buildControls(); });
