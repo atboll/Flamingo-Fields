@@ -489,11 +489,12 @@ const BOY_FACE={box:[-0.15,0.40,0.15,0.70], draw:(F,p)=>{
   if(p.mouth!=='own') mouth(F,p.mouth,0.0,0.488+p.mouthY*0.02,0.05*p.mouthSize,0.022*p.mouthSize); }};
 
 /* ---------- the looks: everything the editor sets, as one plain object ---------- */
+/* the kids' default look: "Look 1", deployed from the editor on 12 October 2026 */
 const DEFAULT_LOOK={ v:2,
-  girl:{height:1, head:1, skin:'', hair:'', tips:'#e8742c', tipsAmt:0, shirt:'', skirt:'', skirtWind:1, hairWind:1,
-        face:{eyes:'own', eyeSize:1, eyeGap:1, eyeY:0, iris:'#2b3047', shine:1, lid:1, browY:0, browTilt:0, browW:1, mouth:'shout', mouthSize:1, mouthY:0, cheek:'#ee8076', cheekAmt:0, freckles:0, mouth:'own'}},
-  boy:{height:0.87, head:1.0, tips:'#e6d3a3', tipsAmt:0, skin:'', shirt:'', shorts:'', hairWind:1,
-        face:{eyes:'own', eyeSize:1, eyeGap:1, eyeY:0, iris:'#2a2220', shine:1, lid:1, browY:0, browTilt:0, browW:1, mouth:'own', mouthSize:1, mouthY:0, cheek:'#ee8a80', cheekAmt:0, freckles:0}}};
+  girl:{height:1, head:0.98, skin:'#f8ba91', hair:'', tips:'#e8742c', tipsAmt:0.47, shirt:'', skirt:'', skirtWind:0.4, hairWind:1.45,
+        face:{eyes:'own', eyeSize:1.27, eyeGap:1, eyeY:0, iris:'#2b3047', shine:1, lid:1, browY:0.36, browTilt:0.38, browW:2.2, mouth:'own', mouthSize:1.5, mouthY:-0.16, cheek:'#ee8076', cheekAmt:1, freckles:0.7}},
+  boy:{height:0.79, head:1.05, tips:'#978559', tipsAmt:0.04, skin:'#eebcaa', shirt:'#62370e', shorts:'#2c2f44', hairWind:0.65,
+        face:{eyes:'own', eyeSize:1.31, eyeGap:1, eyeY:0, iris:'#2a2220', shine:1, lid:1, browY:0, browTilt:0, browW:1, mouth:'own', mouthSize:1.5, mouthY:0.58, cheek:'#bf7269', cheekAmt:0.52, freckles:1}}};
 /* fill anything a saved look lacks from the defaults, so older saves keep working */
 function fullLook(L){ const o=clone(DEFAULT_LOOK); if(!L) return o;
   if(!L.v&&L.girl){ L=clone(L); for(const k of ['skin','hair','shirt','skirt']) delete L.girl[k]; if(L.girl.face){ delete L.girl.face.eyes; delete L.girl.face.mouth; } }   // looks saved before she had her own texture
