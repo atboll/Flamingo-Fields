@@ -594,6 +594,9 @@ function stepKid(K,dt,In){
   else if(P.state==='turn'){ if(K.spA.time>=K.spA.getClip().duration-0.05){ P.state='ground'; } }
   const r=Math.min(1,P.spd/K.RUN_SPEED);
   P.bank+=((air?-P.turn*0.35:-P.turn*0.06*r)-P.bank)*ease(5);
+  /* flying, they tilt a little with the climb: chest up rising, head dipping sinking, at most about 12 degrees, and upright again for the landing */
+  const upr=P.state==='land'?Math.max(0,Math.min(1,(P.y-UPRIGHT_H*K.scale)/1.5)):1;   /* coming down to land: upright again before the feet touch */
+  P.pitch=(P.pitch||0)+(-Math.max(-1,Math.min(1,P.vy/3))*0.21*P.flyW*upr-(P.pitch||0))*ease(P.state==='land'?6:3);
   const fw=P.flyW, ow=rolling?1-fw:P.rollW*(1-fw), lw=landing?1-fw-ow:P.landW*Math.max(0,1-fw-ow), jw=P.jumpW*Math.max(0,1-fw-ow-lw), g=Math.max(0,1-fw-ow-lw-jw);
   A.fly.setEffectiveWeight(fw); K.spX=Math.max(0,(K.spX||0)-dt/0.2); for(const k of ['roll','stop','turn','turnL']) if(A[k]) A[k].setEffectiveWeight(K.spA===A[k]?ow*(1-K.spX):K.spPrev===A[k]?ow*K.spX:0); A.land.setEffectiveWeight(lw); A.jump.setEffectiveWeight(K.jumpA===A.jump?jw:0); if(A.rjump) A.rjump.setEffectiveWeight(K.jumpA===A.rjump?jw:0);
   /* standing still a while, he gets bored: the bored animation plays once, then he is back to standing */
@@ -611,7 +614,13 @@ function stepKid(K,dt,In){
 /* starting one whole-body move: if another was still showing, it fades out over a fifth of a second instead of snapping */
 function setSp(K,a){ if(K.spA&&K.spA!==a&&K.P.rollW>0.05){ K.spPrev=K.spA; K.spX=1; } else K.spX=0; K.spA=a; a.reset(); a.play(); }
 function startStop(K,from,entry){ const P=K.P, A=K.A; P.state='stop'; setSp(K,A.stop); A.stop.time=from; P.stopFrom=from; P.stopEntry=entry??P.spd; }
-function placeKid(K){ const P=K.P; K.root.position.set(P.x,P.y,P.z); K.root.rotation.set(0,P.h,0); K.root.rotateZ(P.bank); }
+const _pv=new THREE.Vector3();
+function placeKid(K){ const P=K.P, pt=P.pitch||0, hip=0.9*K.scale;
+  K.root.rotation.set(0,P.h,0); K.root.rotateX(pt); K.root.rotateZ(P.bank);
+  /* the tilt turns round the hips, not the feet: the root is moved so the hips stay put */
+  const dy=hip*(1-Math.cos(pt)), dz=-hip*Math.sin(pt);   /* where the hips would go, in the kid's own frame, undone */
+  _pv.set(Math.sin(P.h)*dz, dy, Math.cos(P.h)*dz);
+  K.root.position.set(P.x+_pv.x,P.y+_pv.y,P.z+_pv.z); }
 
 /* ---------- the boy follows the girl, as in the game ---------- */
 const FOLLOW={ground:{right:1.0,back:0.9},air:{right:1.7,back:1.9,below:0.5}};
