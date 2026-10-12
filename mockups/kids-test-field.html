@@ -241,7 +241,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
    Hair tips: the ends of the hair (furthest from the scalp) can take a second colour, like the orange tips in the clip.
    Face: a picture painted in the model's own measurements, laid onto the front of the head in the rest pose. */
 function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},
-  uPh:{value:new THREE.Vector4()},uPh5:{value:0},uHead:{value:head.clone()},uTips:{value:new THREE.Color('#e8742c')},uTipsAmt:{value:0}}; }
+  uPh:{value:new THREE.Vector4()},uPh5:{value:0},uHead:{value:head.clone()},uTips:{value:new THREE.Color('#e8742c')},uTipsAmt:{value:0},uMouthHide:{value:0},uMouthBox:{value:new THREE.Vector4(0.012,0.553,0.072,0.019)}}; }
 function wavesStep(W,dt){ const f=W.uFlow.value, p=W.uPh.value; W.uTime.value+=dt; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); W.uPh5.value+=dt*(5+8*f); }
 function addWind(mat,W,key,face){
   mat.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,W);
@@ -251,7 +251,11 @@ function addWind(mat,W,key,face){
       frag+='uniform sampler2D uFaceTex;\nvarying vec2 vFaceUV;\nvarying float vFace;\n';
       add=`\n        if(vFace>0.01 && vFaceUV.x>0.0 && vFaceUV.x<1.0 && vFaceUV.y>0.0 && vFaceUV.y<1.0){ vec4 fp=texture2D(uFaceTex,vFaceUV); diffuseColor.rgb=mix(diffuseColor.rgb,fp.rgb,fp.a*clamp(vFace*1.5,0.0,1.0)); }`+add; }
     sh.fragmentShader=frag+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>'+add);
-    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
+    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uMouthHide;\nuniform vec4 uMouthBox;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
+      .replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
+      /* her own smile is carved into the face; when another mouth is painted, the groove's shading is smoothed away */
+      if(uMouthHide>0.5 && aFace>0.0){ vec2 q=(position.xy-uMouthBox.xy)/uMouthBox.zw; float mw=1.0-smoothstep(0.55,1.0,length(q));
+        if(mw>0.0) objectNormal=normalize(mix(objectNormal,normalize(vec3((position.x-uMouthBox.x)*4.0,0.12,1.0)),mw)); }`)
       .replace('#include <skinning_vertex>',`
       vTip=aHair;
       vFace=aFace; vFaceUV=(position.xy-uFaceBox.xy)/(uFaceBox.zw-uFaceBox.xy);
@@ -277,7 +281,7 @@ function addWind(mat,W,key,face){
         transformed.z-=hw*(0.008+0.07*f*f)*gust;
         transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'kidwind3-'+key+(face?'f':''); return mat;
+  mat.customProgramCacheKey=()=>'kidwind4-'+key+(face?'f':''); return mat;
 }
 /* the swing spring: driven by how the kid accelerates, seen from their own body (forward, sideways, up) */
 function swingStep(K,dt){
@@ -373,6 +377,8 @@ function skinAt(mesh,img,x,y){ const c=document.createElement('canvas'); c.width
   for(let i=0;i<pos.count;i++){ if(pos.getZ(i)<0.05) continue; const d=Math.hypot(pos.getX(i)-x,pos.getY(i)-y); if(d<bd){bd=d;best=i;} }
   if(best<0) return 'rgb(240,210,190)'; const p=g.getImageData(Math.floor(uv.getX(best)*c.width),Math.floor((1-uv.getY(best))*c.height),1,1).data; return `rgb(${p[0]},${p[1]},${p[2]})`; }
 let GIRL_SKIN='rgb(240,210,190)';
+/* the average skin colour around a feature, from a few points just outside it */
+function skinMix(mesh,img,pts){ let r=0,g=0,b=0; for(const [x,y] of pts){ const m=skinAt(mesh,img,x,y).match(/\d+/g).map(Number); r+=m[0]; g+=m[1]; b+=m[2]; } const n=pts.length; return `rgb(${Math.round(r/n)},${Math.round(g/n)},${Math.round(b/n)})`; }
 
 /* ---------- painted faces, after the original clip ----------
    Ghibli-style: big dark eyes with white highlights and a strong upper lid, short raised brows, a tiny nose,
@@ -428,7 +434,7 @@ function skinPatch(F,x,y,rx,ry,col){ const {X,Y,L,g}=F, r=g.createRadialGradient
 /* where each face's features sit on the model (metres, rest pose) */
 const GIRL_FACE={box:[-0.13,0.50,0.15,0.75], draw:(F,p)=>{
   const cx=0.01, gap=0.066*p.eyeGap, ey=0.650+p.eyeY*0.03, s=p.eyeSize;   // her face is centred a centimetre to one side
-  if(p.mouth!=='own') skinPatch(F,cx,0.553,0.042,0.02,GIRL_SKIN);                // paint over her own smile
+  if(p.mouth!=='own') skinPatch(F,0.012,0.553,0.072,0.019,GIRL_SKIN);           // paint over her own smile, which runs from about -0.05 to +0.07
   if(p.eyes==='painted'){ for(const sd of [-1,1]) skinPatch(F,cx+sd*0.066,0.662,0.06,0.056,GIRL_SKIN);   // and over her own eyes and brows
     const o={iris:p.iris,shine:p.shine,lid:0.0055*p.lid};
     eye(F,cx-gap,ey,0.050*s,0.048*s,-1,o); eye(F,cx+gap,ey,0.050*s,0.048*s,1,o);
@@ -463,7 +469,7 @@ function applyLook(look){
     const cols=JSON.stringify([G.skin,G.hair,G.shirt,G.skirt]);
     if(cols!==lastGirlCols){ lastGirlCols=cols; girlRecolour(G.hair,G.skin,G.shirt,G.skirt); }
     setScale(K,G.height); setHead(K,G.head); K.W.uAmt.value=G.skirtWind; K.W.uHair.value=G.hairWind;
-    K.W.uTips.value.set(G.tips).convertSRGBToLinear(); K.W.uTipsAmt.value=G.tipsAmt; K.face.draw(G.face); }
+    K.W.uTips.value.set(G.tips).convertSRGBToLinear(); K.W.uTipsAmt.value=G.tipsAmt; K.W.uMouthHide.value=G.face.mouth==='own'?0:1; K.face.draw(G.face); }
   { const B=L.boy, K=boy; K.look=B;
     const cols=JSON.stringify([B.shirt,B.shorts]); if(cols!==lastBoyCols){ lastBoyCols=cols; boyRecolour(B.shirt,B.shorts); }
     setScale(K,B.height); setHead(K,B.head); K.W.uHair.value=B.hairWind;
@@ -601,7 +607,7 @@ async function load(){
   boyTexSetup(img);
   boyTex=new THREE.CanvasTexture(BOYTEX.canvas); boyTex.encoding=THREE.sRGBEncoding; boyTex.flipY=true;
   girl=makeKid('girl',{fbx:G_FBX, run:G_RUN, fly:G_FLY, idle:G_IDLE, jump:G_JUMP, land:G_LAND.clip,
-    paint:m=>{ girlTexSetup(gimg,m); GIRL_SKIN=skinAt(m,gimg,0.045,0.556); girlTex=new THREE.CanvasTexture(GIRLTEX.canvas); girlTex.encoding=THREE.sRGBEncoding; girlTex.flipY=true; return new THREE.Vector3(0,0.69,-0.01); },
+    paint:m=>{ girlTexSetup(gimg,m); GIRL_SKIN=skinMix(m,gimg,[[0.012,0.535],[0.012,0.572],[-0.035,0.57],[0.06,0.57],[-0.03,0.535],[0.055,0.535]]); girlTex=new THREE.CanvasTexture(GIRLTEX.canvas); girlTex.encoding=THREE.sRGBEncoding; girlTex.flipY=true; return new THREE.Vector3(0,0.69,-0.01); },
     material:()=>new THREE.MeshLambertMaterial({map:girlTex}), face:GIRL_FACE,
     jumpPush:0.5, jumpFromRun:0.36, landFrom:0.28, landTo:0.78,
     runPace:(spd,K)=>(0.55+0.45*Math.min(1,spd/K.RUN_SPEED))/K.scale});
