@@ -7,6 +7,8 @@ body{margin:0;background:#bcd6dc;color:var(--ink);font:14px/1.4 system-ui,-apple
 #view{position:fixed;inset:0;touch-action:none}
 #view canvas{display:block;width:100%;height:100%}
 .hud{position:fixed;left:12px;top:calc(12px + env(safe-area-inset-top,0px));max-width:min(340px,calc(100vw - 24px));max-height:calc(100vh - 110px);overflow:auto;background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:10px 12px;display:flex;flex-direction:column;gap:8px;backdrop-filter:blur(4px)}
+.hud .head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#hudBody{display:flex;flex-direction:column;gap:8px}
 .hud h1{margin:0;font-size:15px;font-weight:650;letter-spacing:.01em}
 #state{font-weight:600;color:var(--accent)}
 .keys{margin:0;font-size:12.5px;color:#5a5446}
@@ -27,9 +29,10 @@ button[aria-pressed="true"]{background:#3d4a52;color:#fff;border-color:#3d4a52}
 <div id="load">Loading the kids…</div>
 
 <div class="hud">
-  <h1>Kids Test Field</h1>
+  <div class="head"><h1>Kids Test Field</h1><button type="button" id="hudToggle" aria-expanded="true" aria-controls="hudBody" title="Hide or show the menu (M)">Hide</button></div>
   <div id="state">Loading</div>
-  <p class="keys"><kbd>↑</kbd> run · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Space</kbd> jump, again in the air to take off, again when flying to land · <kbd>↑</kbd><kbd>↓</kbd> climb or sink when flying · wheel to zoom</p>
+  <div id="hudBody">
+  <p class="keys"><kbd>↑</kbd> run · <kbd>←</kbd><kbd>→</kbd> turn · <kbd>Space</kbd> jump, again in the air to take off, again when flying to land · <kbd>↑</kbd><kbd>↓</kbd> climb or sink when flying · wheel to zoom · <kbd>M</kbd> hide menu</p>
   <div class="row"><span>Who</span>
     <button type="button" data-who="both" aria-pressed="true">Both</button>
     <button type="button" data-who="girl" aria-pressed="false">Girl</button>
@@ -52,6 +55,7 @@ button[aria-pressed="true"]{background:#3d4a52;color:#fff;border-color:#3d4a52}
   <div class="row"><span>Speed</span>
     <button type="button" data-spd="1" aria-pressed="true">Normal</button>
     <button type="button" data-spd="0.3" aria-pressed="false">Slow motion</button>
+  </div>
   </div>
 </div>
 
@@ -444,6 +448,11 @@ group('data-spd',v=>{ slow=+v; });
 $('wind').addEventListener('input',e=>{ if(girl) girl.W.uAmt.value=e.target.value/100; });
 $('hairwind').addEventListener('input',e=>{ for(const K of [girl,boy]) if(K) K.W.uHair.value=e.target.value/100; });
 $('roll').addEventListener('input',e=>{ rollChance=e.target.value/100; });
+/* collapse the menu to just its title and the state line; M does the same; remembered in this browser */
+function setMenu(open){ $('hudBody').hidden=!open; $('hudToggle').textContent=open?'Hide':'Menu'; $('hudToggle').setAttribute('aria-expanded',String(open)); try{ localStorage.setItem('kidsMenu',open?'1':'0'); }catch(_){} }
+$('hudToggle').addEventListener('click',e=>{ setMenu($('hudBody').hidden); e.currentTarget.blur(); });
+addEventListener('keydown',e=>{ if(e.key.toLowerCase()==='m'&&!e.repeat) setMenu($('hudBody').hidden); });
+try{ if(localStorage.getItem('kidsMenu')==='0') setMenu(false); }catch(_){}
 $('bsize').addEventListener('input',e=>setBoySize(e.target.value/100));
 $('bhead').addEventListener('input',e=>setBoyHead(e.target.value/100));
 
