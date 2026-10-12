@@ -173,15 +173,23 @@ function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
   const mat=new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES});
-  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nfloat hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }')
-      .replace('#include <map_fragment>',`{ vec2 cell=floor(vWXZ*vec2(2.2,3.4)+vec2(floor(vWXZ.y*3.4)*0.5,0.0)); float rr=hash2(cell);
-          float k=toneAt(rr,gustAt(vWXZ,uTime),litAt(vWXZ,uSunXZ)); vec3 tone=bladeCol(k,uC0,uC1,uC2,uC3,uC4);
-          vec4 st=texture2D(map,vUv); diffuseColor.rgb=tone*(0.78+0.3*st.r)*0.92; }`); };
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
+      .replace('#include <map_fragment>',`{ /* the ground's own paint: the same five golds by the same rule as the strokes, but in soft painted patches, not cells.
+             From the air the far ground loses its hill shading (the 2D game does the same), keeps out of the darkest brown,
+             and blends its patches softly where they would be smaller than a few pixels, so it never shimmers. */
+          float d=length(vWXZ-cameraPosition.xz), air=uAir*smoothstep(25.0,90.0,d);
+          float rr=0.62*vnoise2(vWXZ*0.9)+0.38*vnoise2(vWXZ*2.7+17.0);
+          float lit=litAt(vWXZ,uSunXZ)*(1.0-air);
+          float x=rr*2.2+gustAt(vWXZ,uTime)*2.9*(1.0-0.5*air)+lit*6.0+air*1.5+smoothstep(30.0,160.0,d)*0.5;   /* from the air the gust waves are gentler, and their troughs stay out of the dark golds */
+          float k=clamp(1.2+x*0.55,1.0,4.0), soft=clamp(fwidth(k)*1.5,0.0,1.0), i=floor(k), f=fract(k);   /* the ground under the strokes is calm: only the lighter golds, at half the swing; the strokes carry the strong light */
+          float w=smoothstep(0.5-0.5*soft-0.001,0.5+0.5*soft+0.001,f);
+          vec3 tone=mix(bladeCol(i,uC0,uC1,uC2,uC3,uC4),bladeCol(min(4.0,i+1.0),uC0,uC1,uC2,uC3,uC4),soft>0.02?f:step(0.999,f));
+          tone=mix(tone,uC2,0.35); vec4 st=texture2D(map,vUv); diffuseColor.rgb=tone*(0.84+0.2*st.r*(1.0-air))*0.93; }`); };
   const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
-const groundTime={value:0};
+const groundTime={value:0}, groundAir={value:0};   /* 0 on the ground, 1 well up in the air */
 const groundNear=makeGround(260,260,true), groundFar=makeGround(3200,200,false);
 /* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
    it is sunk well out of the way, on the graphics card, following the near piece as it moves */
@@ -195,7 +203,10 @@ function fillGround(m,cx,cz){
     P.setXYZ(k,x,groundAt(x,z),z); UV.setXY(k,x/7,z/7);
     const t=fbm(x*0.045,z*0.045,17), t2=fbm(x*0.006,z*0.006,41), c=t<0.5?mixA(GOLD_DEEP,GOLD,t/0.5):mixA(GOLD,GOLD_HI,(t-0.5)/0.5), cc=mixA(c,GOLD_DEEP,clamp((0.55-t2)*1.2,0,0.5));
     C.setXYZ(k,...rgb(cc).convertSRGBToLinear().toArray()); }
-  m.position.x=0; m.position.z=0; P.needsUpdate=true; C.needsUpdate=true; UV.needsUpdate=true; g.computeVertexNormals(); g.computeBoundingSphere();
+  /* the ground faces straight up for the light: its hills are shaded by the paint's own slope tone, as the 2D game does,
+     not by the low sun, which would throw long dark bands across the far slopes */
+  const N=g.attributes.normal; for(let k=0;k<N.count;k++) N.setXYZ(k,0,1,0);
+  m.position.x=0; m.position.z=0; P.needsUpdate=true; C.needsUpdate=true; UV.needsUpdate=true; N.needsUpdate=true; g.computeBoundingSphere();
   m.userData.cx=cx; m.userData.cz=cz; }
 function followGround(x,z){
   for(const [m,snap] of [[groundNear,20],[groundFar,200]]){ const cx=Math.round(x/snap)*snap, cz=Math.round(z/snap)*snap;
@@ -232,11 +243,11 @@ function makeGrass(count,L){
   const pal=BLADE.map(c=>rgb(c).convertSRGBToLinear());
   const mat=new THREE.ShaderMaterial({ fog:true, side:THREE.DoubleSide,
     uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{ uCentre:{value:new THREE.Vector2()}, uTime:{value:0}, uWind:{value:new THREE.Vector2(-1,0)},
-      uKid0:{value:new THREE.Vector3(0,9,0)}, uKid1:{value:new THREE.Vector3(0,9,0)}, uSunXZ:{value:SUNXZ},
+      uKid0:{value:new THREE.Vector3(0,9,0)}, uKid1:{value:new THREE.Vector3(0,9,0)}, uSunXZ:{value:SUNXZ}, uAir:{value:0},
       uC0:{value:pal[0]}, uC1:{value:pal[1]}, uC2:{value:pal[2]}, uC3:{value:pal[3]}, uC4:{value:pal[4]}, uDeep:{value:rgb([104,62,10]).convertSRGBToLinear()} }]),
     vertexShader:`
       attribute vec3 aOff; attribute vec4 aRnd;
-      uniform vec2 uCentre; uniform float uTime; uniform vec2 uWind; uniform vec3 uKid0; uniform vec3 uKid1; uniform vec2 uSunXZ;
+      uniform vec2 uCentre; uniform float uTime; uniform vec2 uWind; uniform vec3 uKid0; uniform vec3 uKid1; uniform vec2 uSunXZ; uniform float uAir;
       varying float vTone; varying float vT; varying float vNear;
       ${LIGHT_GLSL}
       #include <fog_pars_vertex>
@@ -254,7 +265,8 @@ function makeGrass(count,L){
         float lean=(0.4+0.85*gust)+0.15+(fract(rr*7.31)-0.5)*0.45+sin(uTime*4.5+rr*40.0)*0.07;
         vec2 bend=uWind*lean*0.8+push(p,uKid0)+push(p,uKid1);
         float tt=t*t; pos.xz+=bend*h*tt; pos.y+=h*t*(1.0-0.22*min(1.0,dot(bend,bend))*tt);
-        vTone=toneAt(rr,gust,litAt(p,uSunXZ)); vT=t;
+        float air=uAir*smoothstep(25.0,90.0,length(p-cameraPosition.xz));   /* from the air, far strokes lose their hill shading, as in the 2D game */
+        vTone=toneAt(rr,gust*(1.0-0.5*air)+air*0.5,litAt(p,uSunXZ)*(1.0-air)); vT=t;
         vec4 mvPosition=modelViewMatrix*vec4(pos,1.0); gl_Position=projectionMatrix*mvPosition;
         vNear=clamp((${(330*U).toFixed(3)}+mvPosition.z)/${(220*U).toFixed(3)},0.0,1.0)*0.55;
         #include <fog_vertex>
@@ -490,11 +502,11 @@ function frame(now){
     stepKid(girl,dt,keyInput());
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
     stepKid(boy,dt,followInput(girl,boy));
-    for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); }
+    for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock);
-    groundTime.value=clock;
-    for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock;
+    groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
+    for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
   R.render(scene,cam); overlays(clock); updateRunSound();
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
