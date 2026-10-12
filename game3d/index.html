@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Flamingo Fields 3D</title>
+<style>
+:root{ --ink:#3a2a12; --glass:rgba(255,246,222,0.82); --line:rgba(90,60,20,0.18); color-scheme:light }
+html,body{ height:100%; margin:0; background:#f0d898; overflow:hidden; font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink) }
+[hidden]{ display:none!important }
+#view{ position:fixed; inset:0; touch-action:none }
+#view canvas{ display:block; width:100%; height:100%; outline:none }
+.chip{ position:fixed; left:max(12px,env(safe-area-inset-left)); top:max(12px,env(safe-area-inset-top)); background:var(--glass); border:1px solid var(--line);
+  border-radius:10px; padding:8px 12px; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px); max-width:min(420px,calc(100vw - 24px)) }
+.chip b{ font-weight:650; letter-spacing:.01em }
+.chip p{ margin:4px 0 0; font-size:12.5px; color:#5a4526 }
+kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1px solid var(--line); border-bottom-width:2px; border-radius:4px; padding:2px 4px }
+#hint{ transition:opacity 1.2s ease }
+#hint.gone{ opacity:0; pointer-events:none }
+#load{ position:fixed; inset:0; display:grid; place-items:center; font-size:15px; color:#5a4526; pointer-events:none }
+#stats{ position:fixed; right:max(12px,env(safe-area-inset-right)); bottom:max(12px,env(safe-area-inset-bottom)); font:12px ui-monospace,Menlo,monospace; color:#5a4526; background:var(--glass); border-radius:6px; padding:3px 7px }
+</style>
+</head>
+<body>
+<div id="view" tabindex="0" aria-label="The golden field. Use the arrow keys or WASD to run, Space to jump and fly."></div>
+<div class="chip" id="hint"><b>Flamingo Fields 3D</b> · milestone 1
+  <p><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd> run · <kbd>Space</kbd> hop, again to fly, again to land · <kbd>↑</kbd><kbd>↓</kbd> climb and sink in the air.
+  On a phone: drag to run, tap to hop. Flying is free for now; feathers come next.</p></div>
+<div id="load">Loading the kids…</div>
+<div id="stats" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/curves/NURBSUtils.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/curves/NURBSCurve.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/FBXLoader.js"></script>
+<script src="kids.js"></script>
+<script>
+/* Flamingo Fields in 3D — milestone 1: the golden field of level 1, walkable, with both kids.
+   The world is in metres. The game's own units are converted with U: one game unit is U metres
+   (the game's big kid is 98 units tall; the 3D girl is 1.43 m). Left and right are mirrored against the game's
+   numbers, because its screen maths and three.js's are mirror images; that keeps the sun, the peaks and the wind
+   on the same side as in the game. */
+const $=id=>document.getElementById(id);
+const U=1.43/98;
+const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+/* ---------- the game's own helpers, as they are in index.html ---------- */
+function h2(i,j){ let n=(Math.imul(i,374761393)+Math.imul(j,668265263))|0; n=Math.imul(n^(n>>>13),1274126177); return ((n^(n>>>16))>>>0)/4294967296; }
+function rng(seed){ let s=seed>>>0; return ()=>{ s=(Math.imul(s,1664525)+1013904223)>>>0; return s/4294967296; }; }
+function vnoise(x,y,sd){ const ix=Math.floor(x), iy=Math.floor(y), fx=x-ix, fy=y-iy, ux=fx*fx*(3-2*fx), uy=fy*fy*(3-2*fy);
+  const a=h2(ix+sd,iy), b=h2(ix+1+sd,iy), c=h2(ix+sd,iy+1), d=h2(ix+1+sd,iy+1); return a+(b-a)*ux+(c-a)*uy+(a-b-c+d)*ux*uy; }
+function fbm(x,y,sd){ return 0.5*vnoise(x,y,sd)+0.27*vnoise(x*2.1,y*2.1,sd+71)+0.15*vnoise(x*4.3,y*4.3,sd+173)+0.08*vnoise(x*8.7,y*8.7,sd+311); }
+const rgb=a=>new THREE.Color(a[0]/255,a[1]/255,a[2]/255);
+const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
+
+/* ---------- the land: the game's level 1 hills (groundFull, without the coast), in metres ---------- */
+const SUN_B=0.64;                                   // the sun's bearing, as in the game
+function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; return (90*Math.sin(a)*Math.sin(b)+30*Math.sin(c))*U; }
+const GROUND_GLSL=`
+float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
+  float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
+  return (90.0*sin(a)*sin(b)+30.0*sin(c))*${U.toFixed(8)}; }`;
+
+/* ---------- renderer, scene, camera ---------- */
+const R=new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
+R.setPixelRatio(Math.min(devicePixelRatio,2)); R.outputEncoding=THREE.sRGBEncoding;
+R.shadowMap.enabled=true; R.shadowMap.type=THREE.PCFSoftShadowMap;
+$('view').appendChild(R.domElement);
+const scene=new THREE.Scene();
+const HAZE=[250,228,165];
+scene.fog=new THREE.Fog(rgb(HAZE).convertSRGBToLinear(),70,900);
+const cam=new THREE.PerspectiveCamera(58,1,0.1,6000);     // the game's view: focal = 0.9 × the screen's height, so 58° tall
+
+/* the evening light: a low warm sun at the game's bearing, and a golden sky light */
+const SUNDIR=new THREE.Vector3(-Math.sin(SUN_B)*Math.cos(0.025),Math.sin(0.025),Math.cos(SUN_B)*Math.cos(0.025));   // the disc sits on the horizon
+const LIGHTDIR=new THREE.Vector3(-Math.sin(SUN_B)*Math.cos(0.2),Math.sin(0.2),Math.cos(SUN_B)*Math.cos(0.2));        // the light comes from a little higher, for long but useful shadows
+const hemi=new THREE.HemisphereLight(0xffe6bc,0x8a6428,0.85); scene.add(hemi);
+const sun=new THREE.DirectionalLight(0xffcf8e,1.15); sun.castShadow=true;
+sun.shadow.mapSize.set(2048,2048); Object.assign(sun.shadow.camera,{left:-12,right:12,top:12,bottom:-12,near:1,far:80}); sun.shadow.bias=-0.0006; sun.shadow.normalBias=0.02;
+scene.add(sun,sun.target);
+
+/* ---------- the sky: the game's gradient, teal overhead to pale gold at the horizon, with the sun's warm glow ---------- */
+const skyMat=new THREE.ShaderMaterial({ side:THREE.BackSide, depthWrite:false, fog:false,
+  uniforms:{uSun:{value:SUNDIR}},
+  vertexShader:`varying vec3 vDir; void main(){ vDir=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`varying vec3 vDir; uniform vec3 uSun;
+    vec3 c(float r,float g,float b){ return vec3(r,g,b)/255.0; }
+    void main(){ vec3 d=normalize(vDir); float e=asin(clamp(d.y,-1.0,1.0));      /* elevation, radians */
+      float f=clamp(1.0-e/0.506,0.0,1.0);                                            /* the game's 0 (top of its screen) .. 1 (horizon) */
+      vec3 col= f<0.4 ? mix(c(42.,138.,136.),c(79.,169.,153.),f/0.4) : f<0.76 ? mix(c(79.,169.,153.),c(147.,199.,158.),(f-0.4)/0.36) : mix(c(147.,199.,158.),c(240.,216.,152.),(f-0.76)/0.24);
+      if(e>0.506) col=mix(c(42.,138.,136.),c(30.,112.,118.),clamp((e-0.506)/0.8,0.0,1.0));
+      float az=atan(d.x,d.z), sa=atan(uSun.x,uSun.z), da=abs(mod(az-sa+3.14159265,6.2831853)-3.14159265);
+      col=mix(col,c(255.,186.,112.),0.42*clamp(1.0-da/1.0,0.0,1.0)*clamp(1.0-e/0.506,0.0,1.0));   /* warm drift toward the sun side */
+      float a=acos(clamp(dot(d,uSun),-1.0,1.0))/1.2;                                                  /* the sun's glow, as the game's radial gradient */
+      vec4 g= a<0.1 ? mix(vec4(c(255.,240.,180.),0.95),vec4(c(255.,200.,105.),0.62),a/0.1) : a<0.4 ? mix(vec4(c(255.,200.,105.),0.62),vec4(c(255.,160.,80.),0.2),(a-0.1)/0.3) : mix(vec4(c(255.,160.,80.),0.2),vec4(c(255.,160.,80.),0.0),clamp((a-0.4)/0.6,0.0,1.0));
+      col=mix(col,g.rgb,g.a*step(-0.02,e));
+      col=mix(col,c(250.,228.,165.),0.8*clamp(1.0-abs(e)/0.05,0.0,1.0));                             /* the haze band on the horizon */
+      if(e<0.0) col=c(250.,228.,165.);
+      float s=acos(clamp(dot(d,uSun),-1.0,1.0)); col=mix(col,c(255.,248.,222.),smoothstep(0.016,0.011,s));   /* the disc */
+      gl_FragColor=vec4(col,1.0); }`});
+const sky=new THREE.Mesh(new THREE.SphereGeometry(5000,48,24),skyMat); sky.renderOrder=-10; scene.add(sky);
+
+/* ---------- clouds: painted the game's way (torn, sheared noise), standing far off round the sky ---------- */
+const C_SH=[146,116,124], C_MID=[232,166,120], C_HI=[255,220,164];
+function paintCloud(seed,wisp,warm){
+  const SC=2, CW=640*SC, CH=240*SC, c=document.createElement('canvas'); c.width=CW; c.height=CH; const g=c.getContext('2d'); const r=rng(seed);
+  const img=g.createImageData(CW,CH), px=img.data;
+  const dens=(x,y)=>{ const u=(x-320)/300, v=(y-125)/(wisp?52:105); return fbm((x+(240-y)*0.8)/95, y/40, seed)-0.6+(0.5-u*u-v*v)*0.75; };
+  for(let Y=0;Y<CH;Y++) for(let X=0;X<CW;X++){ const x=X/SC, y=Y/SC, d=dens(x,y); if(d+(r()-0.5)*0.06<=0) continue;
+    const lit=0.45+(d-dens(x-13,y-11))*5-d*1.1+warm+(r()-0.5)*0.18, col=lit<0.42?C_SH:lit<0.74?C_MID:C_HI, i=(Y*CW+X)*4;
+    px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=Math.round(238*Math.min(1,d*14)); }
+  g.putImageData(img,0,0); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
+const cloudArt=[]; [0,0.06,0.3,-0.06].forEach((w,i)=>cloudArt.push(paintCloud(101+i*37,false,w))); [0.1,0.26,0].forEach((w,i)=>cloudArt.push(paintCloud(900+i*53,true,w)));
+const clouds=new THREE.Group(); scene.add(clouds);
+{ const r=rng(7), TAU=Math.PI*2, list=[];
+  for(let i=0;i<12;i++){ const v=0.4+r()*0.6; list.push({th:(i+r()*0.7)/12*TAU, v, k:0.45+r()*0.3+v*0.45, art:i%4}); }
+  for(let i=0;i<16;i++) list.push({th:r()*TAU, v:0.1+r()*0.85, k:0.3+r()*0.45, art:4+i%3});
+  const RC=4200;
+  for(const c of list){ const m=new THREE.SpriteMaterial({map:cloudArt[c.art], fog:false, depthWrite:false, transparent:true, opacity:0.95});
+    const s=new THREE.Sprite(m), w=RC*Math.tan(Math.min(1.0,640*c.k/585)*0.55), el=0.02+c.v*0.3;
+    s.scale.set(w,w*240/640,1); s.position.set(-Math.sin(c.th)*RC*Math.cos(el), RC*Math.sin(el), Math.cos(c.th)*RC*Math.cos(el)); s.renderOrder=-9; clouds.add(s); } }
+
+/* ---------- the far ranges: the game's three rings of blue-green hills, dipping between two peaks under the sun ---------- */
+const RANGES=[
+  {base:20,amp:56,col:[88,150,164], ks:[6,10,15,25],ph:[2.1,0.4,3.3,5.0],pk:0.15, r:3600},
+  {base:10,amp:42,col:[58,126,126], ks:[7,11,17,29],ph:[4.4,2.8,0.9,1.3],pk:0.19, r:3300},
+  {base:2, amp:30,col:[54,114,88],  ks:[9,14,19,31],ph:[1.2,5.1,2.6,3.9],pk:0.24, r:3000}];
+const ranges=new THREE.Group(); scene.add(ranges);
+for(const Rg of RANGES){
+  const N=900, pos=[], col=[], idx=[], top=rgb(mixA(Rg.col,[30,60,80],0.12)), mid=rgb(mixA(Rg.col,HAZE,0.1)), foot=rgb(mixA(Rg.col,HAZE,0.5));
+  for(let i=0;i<=N;i++){ const th=i/N*Math.PI*2, d=Math.atan2(Math.sin(th-SUN_B),Math.cos(th-SUN_B)), src=Math.abs(d);
+    const n=0.45*Math.sin(Rg.ks[0]*th+Rg.ph[0])+0.3*Math.sin(Rg.ks[1]*th+Rg.ph[1])+0.17*Math.sin(Rg.ks[2]*th+Rg.ph[2])+0.08*Math.sin(Rg.ks[3]*th+Rg.ph[3]);
+    const w=Math.exp(-(src/0.36)*(src/0.36)), pe=(src-Rg.pk)/0.08, des=0.2+1.0*Math.exp(-pe*pe); let v=Math.pow(0.5+0.5*n,1.6); v+=(des-v)*w;
+    const ang=(Rg.base+Rg.amp*v*1.3)/585, hTop=Rg.r*Math.tan(ang), sx=-Math.sin(th)*Rg.r, sz=Math.cos(th)*Rg.r;
+    pos.push(sx,-Rg.r*0.012,sz, sx,hTop*0.4-Rg.r*0.012*0.6,sz, sx,hTop,sz);
+    for(const C of [foot,mid,top]) col.push(C.r,C.g,C.b);
+    if(i<N){ const a=i*3; idx.push(a,a+3,a+1, a+1,a+3,a+4, a+1,a+4,a+2, a+2,a+4,a+5); } }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx);
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true, fog:false, side:THREE.DoubleSide})); m.renderOrder=-8; ranges.add(m); }
+/* the ranges' colours are written straight to the screen, as the game paints them, so they are kept as given (no light, no conversion) */
+ranges.children.forEach(m=>{ m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); }; });
+
+/* ---------- the ground: the game's hills, coloured like its field, in two pieces that follow the kids ---------- */
+function strokeTex(){ const c=document.createElement('canvas'); c.width=c.height=256; const g=c.getContext('2d'); g.fillStyle='#d9ae55'; g.fillRect(0,0,256,256);
+  const r=rng(5); for(let i=0;i<2600;i++){ const x=r()*256, y=r()*256, l=6+r()*16, t=r(); g.strokeStyle=t<0.5?`rgba(150,100,24,${0.2+r()*0.25})`:`rgba(255,226,140,${0.25+r()*0.35})`; g.lineWidth=0.8+r()*1.4;
+    g.beginPath(); g.moveTo(x,y); g.quadraticCurveTo(x+2,y-l*0.5,x+3+r()*3,y-l); g.stroke(); }
+  const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=8; return t; }
+const STROKES=strokeTex();
+const GOLD_DEEP=[196,148,52], GOLD=[226,184,86], GOLD_HI=[242,208,122];
+function makeGround(size,seg,shadows){
+  const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
+  g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
+  const m=new THREE.Mesh(g,new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES}));
+  m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
+const groundNear=makeGround(260,260,true), groundFar=makeGround(3200,200,false);
+/* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
+   it is sunk well out of the way, on the graphics card, following the near piece as it moves */
+const uNearC={value:new THREE.Vector2()};
+groundFar.material.onBeforeCompile=sh=>{ sh.uniforms.uNearC=uNearC;
+  sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform vec2 uNearC;')
+    .replace('#include <begin_vertex>','#include <begin_vertex>\n{ vec2 q=abs(position.xz-uNearC); transformed.y-=0.3+6.0*(1.0-smoothstep(118.0,128.0,max(q.x,q.y))); }'); };
+function fillGround(m,cx,cz){
+  const g=m.geometry, P=g.attributes.position, C=g.attributes.color, UV=g.attributes.uv, n=m.userData.seg+1, half=m.userData.size/2, step=m.userData.size/m.userData.seg;
+  for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=j*n+i, x=cx-half+i*step, z=cz-half+j*step;
+    P.setXYZ(k,x,groundAt(x,z),z); UV.setXY(k,x/7,z/7);
+    const t=fbm(x*0.045,z*0.045,17), t2=fbm(x*0.006,z*0.006,41), c=t<0.5?mixA(GOLD_DEEP,GOLD,t/0.5):mixA(GOLD,GOLD_HI,(t-0.5)/0.5), cc=mixA(c,GOLD_DEEP,clamp((0.55-t2)*1.2,0,0.5));
+    C.setXYZ(k,...rgb(cc).convertSRGBToLinear().toArray()); }
+  m.position.x=0; m.position.z=0; P.needsUpdate=true; C.needsUpdate=true; UV.needsUpdate=true; g.computeVertexNormals(); g.computeBoundingSphere();
+  m.userData.cx=cx; m.userData.cz=cz; }
+function followGround(x,z){
+  for(const [m,snap] of [[groundNear,20],[groundFar,200]]){ const cx=Math.round(x/snap)*snap, cz=Math.round(z/snap)*snap;
+    if(cx!==m.userData.cx||cz!==m.userData.cz){ fillGround(m,cx,cz); if(m===groundNear) uNearC.value.set(cx,cz); } } }
+
+/* ---------- the grass: golden blades in the wind, placed and bent on the graphics card ----------
+   Each blade has a fixed spot in a square of ground that repeats under the kids, so the field never runs out.
+   Blades bend downwind in travelling gusts, bow away from the kids as they run through, and glow when the sun is behind them. */
+const BLADE=[[136,86,14],[176,120,22],[212,158,38],[238,192,66],[255,226,122]];
+function bladeGeo(){ const NS=4, pos=[], idx=[];
+  for(let i=0;i<NS;i++){ const t=i/NS; pos.push(-1,t,0, 1,t,0); } pos.push(0,1,0);
+  for(let i=0;i<NS-1;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); } const a=(NS-1)*2; idx.push(a,a+1,NS*2);
+  const g=new THREE.InstancedBufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); return g; }
+function makeGrass(count,L){
+  const g=bladeGeo(), off=new Float32Array(count*3), rnd=new Float32Array(count*4), r=rng(L.seed);
+  for(let i=0;i<count;i++){ off[i*3]=r()*L.S; off[i*3+1]=r()*L.S; off[i*3+2]=r();
+    const tall=0.42+Math.pow(r(),1.6)*0.5;                         // most blades knee to thigh high on the girl, a few taller
+    rnd[i*4]=tall*L.tall; rnd[i*4+1]=(0.009+r()*0.012)*L.wide; rnd[i*4+2]=r()*Math.PI*2; rnd[i*4+3]=r(); }
+  g.setAttribute('aOff',new THREE.InstancedBufferAttribute(off,3)); g.setAttribute('aRnd',new THREE.InstancedBufferAttribute(rnd,4));
+  g.instanceCount=count;
+  const pal=BLADE.map(c=>rgb(c).convertSRGBToLinear());
+  const mat=new THREE.ShaderMaterial({ fog:true, side:THREE.DoubleSide,
+    uniforms:THREE.UniformsUtils.merge([THREE.UniformsLib.fog,{ uCentre:{value:new THREE.Vector2()}, uTime:{value:0}, uWind:{value:new THREE.Vector2(-1,0.15).normalize()},
+      uKid0:{value:new THREE.Vector3(0,9,0)}, uKid1:{value:new THREE.Vector3(0,9,0)}, uSun:{value:SUNDIR}, uLight:{value:LIGHTDIR},
+      uC0:{value:pal[0]}, uC1:{value:pal[1]}, uC2:{value:pal[2]}, uC3:{value:pal[3]}, uC4:{value:pal[4]} }]),
+    vertexShader:`
+      attribute vec3 aOff; attribute vec4 aRnd;
+      uniform vec2 uCentre; uniform float uTime; uniform vec2 uWind; uniform vec3 uKid0; uniform vec3 uKid1; uniform vec3 uSun; uniform vec3 uLight;
+      varying float vT; varying float vTone; varying float vGlow; varying float vLit;
+      ${GROUND_GLSL}
+      #include <fog_pars_vertex>
+      vec2 push(vec2 p, vec3 k){ vec2 d=p-k.xz; float dd=length(d); float w=(1.0-smoothstep(0.25,1.0,dd))*(1.0-smoothstep(0.4,1.0,k.y)); return d/(dd+0.001)*w*1.4; }
+      void main(){
+        vec2 p=aOff.xy+${L.S.toFixed(1)}*floor((uCentre-aOff.xy)/${L.S.toFixed(1)}+0.5);
+        float dist=length(p-uCentre), fade=(1.0-smoothstep(${(L.R*0.62).toFixed(1)},${L.R.toFixed(1)},dist))*smoothstep(${L.in0.toFixed(1)},${L.in1.toFixed(1)},dist);
+        float t=position.y, h=aRnd.x*(0.35+0.65*fade)*step(0.001,fade);
+        vec2 side=vec2(cos(aRnd.z),sin(aRnd.z));
+        float w=aRnd.y*(1.0-t*0.8)*(0.6+0.4*fade);
+        vec3 pos=vec3(p.x,groundAt(p),p.y); pos.xz+=side*position.x*w;
+        /* wind: gusts rolling downwind across the field, a flutter on top, and each blade's own lean */
+        float g1=sin(dot(p,uWind)*0.32-uTime*2.1), g2=sin(dot(p,vec2(0.21,-0.13))*0.9-uTime*1.35+aOff.z*2.0);
+        float gust=0.55+0.35*g1+0.15*g2;
+        vec2 bend=uWind*(0.18+0.62*gust)+vec2(cos(aOff.z*40.0),sin(aOff.z*40.0))*0.16+vec2(sin(uTime*4.3+aOff.z*31.0),cos(uTime*3.7+aOff.z*17.0))*0.05;
+        bend+=push(p,uKid0)+push(p,uKid1);
+        float tt=t*t; pos.xz+=bend*h*tt; pos.y+=h*t*(1.0-0.3*min(1.0,dot(bend,bend))*tt);
+        vT=t; vTone=aRnd.w;
+        vec3 toCam=normalize(cameraPosition-pos);
+        vGlow=pow(max(dot(-toCam,uSun),0.0),5.0)*t;                   /* the sun behind the blades lights their tips */
+        vLit=0.72+0.28*max(0.0,dot(normalize(vec3(side.y,0.6,-side.x)),uLight))+0.18*gust*t;
+        vec4 mvPosition=modelViewMatrix*vec4(pos,1.0); gl_Position=projectionMatrix*mvPosition;
+        #include <fog_vertex>
+      }`,
+    fragmentShader:`
+      uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;
+      varying float vT; varying float vTone; varying float vGlow; varying float vLit;
+      #include <fog_pars_fragment>
+      void main(){
+        float k=clamp(vT*0.85+vTone*0.35-0.05,0.0,1.0)*4.0;
+        vec3 col= k<1.0?mix(uC0,uC1,k): k<2.0?mix(uC1,uC2,k-1.0): k<3.0?mix(uC2,uC3,k-2.0): mix(uC3,uC4,min(1.0,k-3.0));
+        col*=vLit; col+=vec3(1.0,0.72,0.35)*vGlow*0.55;
+        gl_FragColor=vec4(col,1.0);
+        #include <tonemapping_fragment>
+        #include <encodings_fragment>
+        #include <fog_fragment>
+      }`});
+  const mesh=new THREE.Mesh(g,mat); mesh.frustumCulled=false; scene.add(mesh); return mesh; }
+const isPhone=matchMedia('(pointer: coarse)').matches;
+const NEAR={S:56,R:27,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:180,R:88,in0:17,in1:26,seed:77,tall:1.15,wide:2.6};
+const grass=makeGrass(isPhone?50000:150000,NEAR), grassMid=makeGrass(isPhone?30000:90000,MIDL);
+const grassAll=[grass,grassMid];
+
+/* ---------- the kids ---------- */
+let girl, boy, rollChance=0.35;
+let ALT_MAX=33;                                    // free flight for now: up to the full flock's ceiling (the game's 2400 units)
+const keys=new Set();
+function arrowsHeld(){ return keys.has('up')||keys.has('down')||keys.has('left')||keys.has('right'); }
+
+/* ---------- the camera: the game's own — behind and a little above, turning slowly after the kids,
+   pulling back and rising when they fly, and looking level at the horizon on the ground ---------- */
+const CAM_H=90*U, CAM_BACK=440*U;
+let camYaw=0, backYaw=null, focX=0, focZ=0, lift=0, camY=CAM_H, lastX=0, lastZ=0, velX=0, velZ=0;
+function placeCam(K,dt,snap){
+  const P=K.P, moving=(P.spd>0.6*K.RUN_SPEED&&P.state!=='stop')||P.state==='fly'||P.state==='land';
+  if(snap){ camYaw=P.h; focX=P.x; focZ=P.z; lastX=P.x; lastZ=P.z; velX=velZ=0; }
+  else if(dt>0){ const k=1-Math.exp(-dt*8); velX+=((P.x-lastX)/dt-velX)*k; velZ+=((P.z-lastZ)/dt-velZ)*k; lastX=P.x; lastZ=P.z; }   /* their real speed, running or flying */
+  else if(moving){ let d=P.h-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); camYaw+=d*(1-Math.exp(-dt*1.5)); }
+  const ce=snap?1:1-Math.exp(-dt*3.2);
+  focX+=(P.x+velX*0.12-focX)*ce; focZ+=(P.z+velZ*0.12-focZ)*ce;
+  const air=P.state==='fly'||P.state==='land', hy=Math.max(0,P.y);
+  lift+=(clamp(hy/(240*U),0,2.7)-lift)*(snap?1:1-Math.exp(-dt*2.5));
+  const back=CAM_BACK+Math.min(lift,1.4)*170*U+(air?1:0)*P.flyW*110*U;
+  const fx=Math.sin(camYaw), fz=Math.cos(camYaw), px=focX-fx*back, pz=focZ-fz*back;
+  const gt=Math.max(groundAt(focX,focZ),groundAt(px,pz)-15*U)+CAM_H+(hy-Math.min(hy*0.15,95*U))*Math.min(1,lift*1.6);
+  camY+=(gt-camY)*(snap?1:1-Math.exp(-dt*4));
+  cam.position.set(px,camY,pz);
+  const pitch=-Math.atan(0.1*Math.min(lift,1.7)/0.9);                   // in the air the horizon rises, so the view tips down a little
+  cam.lookAt(px+fx*Math.cos(pitch),camY+Math.sin(pitch),pz+fz*Math.cos(pitch));
+  /* the sky, clouds and ranges stay at the horizon; the sun's shadow box follows the kids */
+  sky.position.copy(cam.position); clouds.position.set(cam.position.x,cam.position.y-30,cam.position.z); ranges.position.set(cam.position.x,cam.position.y-CAM_H,cam.position.z);
+  sun.target.position.set(P.x,groundAt(P.x,P.z),P.z); sun.position.copy(sun.target.position).addScaledVector(LIGHTDIR,40);
+}
+
+/* ---------- input: the arrows are read against where the camera looks, as in the game ---------- */
+function keyInput(){ const L=girl, P=L.P, air=P.state==='fly'||P.state==='land';
+  let ix=(keys.has('right')?1:0)-(keys.has('left')?1:0), iz=(keys.has('up')?1:0)-(keys.has('down')?1:0);
+  const In={speed:0, climb:keys.has('up'), sink:keys.has('down'), steered:true};
+  if(air) iz=0;
+  const back=!air&&iz<0&&ix===0; if(back&&backYaw==null) backYaw=camYaw; if(!back) backYaw=null;
+  if(ix||iz){ const y=back?backYaw:camYaw, fx=Math.sin(y), fz=Math.cos(y), wx=fx*iz-fz*ix, wz=fz*iz+fx*ix;
+    In.heading=Math.atan2(wx,wz); In.speed=L.RUN_SPEED; }
+  return In; }
+let moved=false;
+function nudge(){ if(!moved){ moved=true; setTimeout(()=>$('hint').classList.add('gone'),9000); } }
+const KEYMAP={arrowleft:'left',a:'left',arrowright:'right',d:'right',arrowup:'up',w:'up',arrowdown:'down',s:'down'};
+addEventListener('keydown',e=>{ const k=e.key.toLowerCase(); if(KEYMAP[k]||k===' ') e.preventDefault();
+  if(k===' '&&!e.repeat&&girl) jumpKid(girl); if(KEYMAP[k]){ keys.add(KEYMAP[k]); nudge(); }
+  if(k==='`') $('stats').hidden=!$('stats').hidden; });
+addEventListener('keyup',e=>{ const k=KEYMAP[e.key.toLowerCase()]; if(k) keys.delete(k); });
+addEventListener('blur',()=>keys.clear());
+/* on a phone: drag to run (sideways to steer, up to run on, down to come back), tap to hop */
+let drag=null; const view=$('view');
+view.addEventListener('pointerdown',e=>{ view.focus(); try{ view.setPointerCapture(e.pointerId); }catch(_){ } drag={id:e.pointerId,x:e.clientX,y:e.clientY,t:performance.now(),far:0}; });
+view.addEventListener('pointermove',e=>{ if(!drag||e.pointerId!==drag.id) return; const dx=e.clientX-drag.x, dy=e.clientY-drag.y; drag.far=Math.max(drag.far,Math.hypot(dx,dy));
+  keys.delete('left'); keys.delete('right'); keys.delete('up'); keys.delete('down');
+  if(dx<-14) keys.add('left'); else if(dx>14) keys.add('right'); if(dy<-14) keys.add('up'); else if(dy>40) keys.add('down'); if(drag.far>14) nudge(); });
+function endDrag(e){ if(!drag||e.pointerId!==drag.id) return; if(drag.far<10&&performance.now()-drag.t<260&&girl) jumpKid(girl); for(const k of ['left','right','up','down']) keys.delete(k); drag=null; }
+view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel',endDrag);
+
+/* ---------- loop ---------- */
+let last=performance.now(), clock=0, fpsT=0, fpsN=0, slowFrames=0;
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(girl){ clock+=dt;
+    stepKid(girl,dt,keyInput());
+    watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
+    stepKid(boy,dt,followInput(girl,boy));
+    for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); }
+    placeCam(girl,dt,false);
+    followGround(girl.P.x,girl.P.z);
+    for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock;
+      u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
+  R.render(scene,cam);
+  /* frame rate: shown with the ` key; on a slow device the grass thins itself */
+  fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
+    if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
+    fpsN=0; fpsT=0; }
+  requestAnimationFrame(frame);
+}
+function size(){ const w=innerWidth,h=innerHeight; R.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix(); }
+addEventListener('resize',size); size();
+followGround(0,0);
+(async()=>{
+  try{ await loadKids('assets/');
+    girl.P.h=0.1; boy.P.x=-1.5; boy.P.z=-1.4; boy.P.h=0.1;
+    placeCam(girl,0,true); $('load').hidden=true; }
+  catch(err){ $('load').textContent='Could not load the kids: '+err.message; console.error(err); }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
