@@ -134,7 +134,7 @@ function placeScatter(mesh,list,px,pz){ list.forEach((t,i)=>{ const x=t.x+FIELD*
   M4.compose(P3.set(x,0,z),Q.setFromAxisAngle(UP,t.a),S3.set(t.k,t.k,t.k)); mesh.setMatrixAt(i,M4); }); mesh.instanceMatrix.needsUpdate=true; }
 
 /* ---------- the girl ---------- */
-const BOOST=1.5;   // she runs 1.5× the speed of the animation, and the animation plays 1.5× as fast, so her feet still match the ground
+const BOOST=1.5;   // she covers 1.5× the ground the run animation does, with her legs moving at the animation's own pace
 let girl, mesh, mixer, runA, flyA, idleA, jumpA, RUN_SPEED=5, gameMat, plainMat;
 function b64(s){ const b=atob(s), u=new Uint8Array(b.length); for(let i=0;i<b.length;i++) u[i]=b.charCodeAt(i); return u.buffer; }
 /* Mixamo moves the hips forward through the clip; take that out so she runs on the spot and the game moves her.
@@ -217,7 +217,7 @@ function step(dt){
   // mixing the four animations: flying over everything, then the jump, then running and standing by speed
   const fw=P.flyW, jw=P.jumpW*(1-fw), g=(1-fw)*(1-P.jumpW);
   flyA.setEffectiveWeight(fw); jumpA.setEffectiveWeight(jw); runA.setEffectiveWeight(g*r); idleA.setEffectiveWeight(g*(1-r));
-  runA.timeScale=BOOST*(0.55+0.45*r);
+  runA.timeScale=0.55+0.45*r;   // the animation plays at its own pace; only the distance covered is boosted
   WIND.uTime.value+=dt;
   const gf=jumping?0.65:0.15+0.4*r; WIND.uFlow.value=gf+(1-gf)*fw;
 }
