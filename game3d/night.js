@@ -135,6 +135,7 @@ function nightFrame(time){
 }
 /* drawing the frame: the scene; at night its copy graded over it; then the lights, tested against the scene's depth */
 function renderFrame(){
+  if(typeof placeDoorScreen==='function') placeDoorScreen();   /* the door's light on the screen, from this frame's camera (desert.js) */
   R.render(scene,cam);
   R.autoClear=false;
   if(night>0.005){
