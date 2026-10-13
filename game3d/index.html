@@ -25,6 +25,10 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 #sound{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:max(12px,env(safe-area-inset-top)); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
   background:rgba(58,42,18,.62); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
 #sound[aria-pressed="false"]{ opacity:.7 }
+#plus1{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:calc(max(12px,env(safe-area-inset-top)) + 40px); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
+  background:rgba(170,70,98,.7); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#plus1:disabled{ opacity:.45; cursor:default }
+#plus1:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #sound:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #stats{ position:fixed; right:max(12px,env(safe-area-inset-right)); bottom:max(12px,env(safe-area-inset-bottom)); font:12px ui-monospace,Menlo,monospace; color:#5a4526; background:var(--glass); border-radius:6px; padding:3px 7px }
 </style>
@@ -37,6 +41,7 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
   Gather 10 feathers, then hop and press <kbd>Space</kbd> again to fly for 10 seconds. Fly with a wild flock and a flamingo joins you; five make a full flock.
   On a phone: drag to run, tap to hop.</p></div>
 <button id="sound" type="button" aria-pressed="true">Sound on</button>
+<button id="plus1" type="button" title="Test: one more flamingo joins your flock">+1 flamingo</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
 
@@ -523,6 +528,8 @@ function updateRunSound(){ if(!runGain||!girl) return; const t=actx.currentTime,
 soundBtn.addEventListener('click',e=>{ e.stopPropagation(); startSound(); soundOn=!soundOn; showSound(); try{ localStorage.setItem('ff3dSound',soundOn?'on':'off'); }catch(_){ }
   if(master) master.gain.setTargetAtTime(soundOn?0.85:0,actx.currentTime,0.15); });
 soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
+$('plus1').addEventListener('pointerdown',e=>e.stopPropagation());
+$('plus1').addEventListener('click',e=>{ e.stopPropagation(); startSound(); giftMate(); $('plus1').disabled=mates.length>=MATES_MAX; $('view').focus(); });
 addEventListener('keydown',()=>startSound()); addEventListener('pointerdown',()=>startSound());
 document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
 showSound();

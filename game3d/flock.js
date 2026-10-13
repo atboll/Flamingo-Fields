@@ -13,6 +13,7 @@ const BIRDS=[[0,0]]; for(let r=1;r<=5;r++){ BIRDS.push([-r*115,-r*86]); if(r<=4)
 let BIRD_PH=[];   // each bird's own phase, set on loading (h2 lives in the page)
 let flock=null, nextFlock=FLOCK_FIRST, flockN=0;
 const FL={ birds:[], mateBirds:[], clips:{}, ready:false };
+const FLAP=0.75;   // every flamingo's wingbeat, against the model's own: a quarter slower
 /* your own flock: fly a good part of a pass with a wild flock and its last bird leaves the V and stays with you */
 const MATES_MAX=5, PASS_NEEDED=8, mates=[];
 let mateMsgT=-99;
@@ -44,11 +45,11 @@ async function loadFlamingo(base){
   BIRD_PH=BIRDS.map((_,i)=>h2(i*7+1,i*3+5)*6.28);
   const fly=FL.clips.fly_A1;
   BIRDS.forEach((_,i)=>{ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o);
-    const mixer=new THREE.AnimationMixer(o), a=mixer.clipAction(fly); a.play(); a.time=(BIRD_PH[i]/6.28)*fly.duration; a.timeScale=0.92+((i*7)%5)*0.04;
+    const mixer=new THREE.AnimationMixer(o), a=mixer.clipAction(fly); a.play(); a.time=(BIRD_PH[i]/6.28)*fly.duration; a.timeScale=FLAP*(0.92+((i*7)%5)*0.04);
     FL.birds.push({o,mixer}); });
   /* five more for your own flock: flying, walking or standing, crossfaded */
   for(let i=0;i<MATES_MAX;i++){ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o); const mixer=new THREE.AnimationMixer(o), A={};
-    for(const k of ['fly_A1','walk_A1','idle_A1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length)*FL.clips[k].duration; }
+    for(const k of ['fly_A1','walk_A1','idle_A1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); if(k==='fly_A1') A[k].timeScale=FLAP; A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length)*FL.clips[k].duration; }
     FL.mateBirds.push({o,mixer,A,w:{fly_A1:0,walk_A1:0,idle_A1:1}}); }
   FL.ready=true;
 }
@@ -137,12 +138,14 @@ function updateMates(K,dt,time){
     m.x+=m.vx*dt; m.z+=m.vz*dt;
     const sp=m.sp=Math.hypot(m.vx,m.vz);
     if(sp>15){ const eh=1-Math.exp(-dt*5); m.hx+=(m.vx/sp-m.hx)*eh; m.hz+=(m.vz/sp-m.hz)*eh; const hm=Math.hypot(m.hx,m.hz)||1; m.hx/=hm; m.hz/=hm; }
+    { const ang=Math.atan2(m.hx,m.hz); let da=ang-(m.ang===undefined?ang:m.ang); da=Math.atan2(Math.sin(da),Math.cos(da)); m.ang=ang;   // how fast it is turning, for the bank
+      m.turn=(m.turn||0)+(clamp(da/Math.max(dt,0.004),-3,3)-(m.turn||0))*(1-Math.exp(-dt*3)); }
     // in the air with the kids, down in the grass otherwise; a bird left far behind flies to catch up
     const tgt=(air||d>900)?Math.max(40,(air?lead.y:120)+12+row*10):0;
     const wasUp=m.y>1.5; m.rising=tgt>0;
-    m.open=clamp((m.open||0)+(tgt>0?dt/0.55:(m.y<1.5?-dt/0.6:0)),0,1);
+    m.open=clamp((m.open||0)+(tgt>0?dt/0.55:(m.y<25?-dt/0.6:0)),0,1);   /* wings start folding just before touchdown (the 2D game waited until it was down) */
     if(tgt>0 && m.y<1.5 && m.open<0.85){ m.y=0; m.vy=0; }                       // still on its run-up: no lift until the wings are nearly spread
-    else { m.vy+=((tgt-m.y)*3-m.vy*2.8)*dt; m.y=Math.max(0,m.y+m.vy*dt); if(tgt===0&&m.y<1.5){ m.y=0; m.vy=0; } }
+    else { const k=tgt>0?3:7, c=tgt>0?2.8:4.6; m.vy+=((tgt-m.y)*k-m.vy*c)*dt;   /* coming down, about twice as fast as the 2D game's gentle settle */ m.y=Math.max(0,m.y+m.vy*dt); if(tgt===0&&m.y<1.5){ m.y=0; m.vy=0; } }
     if(wasUp && m.y<=1.5 && tgt===0) m.landT=time;                              // touchdown: the run-out starts here
   });
 }
@@ -150,9 +153,21 @@ function updateMates(K,dt,time){
 function placeMates(dt){
   if(!FL.ready) return;
   FL.mateBirds.forEach((b,i)=>{ const m=mates[i]; if(!m){ b.o.visible=false; return; }
-    const x=-m.x*U, z=m.z*U; b.o.visible=true; b.o.position.set(x,groundAt(x,z)+m.y*U,z); b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),0);
     const want=m.open>0.5||m.y>6?'fly_A1':m.sp>15?'walk_A1':'idle_A1', k=1-Math.exp(-dt*4);
     for(const n in b.w){ b.w[n]+=((n===want?1:0)-b.w[n])*k; b.A[n].setEffectiveWeight(b.w[n]); }
+    /* the model flies with its body low and its legs trailing below where its feet stand: while in the flying pose it is held up by half a metre,
+       so it comes down onto its feet instead of into the ground, and settles as the pose turns to walking */
+    const x=-m.x*U, z=m.z*U; b.o.visible=true; b.o.position.set(x,groundAt(x,z)+m.y*U+b.w.fly_A1*0.5,z);
+    /* banking into its turns, as in the 2D game: up to about 25 degrees, and only with its wings open */
+    b.o.rotation.order='YXZ'; b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),clamp((m.turn||0)*0.36,-0.44,0.44)*m.open);
     b.A.walk_A1.timeScale=clamp(m.sp*U/1.1,0.6,2.6);   /* a stride to suit its speed */
     b.mixer.update(dt); });
+}
+
+/* the "+1 flamingo" button: a bird joins straight away, behind the kids (in the air if they are flying), as if earned from a flock */
+function giftMate(){
+  if(!girl||mates.length>=MATES_MAX) return;
+  const P=girl.P, hx=-Math.sin(P.h), hz=Math.cos(P.h), air=P.state==='fly', lx=-P.x/U, lz=P.z/U;
+  addMate(lx-hx*300, lz-hz*300, air?Math.max(60,P.y/U):0, hx, hz, clock);
+  mateMsgT=clock; [0,5,9,12].forEach((n,q)=>setTimeout(()=>chime(n),q*110));
 }
