@@ -11,6 +11,7 @@ const freeFly=()=>mates.length>=MATES_MAX;
 /* ---------- where the feathers lie: the game's own cells, patches and trails ---------- */
 function featherAt(ci,cj){
   if(got.has((ci+32768)*65536+(cj+32768))) return null;
+  if(COAST.on && coastAlong((ci+0.5)*FC,(cj+0.5)*FC)>400) return null;     // none out on the sand
   if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
   // a rare great feather: about one cell in eight hundred, worth a whole flight on its own
   if(h2(ci*13+7,cj*11+3)<0.0012) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};

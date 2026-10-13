@@ -79,11 +79,31 @@ const mixA=(a,b,t)=>[a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t,a[2]+(b[2]-a[2])*t];
 
 /* ---------- the land: the game's level 1 hills (groundFull, without the coast), in metres ---------- */
 const SUN_B=0.64;                                   // the sun's bearing, as in the game
-function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; return (90*Math.sin(a)*Math.sin(b)+30*Math.sin(c))*U; }
+/* The journey's end (desert.js): once the feather road has been flown, a coast point is laid far ahead along it. Half way there the field
+   gives way to desert, great dunes in long ridges across the way, levelling out where the silver box stands. All in game units, as the 2D game. */
+const SHORE=6250, BOX_HALF=1000, BOX_H=2000, SAND_RAMP=2500, DES_A0=SHORE-(52000+SHORE)/2, SUNDX_G=Math.sin(SUN_B), SUNDZ_G=Math.cos(SUN_B);
+const COAST={on:false, x:0, z:0}, uCoast={value:new THREE.Vector4(0,0,0,0)};
+function shoreCurve(lat){ return 230*Math.sin(lat*0.0019+0.7)+105*Math.sin(lat*0.0051+2.1)+38*Math.sin(lat*0.0127+4.0); }
+function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, a=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G; return Math.min(SHORE-700,(a-DES_A0-shoreCurve(lat)*3)*0.5); }
+function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
+  if(COAST.on){ const cs=coastAlong(gx,gz); if(cs>0){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, r=clamp(cs/2200,0,1),
+      f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0), d1=al*0.0012+Math.sin(lat*0.0008)*1.6, d2=lat*0.0009+al*0.0004+1.7;
+      g=g*(1-0.65*r)+A*(210*Math.sin(d1)+70*Math.sin(d2)); } }
+  return g*U; }
 const GROUND_GLSL=`
+uniform vec4 uCoast;   /* xy: the coast point in game units; z: 1 once it is laid */
+const vec2 SUNDG=vec2(${Math.sin(SUN_B).toFixed(8)},${Math.cos(SUN_B).toFixed(8)});
+float shoreCurve(float lat){ return 230.0*sin(lat*0.0019+0.7)+105.0*sin(lat*0.0051+2.1)+38.0*sin(lat*0.0127+4.0); }
+float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float a=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x;
+  return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(a-(${DES_A0.toFixed(1)})-shoreCurve(lat)*3.0)*0.5) : -1.0; }
 float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
-  return (90.0*sin(a)*sin(b)+30.0*sin(c))*${U.toFixed(8)}; }`;
+  float g=90.0*sin(a)*sin(b)+30.0*sin(c);
+  float cs=coastAlong(p);
+  if(cs>0.0){ vec2 d=vec2(gx,gz)-uCoast.xy; float al=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x, r=clamp(cs/2200.0,0.0,1.0);
+    float f0=clamp((length(vec2(al-${SHORE.toFixed(1)},lat))-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), A=r*f0*f0*(3.0-2.0*f0);
+    g=g*(1.0-0.65*r)+A*(210.0*sin(al*0.0012+sin(lat*0.0008)*1.6)+70.0*sin(lat*0.0009+al*0.0004+1.7)); }
+  return g*${U.toFixed(8)}; }`;
 
 /* ---------- renderer, scene, camera ---------- */
 const R=new THREE.WebGLRenderer({antialias:true, powerPreference:'high-performance'});
@@ -193,7 +213,7 @@ function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
   const mat=new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES});
-  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uCoast=uCoast; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
     sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
       .replace('#include <map_fragment>',`{ /* the ground's own paint: the same five golds by the same rule as the strokes, but in soft painted patches, not cells.
@@ -206,7 +226,15 @@ function makeGround(size,seg,shadows){
           float k=clamp(1.2+x*0.55,1.0,4.0), soft=clamp(fwidth(k)*1.5,0.0,1.0), i=floor(k), f=fract(k);   /* the ground under the strokes is calm: only the lighter golds, at half the swing; the strokes carry the strong light */
           float w=smoothstep(0.5-0.5*soft-0.001,0.5+0.5*soft+0.001,f);
           vec3 tone=mix(bladeCol(i,uC0,uC1,uC2,uC3,uC4),bladeCol(min(4.0,i+1.0),uC0,uC1,uC2,uC3,uC4),soft>0.02?f:step(0.999,f));
-          tone=mix(tone,uC2,0.35); vec4 st=texture2D(map,vUv); diffuseColor.rgb=tone*(0.84+0.2*st.r*(1.0-air))*0.93; }`); };
+          tone=mix(tone,uC2,0.35); vec4 st=texture2D(map,vUv); diffuseColor.rgb=tone*(0.84+0.2*st.r*(1.0-air))*0.93;
+          /* the desert: sand laid in a few sheets along the line where it begins, so it comes in by contours (the 2D game's levels and strengths),
+             pale far off and warmer near, every dune slope taking the light or lying in shade by how it faces the sun and the moon */
+          float cs=coastAlong(vWXZ);
+          if(cs>0.0){ float sa = cs>${(0.78*SAND_RAMP).toFixed(1)} ? 1.0 : cs>${(0.48*SAND_RAMP).toFixed(1)} ? 0.8 : cs>${(0.22*SAND_RAMP).toFixed(1)} ? 0.55 : 0.3;
+            vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sNear,sFar,smoothstep(8.0,120.0,d));
+            float t0=clamp(0.5+litAt(vWXZ,uSunXZ)*3.6,0.0,1.0), t=t0*t0*(3.0-2.0*t0);
+            vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r);
+            diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); } }`); };
   const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
 const groundTime={value:0}, groundAir={value:0};   /* 0 on the ground, 1 well up in the air */
@@ -277,6 +305,10 @@ function makeGrass(count,L){
         float dist=length(p-uCentre), fade=(1.0-smoothstep(${(L.R*0.62).toFixed(1)},${L.R.toFixed(1)},dist))*smoothstep(${L.in0.toFixed(1)},${L.in1.toFixed(1)},dist);
         float rr=aRnd.z, gust=gustAt(p,uTime);
         float t=position.y, h=aRnd.x*(1.0-0.18*gust)*(0.35+0.65*fade)*step(0.001,fade);
+        { float cs=coastAlong(p); if(cs>0.0){ float gf=1.0-cs/${SAND_RAMP.toFixed(1)};   /* the desert, on the 2D game's rule */
+            if(gf<=0.0){ vec2 cell=floor(vec2(-p.x,p.y)/${(80*U).toFixed(4)}); float hh=fract(sin(dot(cell,vec2(12.9898,78.233)))*43758.5453);
+              h*= hh<0.075 ? 0.5+0.5*fract(hh*91.7) : 0.0; }
+            else h*= fract(rr*13.37+aOff.z*7.1)>gf*gf ? 0.0 : 0.35+0.65*gf; } }
         /* turned to face you, like a stroke on paper */
         vec2 toCam=normalize(cameraPosition.xz-p+0.0001), side=vec2(toCam.y,-toCam.x);
         float w=aRnd.y*(1.0-t*0.55)*(0.6+0.4*fade);
@@ -304,6 +336,7 @@ function makeGrass(count,L){
         #include <encodings_fragment>
         #include <fog_fragment>
       }`});
+  mat.uniforms.uCoast=uCoast;   /* shared, so the desert reaches the grass */
   const mesh=new THREE.Mesh(g,mat); mesh.frustumCulled=false; scene.add(mesh); return mesh; }
 const isPhone=matchMedia('(pointer: coarse)').matches;
 const NEAR={S:50,R:24,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:170,R:84,in0:15,in1:23,seed:77,tall:1.2,wide:3.2};
@@ -576,7 +609,7 @@ function resetLevel(){
   if(!girl) return;
   feathers=0; flightLeft=0; got.clear(); lastGot=-9;
   mates.length=0; mateMsgT=-99; flock=null; flockN=0; nextFlock=clock+FLOCK_FIRST;
-  nightOn=false; dayOffset=-clock; night=0; pathA=0; pathAlign=0; pathOn=false; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
+  nightOn=false; dayOffset=-clock; night=0; pathA=0; pathAlign=0; pathOn=false; clearCoast(); FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
   if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(_){ } } padPlayed=false;
   events.length=0; keys.clear();
   [[girl,0,0],[boy,-1.5,-1.4]].forEach(([K,x,z])=>{ Object.assign(K.P,{x,z,y:0,vy:0,h:0.1,turn:0,bank:0,pitch:0,spd:0,alt:CRUISE,state:'ground',crouch:0,upLock:false}); });
@@ -595,6 +628,7 @@ function frame(now){
     updateFlySpeed(dt); stepKid(girl,dt,flockAssist(keyInput(),girl.P.state==='fly'));
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
     stepKid(boy,dt,followInput(girl,boy));
+    updateDesert(dt,clock);
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
     updateFlock(girl,dt,clock); placeFlock(dt,clock); updateMates(girl,dt,clock); placeMates(dt);
@@ -625,6 +659,7 @@ followGround(0,0); buildGroves(0,0);
 </script>
 <script src="night.js"></script>
 <script src="road.js"></script>
+<script src="desert.js"></script>
 <script src="feathers.js"></script>   <!-- after the page: it uses the page's scene, units and kids -->
 </body>
 </html>

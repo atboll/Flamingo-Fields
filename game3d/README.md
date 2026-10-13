@@ -15,6 +15,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - `feathers.js`: feathers in the grass, the counter at the top, and flight earned with feathers.
 - `night.js`: the day and night clock, the night grade, the moon and the stars.
 - `road.js`: the feather road to the moon.
+- `desert.js`: the desert, the silver box and its door, and the flamingos round it.
 - `kids.js`: the two kids, lifted from `mockups/kids-test-field.html`. It holds their models, animations, wind in hair and skirt, painted faces, recolouring, the default look ("Look 1"), and all their movement rules.
 - `assets/`: the kids' FBX models, textures and animation clips. Where `.fbx` files can't be served, the loader also accepts each model as base64 text (`girl.fbx.b64.txt`).
 
@@ -49,9 +50,12 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] The night grade (violet dusk, moonlit blue, the moon's glow and its pool of light on the field; the feathers glow)
 - [x] The feather road to the moon (`road.js`: gathers on a full-flock night, scatters round the kids, answers with `path.mp3`)
 - [ ] The mountains part as the road is flown
-- [ ] The desert dunes
+- [x] The desert dunes (`desert.js`, with the dunes in `groundAt` on both the processor and the graphics card; laid when the road is first flown; B jumps there for testing)
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
-- [ ] The silver box and its door
+- [x] The silver box and its door (built in code: brushed silver, a tone per face, a glowing door that pulses, its light on the sand, and the ray at night; nobody passes through it; by the box the night waits)
+- [x] Flamingos round the box (26, wandering, feeding and resting, as the 2D game's shore birds)
+- [ ] Landing on top of the box
+- [ ] Your flock walks off to join the box's flamingos
 
 ### Level 2
 

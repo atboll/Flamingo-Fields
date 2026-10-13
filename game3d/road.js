@@ -37,6 +37,7 @@ function trailFeather(j,al,lead,time){
   let a=clamp(pathA*3,0,1)*Math.pow(clamp(1-ahead/ROAD_END,0,1),1.8)*clamp((ahead+1100)/300,0,1);
   // and thinning as it goes, so the far end never piles up into a bright streak
   if(j&1) a*=clamp((4500-ahead)/800,0,1); else if(j&2) a*=clamp((9500-ahead)/1500,0,1); else if(j&4) a*=clamp((19000-ahead)/3000,0,1); else if(j&8) a*=clamp((36000-ahead)/6000,0,1);
+  if(COAST.on){ const rx=pathPx+SUNDX*t-COAST.x, rz=pathPz+SUNDZ*t-COAST.z; a*=clamp((SHORE-2800-(rx*SUNDX+rz*SUNDZ))/1400,0,1); }   // the road ends before the box
   if(a<=0.01 || h2(j,31)<0.16) return null;                                                                        // gaps and clumps
   const e0=clamp(pathA*1.7-clamp(ahead/30000,0,1)*0.7,0,1), e=e0*e0*(3-2*e0);                                     // nearest feathers fall into place first
   const side=h2(j,5)<0.5?-1:1, far=(h2(j,37)-0.5)*2, wob=side*(ROAD_HALF+Math.sin(t*0.0013+side)*70)+(h2(j,17)-0.5)*200+Math.sin(time*0.6+j*1.7)*14*e+far*2200*(1-e);
