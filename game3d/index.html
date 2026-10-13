@@ -520,8 +520,9 @@ function updateMusic(){
    The 2D game's fast.mp3 wind is fetched once the flock is one short, looped with a 3 s overlap, and swells only at speed. */
 const FAST_OVERLAP=3, fastIn=new Float32Array(48).map((_,i)=>Math.sin(i/47*Math.PI/2));
 let fastBuf=null, fastGain=null, fastNext=-1, fastLoading=false;
+const FLY_TOP=FLY_BASE*(1+0.5*(800/430-1));   /* full-flock speed: half the 2D game's extra (about 18.5 m/s against 13), which was too hectic in 3D */
 function updateFlySpeed(dt){
-  const want=(girl.P.state==='fly'&&freeFly())?FLY_BASE*800/430:FLY_BASE;
+  const want=(girl.P.state==='fly'&&freeFly())?FLY_TOP:FLY_BASE;
   FLY_SPEED+=(want-FLY_SPEED)*(1-Math.exp(-dt*(want>FLY_SPEED?0.6:1.5)));
 }
 function updateFastSound(){
@@ -537,7 +538,7 @@ function updateFastSound(){
     g.gain.setValueCurveAtTime(fastIn,fastNext,FAST_OVERLAP); g.gain.setValueCurveAtTime(fadeOut,fastNext+dur-FAST_OVERLAP,FAST_OVERLAP);
     src.connect(g); g.connect(fastGain); src.start(fastNext); fastNext+=dur-FAST_OVERLAP; }
   /* it swells as the kids pick up speed beyond normal flying pace and dies away as they slow (the 2D rule, in its own units) */
-  const v=FLY_SPEED/FLY_BASE*430*girl.P.flyW, on=(girl.P.state==='fly'&&freeFly())?clamp((v-450)/(800-450),0,1):0, lvl=on*1.8;
+  const v=(FLY_SPEED-FLY_BASE)/(FLY_TOP-FLY_BASE)*girl.P.flyW, on=(girl.P.state==='fly'&&freeFly())?clamp((v-0.06)/0.94,0,1):0, lvl=on*1.8;   /* the wind still reaches full at the (lower) top speed */
   fastGain.gain.setTargetAtTime(lvl,t,lvl>0?0.25:0.5);
 }
 /* the flock's calls: the clip loops with a short overlap while a flock is in the sky, louder the nearer it is (the 2D game's rule).

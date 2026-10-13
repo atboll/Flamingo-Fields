@@ -41,7 +41,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [ ] Blue feathers give a burst of speed
 - [x] Wild flamingo flocks pass overhead (`flock.js`: the 2D game's flock rules, with the FAB flamingo)
 - [x] Fly with a flock for 8 s and a bird joins (it flies with the kids, and walks or stands on the ground)
-- [x] A full flock of five gives free, high, fast flight (about 1.9 times feather speed, as in the 2D game)
+- [x] A full flock of five gives free, high, fast flight (about 1.4 times feather speed: half the 2D game's extra)
 - [x] The flamingo icons
 - [x] Golden evening until the 4th flamingo, then the 8-minute day and night (`night.js`; the N key skips to the next part of the day, for testing)
 - [x] Moon and stars (the moon is your pencil drawing, `assets/moon.png`, with a soft corona and bloom; it rises between the peaks, clouds pass over it)
