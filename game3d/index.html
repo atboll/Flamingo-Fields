@@ -504,6 +504,38 @@ function startSound(){
     .then(buf=>{ flamBuf=buf; flamGain=actx.createGain(); flamGain.gain.value=0; flamPan=actx.createStereoPanner?actx.createStereoPanner():null;
       if(flamPan){ flamGain.connect(flamPan); flamPan.connect(master); } else flamGain.connect(master); })
     .catch(()=>{}); }
+/* Music: the 2D game's pad.mp3 plays once, from the moment the flock is complete. It is streamed, and only fetched once the flock is one short. */
+let padEl=null, padPlayed=false;
+function updateMusic(){
+  if(!actx||!master||padPlayed) return;
+  if(!padEl && mates.length>=MATES_MAX-1){ padEl=new Audio('assets/pad.mp3'); padEl.preload='auto';
+    try{ const g=actx.createGain(); g.gain.value=0.7; actx.createMediaElementSource(padEl).connect(g); g.connect(master); }catch(e){ padEl.volume=0.7; } }
+  if(padEl && freeFly()){ padPlayed=true; const p=padEl.play(); if(p&&p.catch) p.catch(()=>{}); }
+}
+/* Fast flight: with a full flock the kids fly at the 2D game's full-flock speed (800 against 430, so about 1.9 times), picking it up over a few seconds.
+   The 2D game's fast.mp3 wind is fetched once the flock is one short, looped with a 3 s overlap, and swells only at speed. */
+const FAST_OVERLAP=3, fastIn=new Float32Array(48).map((_,i)=>Math.sin(i/47*Math.PI/2));
+let fastBuf=null, fastGain=null, fastNext=-1, fastLoading=false;
+function updateFlySpeed(dt){
+  const want=(girl.P.state==='fly'&&freeFly())?FLY_BASE*800/430:FLY_BASE;
+  FLY_SPEED+=(want-FLY_SPEED)*(1-Math.exp(-dt*(want>FLY_SPEED?0.6:1.5)));
+}
+function updateFastSound(){
+  if(!actx||!master||!girl) return;
+  if(!fastBuf){
+    if(!fastLoading && mates.length>=MATES_MAX-1){ fastLoading=true;
+      fetch('assets/fast.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+        .then(buf=>{ fastGain=actx.createGain(); fastGain.gain.value=0; fastGain.connect(master); fastBuf=buf; }).catch(()=>{}); }
+    return; }
+  const t=actx.currentTime, dur=fastBuf.duration;
+  if(fastNext<t-0.1) fastNext=t+0.02;
+  while(fastNext<t+6){ const src=actx.createBufferSource(), g=actx.createGain(); src.buffer=fastBuf;
+    g.gain.setValueCurveAtTime(fastIn,fastNext,FAST_OVERLAP); g.gain.setValueCurveAtTime(fadeOut,fastNext+dur-FAST_OVERLAP,FAST_OVERLAP);
+    src.connect(g); g.connect(fastGain); src.start(fastNext); fastNext+=dur-FAST_OVERLAP; }
+  /* it swells as the kids pick up speed beyond normal flying pace and dies away as they slow (the 2D rule, in its own units) */
+  const v=FLY_SPEED/FLY_BASE*430*girl.P.flyW, on=(girl.P.state==='fly'&&freeFly())?clamp((v-450)/(800-450),0,1):0, lvl=on*1.8;
+  fastGain.gain.setTargetAtTime(lvl,t,lvl>0?0.25:0.5);
+}
 /* the flock's calls: the clip loops with a short overlap while a flock is in the sky, louder the nearer it is (the 2D game's rule).
    In 3D they also come from its side, so you can turn toward them by ear. */
 let flamBuf=null, flamGain=null, flamPan=null, flamNext=0;
@@ -539,7 +571,7 @@ let last=performance.now(), clock=0, fpsT=0, fpsN=0, slowFrames=0;
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
   if(girl){ clock+=dt;
-    stepKid(girl,dt,flockAssist(keyInput(),girl.P.state==='fly'));
+    updateFlySpeed(dt); stepKid(girl,dt,flockAssist(keyInput(),girl.P.state==='fly'));
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
     stepKid(boy,dt,followInput(girl,boy));
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
@@ -550,7 +582,7 @@ function frame(now){
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  R.render(scene,cam); overlays(clock); drawHud(clock); updateRunSound(); if(actx) updateFlamSound();
+  R.render(scene,cam); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }

@@ -40,7 +40,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [ ] Blue feathers give a burst of speed
 - [x] Wild flamingo flocks pass overhead (`flock.js`: the 2D game's flock rules, with the FAB flamingo)
 - [x] Fly with a flock for 8 s and a bird joins (it flies with the kids, and walks or stands on the ground)
-- [x] A full flock of five gives free, high flight (the faster speed comes later)
+- [x] A full flock of five gives free, high, fast flight (about 1.9 times feather speed, as in the 2D game)
 - [x] The flamingo icons
 - [ ] Golden evening until the 4th flamingo, then the 8-minute day and night
 - [ ] Moon and stars
@@ -64,7 +64,8 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Footsteps (the 2D game's `run_big.wav`, the small kid's 10% faster and offset)
 - [x] The chimes when you fall in with a flock
 - [x] Flock calls (the 2D game's `flamingos.mp3`, louder as the flock nears, and heard from its side)
-- [ ] Music
+- [x] Music (`pad.mp3`, once, when the flock is complete)
+- [x] Fast-flight wind (`fast.mp3`, swelling with full-flock speed)
 - [ ] Wind
 - [ ] The road's answer
 - [ ] Sea
