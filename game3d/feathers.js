@@ -29,7 +29,7 @@ const RAYS_TEX=(()=>{ const c=document.createElement('canvas'); c.width=c.height
   const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
 let FEATHER_TEX=null, featherImg=null;
 const FEATHER_LEN=24*U, FEATHER_W=FEATHER_LEN*160/512;   /* a little over a third of a metre: a real flight feather */
-const POOL=[], POOL_N=140;
+const POOL=[], POOL_N=180;
 function spriteOf(tex,order,glows){ const m=new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false, fog:false}); const s=new THREE.Sprite(m); s.renderOrder=order; s.visible=false; (glows?lightScene:scene).add(s); return s; }   /* the glows are drawn after the night grade: they give light */
 function loadFeathers(base){
   return new Promise((res,rej)=>{ new THREE.TextureLoader().load(base+'feather.png',t=>{ t.encoding=THREE.sRGBEncoding; t.anisotropy=4; FEATHER_TEX=t; featherImg=t.image;
@@ -42,33 +42,40 @@ const _v=new THREE.Vector3();
 function placeFeathers(K,time){
   if(!FEATHER_TEX) return;
   const cx=-cam.position.x/U, cz=cam.position.z/U, RG=2600, ci0=Math.floor((cx-RG)/FC), ci1=Math.floor((cx+RG)/FC), cj0=Math.floor((cz-RG)/FC), cj1=Math.floor((cz+RG)/FC);
-  const pxH=innerHeight, focal=0.5*pxH/Math.tan(cam.fov*Math.PI/360);
-  let n=0, bigShown=false;
-  for(let cj=cj0;cj<=cj1&&n<POOL_N;cj++) for(let ci=ci0;ci<=ci1&&n<POOL_N;ci++){
+  const pxH=innerHeight, focal=0.5*pxH/Math.tan(cam.fov*Math.PI/360), ga=1-pathA;   /* while the road gathers, the field's own feathers fade away into it */
+  let n=0; POOL.bigShown=false;
+  if(ga>0.01) for(let cj=cj0;cj<=cj1&&n<POOL_N;cj++) for(let ci=ci0;ci<=ci1&&n<POOL_N;ci++){
     const f=featherAt(ci,cj); if(!f) continue;
     const dx=f.x-cx, dz=f.z-cz, d=Math.hypot(dx,dz); if(d>RG) continue;
     const big=f.big?1:0, x=-f.x*U, z=f.z*U, y=groundAt(x,z)+(62+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*U;
-    _v.set(x,y,z).sub(cam.position); const along=_v.dot(cam.getWorldDirection(_w)); if(along<0.3) continue;   // behind the camera
-    const dist=_v.length(), fade=clamp((RG*U-dist)/(400*U),0,1);
-    /* the game's size: 11 units, but never under 3.4 pixels, so a far feather stays a speck you can spot */
-    const sz=Math.max(FEATHER_LEN, 3.4*2.2*dist/focal)*(1+big*1.9)/FEATHER_LEN;   // the card's length in metres over the feather's own
-    const tw=0.75+0.25*Math.sin(time*5+f.ph*40), P=POOL[n++];
-    P.card.visible=P.glow.visible=true; P.card.position.set(x,y,z); P.glow.position.set(x,y,z);
-    P.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); P.card.material.rotation=-(0.6+Math.sin(time*1.6+f.ph*9)*0.5); P.card.material.opacity=fade;
-    const gr=FEATHER_LEN*sz*(2.8/2.2)*2; P.glow.scale.set(gr,gr,1); P.glow.material.opacity=0.65*tw*fade;
-    /* by night each gives off its own light, drawn over the night grade, as in the 2D game */
-    P.nglow.visible=night>0.05; if(P.nglow.visible){ P.nglow.position.set(x,y,z); const nr=gr*(big?3.2:2.6)/2.8; P.nglow.scale.set(nr,nr,1); P.nglow.material.opacity=0.85*night*fade; P.nglow.material.color.setRGB(1,0.75,0.84); }
-    if(big&&!bigShown){ bigShown=true; const R=FEATHER_LEN*sz*(5/2.2)*2; POOL.halo.visible=POOL.rays.visible=true; POOL.halo.position.set(x,y,z); POOL.rays.position.set(x,y,z);
-      POOL.halo.scale.set(R,R,1); POOL.halo.material.opacity=0.55*tw*fade; const rr=FEATHER_LEN*sz*(2.6/2.2)*2.2; POOL.rays.scale.set(rr,rr,1); POOL.rays.material.rotation=-time*0.5; POOL.rays.material.opacity=0.5*tw*fade; } }
+    if(drawFeather(POOL[n],x,y,z,f.ph,big,ga,RG*U,focal,time)) n++; }
+  /* the feather road's near feathers (road.js): the same feathers, drawn the same way; the far ones are points of light there */
+  for(const q of roadNear){ if(n>=POOL_N) break; if(drawFeather(POOL[n],q.x,q.y,q.z,q.ph,0,q.a,1e9,focal,time)) n++; }
   for(let i=n;i<POOL_N;i++){ POOL[i].card.visible=POOL[i].glow.visible=POOL[i].nglow.visible=false; }
-  if(!bigShown) POOL.halo.visible=POOL.rays.visible=false;
+  if(!POOL.bigShown) POOL.halo.visible=POOL.rays.visible=false;
+}
+/* one feather: the card, its glow, and by night its own light; false if it is behind the camera */
+function drawFeather(P,x,y,z,ph,big,alpha,range,focal,time){
+  _v.set(x,y,z).sub(cam.position); const along=_v.dot(cam.getWorldDirection(_w)); if(along<0.3) return false;   // behind the camera
+  const dist=_v.length(), fade=clamp((range-dist)/(400*U),0,1)*alpha; if(fade<=0.01) return false;
+  /* the game's size: 11 units, but never under 3.4 pixels, so a far feather stays a speck you can spot */
+  const sz=Math.max(FEATHER_LEN, 3.4*2.2*dist/focal)*(1+big*1.9)/FEATHER_LEN;   // the card's length in metres over the feather's own
+  const tw=0.75+0.25*Math.sin(time*5+ph*40);
+  P.card.visible=P.glow.visible=true; P.card.position.set(x,y,z); P.glow.position.set(x,y,z);
+  P.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); P.card.material.rotation=-(0.6+Math.sin(time*1.6+ph*9)*0.5); P.card.material.opacity=fade;
+  const gr=FEATHER_LEN*sz*(2.8/2.2)*2; P.glow.scale.set(gr,gr,1); P.glow.material.opacity=0.65*tw*fade;
+  /* by night each gives off its own light, drawn over the night grade, as in the 2D game */
+  P.nglow.visible=night>0.05&&fade>0.5; if(P.nglow.visible){ P.nglow.position.set(x,y,z); const nr=gr*(big?3.2:2.6)/2.8; P.nglow.scale.set(nr,nr,1); P.nglow.material.opacity=0.85*night*fade; P.nglow.material.color.setRGB(1,0.75,0.84); }
+  if(big&&!POOL.bigShown){ POOL.bigShown=true; const R=FEATHER_LEN*sz*(5/2.2)*2; POOL.halo.visible=POOL.rays.visible=true; POOL.halo.position.set(x,y,z); POOL.rays.position.set(x,y,z);
+    POOL.halo.scale.set(R,R,1); POOL.halo.material.opacity=0.55*tw*fade; const rr=FEATHER_LEN*sz*(2.6/2.2)*2.2; POOL.rays.scale.set(rr,rr,1); POOL.rays.material.rotation=-time*0.5; POOL.rays.material.opacity=0.5*tw*fade; }
+  return true;
 }
 const _w=new THREE.Vector3();
 
 /* ---------- picking them up: run through one (within about 0.7 m), low down; both kids can ---------- */
 function pickFeathers(time){
   for(const K of [girl,boy]){ const P=K.P, kx=-P.x/U, kz=P.z/U;
-    if(P.y/U>=55 || feathers>=NEED) continue;
+    if(P.y/U>=55 || feathers>=NEED || pathA>=0.05) continue;   // none to pick up once the road has gathered them
     const ci=Math.floor(kx/FC), cj=Math.floor(kz/FC);
     for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
       if(f && Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && feathers<NEED){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;

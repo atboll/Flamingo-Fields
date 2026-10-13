@@ -14,6 +14,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - `flock.js`: the wild flamingo flocks: the 2D game's own rules (in its units), drawn with the FAB American flamingo.
 - `feathers.js`: feathers in the grass, the counter at the top, and flight earned with feathers.
 - `night.js`: the day and night clock, the night grade, the moon and the stars.
+- `road.js`: the feather road to the moon.
 - `kids.js`: the two kids, lifted from `mockups/kids-test-field.html`. It holds their models, animations, wind in hair and skirt, painted faces, recolouring, the default look ("Look 1"), and all their movement rules.
 - `assets/`: the kids' FBX models, textures and animation clips. Where `.fbx` files can't be served, the loader also accepts each model as base64 text (`girl.fbx.b64.txt`).
 
@@ -46,7 +47,8 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Golden evening until the 4th flamingo, then the 8-minute day and night (`night.js`; the N key skips to the next part of the day, for testing)
 - [x] Moon and stars (the moon is your pencil drawing, `assets/moon.png`, with a soft corona and bloom; it rises between the peaks, clouds pass over it)
 - [x] The night grade (violet dusk, moonlit blue, the moon's glow and its pool of light on the field; the feathers glow)
-- [ ] The feather road to the moon, which parts the mountains and shows the sea
+- [x] The feather road to the moon (`road.js`: gathers on a full-flock night, scatters round the kids, answers with `path.mp3`)
+- [ ] The mountains part as the road is flown
 - [ ] The desert dunes
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
 - [ ] The silver box and its door
@@ -68,7 +70,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Music (`pad.mp3`, once, when the flock is complete)
 - [x] Fast-flight wind (`fast.mp3`, swelling with full-flock speed)
 - [ ] Wind
-- [ ] The road's answer
+- [x] The road's answer (`path.mp3`)
 - [ ] Sea
 - [ ] Chimes
 

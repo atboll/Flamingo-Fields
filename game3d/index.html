@@ -576,7 +576,7 @@ function resetLevel(){
   if(!girl) return;
   feathers=0; flightLeft=0; got.clear(); lastGot=-9;
   mates.length=0; mateMsgT=-99; flock=null; flockN=0; nextFlock=clock+FLOCK_FIRST;
-  nightOn=false; dayOffset=-clock; night=0; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
+  nightOn=false; dayOffset=-clock; night=0; pathA=0; pathAlign=0; pathOn=false; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
   if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(_){ } } padPlayed=false;
   events.length=0; keys.clear();
   [[girl,0,0],[boy,-1.5,-1.4]].forEach(([K,x,z])=>{ Object.assign(K.P,{x,z,y:0,vy:0,h:0.1,turn:0,bank:0,pitch:0,spd:0,alt:CRUISE,state:'ground',crouch:0,upLock:false}); });
@@ -598,7 +598,7 @@ function frame(now){
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
     updateFlock(girl,dt,clock); placeFlock(dt,clock); updateMates(girl,dt,clock); placeMates(dt);
-    pickFeathers(clock); flightRules(dt); placeFeathers(girl,clock);
+    updatePath(girl,dt,clock); pickFeathers(clock); flightRules(dt); placeRoad(girl,clock); placeFeathers(girl,clock);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock); moveClouds(clock);
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
@@ -624,6 +624,7 @@ followGround(0,0); buildGroves(0,0);
 })();
 </script>
 <script src="night.js"></script>
+<script src="road.js"></script>
 <script src="feathers.js"></script>   <!-- after the page: it uses the page's scene, units and kids -->
 </body>
 </html>
