@@ -176,7 +176,7 @@ function updateDesert(dt,time){
   { const P=girl.P, al=(-P.x/U-COAST.x)*SUNDX_G+(P.z/U-COAST.z)*SUNDZ_G; seaPart=Math.max(seaPart,clamp(1+(al+2200)/(COAST_DIST-2200),0,1)); partRanges(seaPart); }
   const c=boxC(), top=groundAt(-c[0]*U,c[1]*U)/U-30+BOX_H;
   /* nobody passes through the box, and the kids keep a step clear of it */
-  if(!window.IN_ROOM) for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;
+  for(const K of [girl,boy]){ if(window.passBox&&window.passBox(K)) continue; const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
