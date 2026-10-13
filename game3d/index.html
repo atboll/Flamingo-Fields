@@ -221,6 +221,8 @@ function strokeTex(){ const c=document.createElement('canvas'); c.width=c.height
   const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.encoding=THREE.sRGBEncoding; t.anisotropy=8; return t; }
 const STROKES=strokeTex();
 const GOLD_DEEP=[196,148,52], GOLD=[226,184,86], GOLD_HI=[242,208,122];
+/* the mist at the horizon over the sand: clear out to about 400 m, soft and pale by 2.8 km where the ground runs out */
+const MIST0=400, MIST1=2800;
 function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
@@ -243,10 +245,27 @@ function makeGround(size,seg,shadows){
              pale far off and warmer near, every dune slope taking the light or lying in shade by how it faces the sun and the moon */
           float cs=coastAlong(vWXZ);
           if(cs>0.0){ float sa = cs>${(0.78*SAND_RAMP).toFixed(1)} ? 1.0 : cs>${(0.48*SAND_RAMP).toFixed(1)} ? 0.8 : cs>${(0.22*SAND_RAMP).toFixed(1)} ? 0.55 : 0.3;
-            vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sNear,sFar,smoothstep(8.0,120.0,d));
-            float ck=mix(1.0,0.35,smoothstep(60.0,700.0,d)), t0=clamp(0.5+litAt(vWXZ,uSunXZ)*3.6*ck,0.0,1.0), t=t0*t0*(3.0-2.0*t0);
-            vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r);
-            diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); } }`); };
+            /* pale toward the horizon and warmer close under the eye, by where it lies on the screen (the 2D game's v), and the light and shade
+               of the dune slopes carried all the way out, a little softer far off, so the ridges read as rows of waves to the mist */
+            float v=clamp((cameraPosition.y-groundAt(vWXZ))/max(d,1.0)*1.64,0.0,1.0);
+            vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sFar,sNear,v);
+            float L=litAt(vWXZ,uSunXZ), ck=mix(1.0,0.55,smoothstep(80.0,900.0,d)), sw=clamp(fwidth(L)*3.6*ck*1.5,0.0,0.5);
+            float t0=clamp(0.5+L*3.6*ck,0.0,1.0), t=mix(t0*t0*(3.0-2.0*t0),t0,sw*2.0);   /* where a slope is only a pixel or two, it blends instead of flickering */
+            vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r*(1.0-smoothstep(40.0,160.0,d)));
+            diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); sandA=sa; sandLin=pow(sand,vec3(2.2)); } }`)
+      /* the sand is the 2D game's flat paint: its colours go straight to the screen (no evening light over them), with only the shadows the kids and the box throw */
+      .replace('#include <output_fragment>',`if(sandA>0.0){ float shK=1.0;
+          #if defined(USE_SHADOWMAP) && NUM_DIR_LIGHT_SHADOWS>0
+          { DirectionalLightShadow dls=directionalLightShadows[0]; shK=getShadow(directionalShadowMap[0],dls.shadowMapSize,dls.shadowBias,dls.shadowRadius,vDirectionalShadowCoord[0]); }
+          #endif
+          outgoingLight=mix(outgoingLight,sandLin*mix(0.62,1.0,shK),sandA); }
+        #include <output_fragment>`)
+      /* and no distance haze over it: the dunes run all the way out, and only at the horizon go soft into the mist */
+      .replace('#include <fog_fragment>',`#ifdef USE_FOG
+          { float fogFactor=pow(clamp((vFogDepth-fogNear)/(fogFar-fogNear),0.0,1.0),0.6)*0.96, mist=pow(smoothstep(${MIST0.toFixed(1)},${MIST1.toFixed(1)},length(vWXZ-cameraPosition.xz)),1.3)*0.94;
+            gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,mix(fogFactor,mist,sandA)); }
+          #endif`);
+    sh.fragmentShader=sh.fragmentShader.replace('void main() {','float sandA=0.0; vec3 sandLin=vec3(0.0);\nvoid main() {'); };
   const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
 const groundTime={value:0}, groundAir={value:0};   /* 0 on the ground, 1 well up in the air */
@@ -254,9 +273,10 @@ const groundNear=makeGround(260,260,true), groundFar=makeGround(6400,320,false);
 /* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
    it is sunk well out of the way, on the graphics card, following the near piece as it moves */
 const uNearC={value:new THREE.Vector2()};
-groundFar.material.onBeforeCompile=sh=>{ sh.uniforms.uNearC=uNearC;
+{ const paint=groundFar.material.onBeforeCompile;   /* on top of the ground's own paint (this used to replace it, so past the near piece there was no sand) */
+groundFar.material.onBeforeCompile=sh=>{ paint(sh); sh.uniforms.uNearC=uNearC;
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nuniform vec2 uNearC;')
-    .replace('#include <begin_vertex>','#include <begin_vertex>\n{ vec2 q=abs(position.xz-uNearC); transformed.y-=0.3+6.0*(1.0-smoothstep(118.0,128.0,max(q.x,q.y))); }'); };
+    .replace('#include <begin_vertex>','#include <begin_vertex>\n{ vec2 q=abs(position.xz-uNearC); transformed.y-=0.3+6.0*(1.0-smoothstep(118.0,128.0,max(q.x,q.y))); }'); }; }
 function fillGround(m,cx,cz){
   const g=m.geometry, P=g.attributes.position, C=g.attributes.color, UV=g.attributes.uv, n=m.userData.seg+1, half=m.userData.size/2, step=m.userData.size/m.userData.seg;
   for(let j=0;j<n;j++) for(let i=0;i<n;i++){ const k=j*n+i, x=cx-half+i*step, z=cz-half+j*step;
@@ -412,6 +432,17 @@ const treelines=[];
     const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:art[i%4], transparent:true, opacity:0.92, fog:false, depthWrite:false}));
     m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); };
     m.userData={th,h,RG}; m.renderOrder=-7; ranges.add(m); treelines.push(m); } }
+/* the mist on the horizon: a soft band of the haze colour all the way round, thickest where the land meets the sky and gone a little above,
+   so the far dunes, the treelines and the feet of the ranges melt into it with no hard line (the 2D game's horizon). The ground in front
+   hides it, and the sand's own mist reaches the same colour where the ground runs out, so the two meet without a seam. */
+const MIST_R=2700, MIST_LO=-260, MIST_HI=150;
+const mistBand=new THREE.Mesh(new THREE.CylinderGeometry(MIST_R,MIST_R,MIST_HI-MIST_LO,128,1,true),new THREE.ShaderMaterial({
+  uniforms:{uC:{value:new THREE.Vector3(...HAZE.map(c=>c/255))}}, transparent:true, depthWrite:false, fog:false, side:THREE.BackSide,
+  vertexShader:`varying float vY; void main(){ vY=position.y+${((MIST_HI+MIST_LO)/2).toFixed(1)}; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`uniform vec3 uC; varying float vY;
+    void main(){ float up=smoothstep(${MIST_HI.toFixed(1)},-6.0,vY), a=0.82*up*up*(3.0-2.0*up);   /* fading out above, full at the horizon and below it */
+      gl_FragColor=vec4(uC,a); }`}));
+mistBand.position.y=(MIST_HI+MIST_LO)/2; mistBand.renderOrder=-6; mistBand.frustumCulled=false; ranges.add(mistBand);
 function fromMoon(th){ const d=th-SUN_B; return Math.atan2(Math.sin(d),Math.cos(d)); }
 function partRanges(sea){
   if(Math.abs(sea-partBuilt)<0.003) return; partBuilt=sea;
