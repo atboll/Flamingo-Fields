@@ -56,11 +56,11 @@ const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.NotEqualSte
 const bloomMat=map=>new THREE.SpriteMaterial({map, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT});
 /* the glow round the doorway follows its shape: brightest right at its edges, falling away over the face and the sand as a tall soft halo,
    never brighter than the doorway itself, so the door stays a crisp white rectangle with light pouring out of it */
-const GLOW_W=DW*9, GLOW_H=DH*2.3;
+const GLOW_W=BW*1.9, GLOW_H=BH*1.15;   /* wide and tall enough to pale the whole face, as the 2D game's haze does */
 const doorGlowTex=(()=>{ const N=256, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), im=g.createImageData(N,N), px=im.data;
   for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const mx=(x+0.5)/N*GLOW_W-GLOW_W/2, my=(1-(y+0.5)/N)*GLOW_H;   /* metres across the face, and up from the sand */
     const dx=Math.max(0,Math.abs(mx)-DW/2), dy=Math.max(0,my-DH), d=Math.hypot(dx,dy*0.8), inDoor=dx===0&&dy===0;
-    const a=inDoor?0:Math.min(1,0.42*Math.exp(-d/0.9)+0.2*Math.exp(-d/3.2)+0.07*Math.exp(-d/9));
+    const a=Math.min(1,0.14*Math.exp(-d/1.0)+0.3*Math.exp(-d/5)+0.22*Math.exp(-d/14));   /* full strength right up to (and under) the doorway, so no dark rim shows round it */
     const fadeEdge=Math.min(1,(GLOW_W/2-Math.abs(mx))/(GLOW_W*0.12))*Math.min(1,(GLOW_H-my)/(GLOW_H*0.15));   /* nothing left at the plane's own edges */
     const i=(y*N+x)*4; px[i]=px[i+1]=255; px[i+2]=250; px[i+3]=Math.round(255*a*Math.max(0,fadeEdge)); }
   g.putImageData(im,0,0); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
@@ -113,7 +113,7 @@ for(const [m,o] of [[frontDark,1],[frontFade,2]]){ m.frustumCulled=false; m.rend
 const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* the ray: by night, once the moon is up, a thin blade of light straight up out of the doorway, far taller than the box, as in the 2D game.
    It is laid on the screen itself, so it stands straight up however the camera turns, climbs or tips. A beacon from far off,
-   it shortens and fades as the kids come near, and is gone some 60 m from the door. */
+   it shortens and fades as the kids come near, from about 90 m, and is gone some 40 m from the door. */
 const rayU={uZ:{value:0}, uC:{value:new THREE.Vector2()}, uLen:{value:0}, uW:{value:1}, uA:{value:0}, uSize:{value:new THREE.Vector2(1,1)}, uDpr:{value:1}};
 /* it is laid at the doorway's own depth, so whatever stands nearer (a hill, a dune) hides its foot, as the 2D game cuts it off at the ground in front */
 const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:rayU, transparent:true, depthTest:true, depthWrite:false, ...NOT_FRONT,
@@ -193,11 +193,11 @@ function updateDesert(dt,time){
   doorGlow.material.opacity=A*edge*(0.6+0.4*night)*(1+0.6*near); doorGlow.visible=edge>0;
   { const bp=Math.max(40,dh*1.4), far=clamp((dist-70)/90,0,1); doorBeacon.scale.set(bp/pxPerM,bp/pxPerM,1); doorBeacon.material.opacity=A*edge*far; doorBeacon.visible=edge>0&&far>0; }
   if(Math.abs((fan.userData.near??-1)-near)>0.02) dropFan(near);
-  lightFan(0.3*A*edge*edge*(1+1.6*near)*2);   /* the 2D game's bands each lap half over the next, so twice its strength */
+  lightFan(0.3*A*edge*edge*(1+1.6*near)*4);   /* the 2D game's bands each lap half over the next, so twice its strength */
   /* the light taking the view */
   { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const top=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)).project(cam), W=innerWidth, H=innerHeight, q=H/650, dwPx=DW*pxPerM;
-    const fade=clamp((dist-60)/150,0,1), len=Math.max(140*q,dh*7.5)*(0.35+0.65*fade);
+    const fade=clamp((dist-40)/50,0,1), len=Math.max(140*q,dh*7.5)*(0.35+0.65*fade);
     rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uZ.value=Math.min(doorLight.localToWorld(_dsp.set(0,DH*0.5,front-3)).project(cam).z,0.99999);   /* its depth is taken a few metres out in front of the doorway, so the box's own face never hides it: it rises from the door itself */ rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
     rayU.uA.value=(top.z<1&&edge>0)? A*edge*clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*fade : 0; }
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
