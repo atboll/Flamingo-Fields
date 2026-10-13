@@ -8,7 +8,13 @@
    swell and pop as you move), and drawn as real 3D lumps in flat pinks with a paler crown poking out of each.
    The page's #l2test address (or window.L2TEST) starts straight on the clouds, for testing. Reset level brings back level 1. */
 (function(){
-let LEVEL=1, inT=0, landed2=false, boxY=0;
+let LEVEL=1, inT=0, landed2=false, boxY=0, enteredAt=-1, sign2=false, sign1=!(window.L2TEST||location.hash==='#l2test');
+/* the level sign, as the 2D game shows it: LEVEL 1 when the game opens, LEVEL 2 ten seconds after stepping onto the clouds */
+function showLevelSign(text){ const el=$('levelSign'); if(!el) return; const q=clamp(Math.min(innerWidth/1100,innerHeight/560),0.55,1.2);
+  el.textContent=text; el.style.fontSize=Math.round(72*q)+'px'; el.style.letterSpacing=Math.round(14*q)+'px';
+  /* wait for the font (at most 2.5 s), so the sign never starts while its letters are still invisible */
+  let go=false; const start=()=>{ if(go) return; go=true; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); };
+  try{ document.fonts.load('600 72px "Klee One"').then(start,start); }catch(e){ start(); } setTimeout(start,2500); }
 window.level2On=()=>LEVEL===2;
 
 /* the land: a tenth lower on the clouds */
@@ -97,7 +103,7 @@ function setLevelLook(on){
 }
 function enterLevel2(){
   if(!girl||!COAST.on) return;
-  LEVEL=2; inT=0; landed2=false;
+  LEVEL=2; inT=0; landed2=false; enteredAt=clock; sign2=false;
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true; rayU.uA.value=0;
   /* the door stands where it stood, on the cloud */
@@ -118,6 +124,7 @@ updateDesert=function(dt,time){
     if(COAST.on && doorIn>0.97 && doorNear>0.9){ inT+=dt; if(inT>0.5) enterLevel2(); } else inT=0;
     return; }
   coastA=1;
+  if(!sign2 && clock-enteredAt>=10){ sign2=true; showLevelSign('LEVEL 2'); }
   const c=boxC(), P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7;
   /* the white: strong on first coming through, fading as they walk away; after that only right at the door (the 2D game's rule) */
   let tg=0; if(P.y/U<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/(landed2?520:1700),0,1);
@@ -149,6 +156,7 @@ const _gb=goToBox; goToBox=function(){ leaveLevel2(); return _gb(); };
 /* drawing: the lumps placed from this frame's camera, and no moon over the clouds */
 const _rf=renderFrame; let testStart=!!(window.L2TEST||location.hash==='#l2test');
 renderFrame=function(){
+  if(sign1 && girl){ sign1=false; showLevelSign('LEVEL 1'); }
   if(testStart && girl && FL.ready){ testStart=false; goToBox(); enterLevel2(); }
   if(LEVEL===2){ moon.visible=moonHaze.visible=moonBloom.visible=false; gradeU.uMa.value=0; placeLumps(clock); }   // no moon, and none of its glow
   _rf();

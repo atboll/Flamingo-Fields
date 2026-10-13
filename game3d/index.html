@@ -4,10 +4,17 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Flamingo Fields 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&display=swap">
 <style>
 :root{ --ink:#3a2a12; --glass:rgba(255,246,222,0.82); --line:rgba(90,60,20,0.18); color-scheme:light }
 html,body{ height:100%; margin:0; background:#f0d898; overflow:hidden; font:14px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--ink) }
 [hidden]{ display:none!important }
+/* the level sign: the 2D game's, in its Klee One, pale with a soft plum shadow, fading in and out over seven seconds */
+#levelSign{ position:fixed; left:0; right:0; top:34%; transform:translateY(-50%); text-align:center; pointer-events:none; z-index:5; opacity:0;
+  font-family:"Klee One","Trebuchet MS",sans-serif; font-weight:600; color:#fff6f0; text-shadow:0 0 18px rgba(60,30,60,.55), 0 0 6px rgba(60,30,60,.3); white-space:nowrap }
+#levelSign.show{ animation:levelSign 7s linear forwards }
+@keyframes levelSign{ 0%{opacity:0} 21.4%{opacity:1} 71.4%{opacity:1} 100%{opacity:0} }
 #view{ position:fixed; inset:0; touch-action:none }
 #view canvas{ display:block; width:100%; height:100%; outline:none }
 .chip{ position:fixed; left:max(12px,env(safe-area-inset-left)); top:max(12px,env(safe-area-inset-top)); background:var(--glass); border:1px solid var(--line);
@@ -56,6 +63,7 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 <button id="skipday" type="button" title="Test: skip to the next part of the day (the N key)">Dusk ›</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
+<div id="levelSign" aria-live="polite"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/libs/fflate.min.js"></script>
