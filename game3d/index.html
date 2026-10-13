@@ -32,9 +32,10 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 <body>
 <div id="view" tabindex="0" aria-label="The golden field. Use the arrow keys or WASD to run, Space to jump and fly."></div>
 <canvas class="fx" id="light" aria-hidden="true"></canvas><div class="fx" id="grain" aria-hidden="true"></div><canvas class="fx" id="flare" aria-hidden="true"></canvas>
-<div class="chip" id="hint"><b>Flamingo Fields 3D</b> · milestone 1
-  <p><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd> run · <kbd>Space</kbd> hop, again to fly, again to land · <kbd>↑</kbd><kbd>↓</kbd> climb and sink in the air.
-  On a phone: drag to run, tap to hop. Flying is free for now; feathers come next.</p></div>
+<div class="chip" id="hint"><b>Flamingo Fields 3D</b> · milestone 2
+  <p><kbd>↑</kbd><kbd>←</kbd><kbd>→</kbd><kbd>↓</kbd> or <kbd>WASD</kbd> run · <kbd>Space</kbd> hop · <kbd>↑</kbd><kbd>↓</kbd> climb and sink in the air.
+  Gather 10 feathers, then hop and press <kbd>Space</kbd> again to fly for 10 seconds. Fly with a wild flock and a flamingo joins you; five make a full flock.
+  On a phone: drag to run, tap to hop.</p></div>
 <button id="sound" type="button" aria-pressed="true">Sound on</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
@@ -409,7 +410,7 @@ function overlays(t){
 
 /* ---------- the kids ---------- */
 let girl, boy, rollChance=0.35;
-let ALT_MAX=33;                                    // free flight for now: up to the full flock's ceiling (the game's 2400 units)
+let ALT_MAX=640*U;                                 // how high they may fly: feathers alone reach 640 game units; a full flock lifts it to 2400 (feathers.js)
 const keys=new Set();
 function arrowsHeld(){ return keys.has('up')||keys.has('down')||keys.has('left')||keys.has('right'); }
 
@@ -509,17 +510,18 @@ let last=performance.now(), clock=0, fpsT=0, fpsN=0, slowFrames=0;
 function frame(now){
   const dt=Math.min(0.05,(now-last)/1000); last=now;
   if(girl){ clock+=dt;
-    stepKid(girl,dt,keyInput());
+    stepKid(girl,dt,flockAssist(keyInput(),girl.P.state==='fly'));
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
     stepKid(boy,dt,followInput(girl,boy));
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
-    updateFlock(girl,dt,clock); placeFlock(dt,clock);
+    updateFlock(girl,dt,clock); placeFlock(dt,clock); updateMates(girl,dt,clock); placeMates(dt);
+    pickFeathers(clock); flightRules(dt); placeFeathers(girl,clock);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock); moveClouds(clock);
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  R.render(scene,cam); overlays(clock); updateRunSound();
+  R.render(scene,cam); overlays(clock); drawHud(clock); updateRunSound();
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
@@ -533,10 +535,12 @@ followGround(0,0); buildGroves(0,0);
   try{ await loadKids('assets/');
     girl.P.h=0.1; boy.P.x=-1.5; boy.P.z=-1.4; boy.P.h=0.1;
     placeCam(girl,0,true); $('load').hidden=true;
-    loadFlamingo('assets/').catch(err=>console.error('Could not load the flamingos',err)); }   /* the flocks load behind the scenes; the first comes after 30 s */
+    loadFlamingo('assets/').catch(err=>console.error('Could not load the flamingos',err));
+    loadFeathers('assets/').catch(err=>console.error('Could not load the feather',err)); }   /* the flocks load behind the scenes; the first comes after 30 s */
   catch(err){ $('load').textContent='Could not load the kids: '+err.message; console.error(err); }
   requestAnimationFrame(frame);
 })();
 </script>
+<script src="feathers.js"></script>   <!-- after the page: it uses the page's scene, units and kids -->
 </body>
 </html>

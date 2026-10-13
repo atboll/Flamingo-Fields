@@ -12,6 +12,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 - `index.html`: the world (hills, grass, sky, clouds, ranges), the camera, the controls and the loop.
 - `flock.js`: the wild flamingo flocks: the 2D game's own rules (in its units), drawn with the FAB American flamingo.
+- `feathers.js`: feathers in the grass, the counter at the top, and flight earned with feathers.
 - `kids.js`: the two kids, lifted from `mockups/kids-test-field.html`. It holds their models, animations, wind in hair and skirt, painted faces, recolouring, the default look ("Look 1"), and all their movement rules.
 - `assets/`: the kids' FBX models, textures and animation clips. Where `.fbx` files can't be served, the loader also accepts each model as base64 text (`girl.fbx.b64.txt`).
 
@@ -33,14 +34,14 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [ ] Sprinting over a crest throws them into the air
 - [x] They fly and glide down
 - [x] The second kid follows
-- [ ] Feathers in the grass
-- [ ] The great feather
-- [ ] Ten feathers give ten seconds of flight
+- [x] Feathers in the grass (`feathers.js`; the feather is one of the FAB flamingo's flight feathers, `assets/feather.png`)
+- [x] The great feather
+- [x] Ten feathers give ten seconds of flight (flying is earned again; the time stops while flying with a flock)
 - [ ] Blue feathers give a burst of speed
 - [x] Wild flamingo flocks pass overhead (`flock.js`: the 2D game's flock rules, with the FAB flamingo)
-- [ ] Fly with a flock for 8 s and a bird joins
-- [ ] A full flock of five gives free, high, fast flight
-- [ ] The flamingo icons
+- [x] Fly with a flock for 8 s and a bird joins (it flies with the kids, and walks or stands on the ground)
+- [x] A full flock of five gives free, high flight (the faster speed comes later)
+- [x] The flamingo icons
 - [ ] Golden evening until the 4th flamingo, then the 8-minute day and night
 - [ ] Moon and stars
 - [ ] The night grade
@@ -71,7 +72,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 ### Interface
 
-- [ ] Feather counter
+- [x] Feather counter
 - [x] Sound button
 - [ ] Hint
 - [ ] `#test` buttons

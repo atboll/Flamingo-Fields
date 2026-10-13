@@ -397,7 +397,7 @@ function jumpKid(K){
     if(run>0.5&&K.A.rjump){ K.jumpA=K.A.rjump; K.jumpA.reset(); K.jumpA.play(); P.crouch=0.02; P.state='crouch'; }   // running: his own running leap, straight off the stride
     else { const from=run>0.5?c.jumpFromRun:0;   // standing still: the whole crouch; running: only a dip
       K.jumpA=K.A.jump; K.jumpA.reset(); K.jumpA.time=from; K.jumpA.play(); P.crouch=c.jumpPush-from; } P.state='crouch'; }
-  else if(P.state==='hop'){ takeOff(K); }   // the second press takes her (or him) up
+  else if(P.state==='hop'){ if(typeof mayFly!=='function'||mayFly(K)) takeOff(K); }   // the second press takes her (or him) up, if the page allows it (10 feathers, or a full flock)
   else if(P.state==='fly'){ P.state='land'; K.A.land.reset(); K.A.land.play(); K.A.land.paused=true; K.A.land.time=c.landFrom; }
 }
 function takeOff(K){ const P=K.P; P.state='fly'; P.alt=Math.max(CRUISE,P.y+2); P.vy=Math.max(P.vy,3); P.upLock=keys.has('up'); }
