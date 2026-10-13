@@ -30,7 +30,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Paper grain
 - [x] Painted clouds
 - [x] Blue-green ranges, with two peaks under the sun and moon
-- [x] Groves of trees (3D groves in the field, and the painted treelines on the horizon)
+- [x] Groves of trees (the painted treelines on the horizon; the 3D groves in the field are switched off with `GROVES=false` until they are redesigned)
 - [x] The kids run and hop
 - [ ] Sprinting over a crest throws them into the air
 - [x] They fly and glide down

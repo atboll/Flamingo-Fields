@@ -328,7 +328,9 @@ trunkMesh.material.defines={SOFT_HAZE:''};
 for(const m of [crownMesh,trunkMesh]){ m.count=0; m.frustumCulled=false; scene.add(m); }
 crownMesh.instanceColor=new THREE.InstancedBufferAttribute(new Float32Array(MAXBLOBS*3),3);
 let groveCell=null;
+const GROVES=false;   /* the 3D groves in the field are switched off for now, to be redesigned later; the painted treelines on the horizon stay */
 function buildGroves(x,z){
+  if(!GROVES) return;
   const ci=Math.round(x/CELL), cj=Math.round(z/CELL), key=ci+','+cj; if(key===groveCell) return; groveCell=key;
   const M=new THREE.Matrix4(), Q=new THREE.Quaternion(), S=new THREE.Vector3(), T=new THREE.Vector3(), E=new THREE.Euler(); let nb=0, nt=0;
   for(let a=-4;a<=4;a++) for(let b=-4;b<=4;b++){ const i=ci+a, j=cj+b;
