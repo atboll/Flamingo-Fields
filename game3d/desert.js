@@ -110,6 +110,19 @@ const frontFade=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMate
       gl_FragColor=vec4(1.0,1.0,250.0/255.0, W*uFade); }`}));
 for(const [m,o] of [[frontDark,1],[frontFade,2]]){ m.frustumCulled=false; m.renderOrder=o; washScene.add(m); }
 const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+/* the ray: by night, once the moon is up, a thin blade of light straight up out of the doorway, far taller than the box, as in the 2D game.
+   It is laid on the screen itself, so it stands straight up however the camera turns, climbs or tips. A beacon from far off,
+   it shortens and fades as the kids come near, and is gone some 60 m from the door. */
+const rayU={uC:{value:new THREE.Vector2()}, uLen:{value:0}, uW:{value:1}, uA:{value:0}, uSize:{value:new THREE.Vector2(1,1)}, uDpr:{value:1}};
+const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:rayU, transparent:true, depthTest:false, depthWrite:false, ...NOT_FRONT,
+  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+  fragmentShader:`uniform vec2 uC, uSize; uniform float uLen, uW, uA, uDpr;
+    float blade(vec2 p, float w0, float w1, float a0, float a25){ float t=(uC.y-p.y)/uLen; if(t<0.0||t>1.0) return 0.0;
+      float hw=mix(w0,w1,t), x=abs(p.x-uC.x), side=clamp(hw-x+0.5,0.0,1.0);          /* a soft pixel at each side */
+      float a = t<0.25 ? mix(a0,a25,t/0.25) : mix(a25,0.0,(t-0.25)/0.75); return a*side; }
+    void main(){ vec2 p=vec2(gl_FragCoord.x, uSize.y*uDpr-gl_FragCoord.y)/uDpr;
+      float core=blade(p,uW,uW*0.12,0.9,0.55), sheath=blade(p,uW*4.0,uW*0.6,0.22,0.22*0.75);
+      float a=1.0-(1.0-core)*(1.0-sheath); if(a<0.003) discard; gl_FragColor=vec4(1.0,1.0,250.0/255.0,a*uA); }`})); m.frustumCulled=false; rayScene.add(m); }
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
 function markFront(root){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK); }); }
@@ -129,7 +142,7 @@ function makeCoast(gx,gz){
     shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),lat,cs,100+i)); }
   makeShoreBirds();
 }
-function clearCoast(){ COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
+function clearCoast(){ rayU.uA.value=0; washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
 /* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet) */
 function goToBox(){
   if(!girl) return;
@@ -181,6 +194,10 @@ function updateDesert(dt,time){
   lightFan(0.3*A*edge*edge*(1+1.6*near)*2);   /* the 2D game's bands each lap half over the next, so twice its strength */
   /* the light taking the view */
   { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  { const top=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)).project(cam), W=innerWidth, H=innerHeight, q=H/650, dwPx=DW*pxPerM;
+    const fade=clamp((dist-60)/150,0,1), len=Math.max(140*q,dh*7.5)*(0.35+0.65*fade);
+    rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
+    rayU.uA.value=(top.z<1&&edge>0)? A*edge*clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*fade : 0; }
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
