@@ -26,7 +26,7 @@ window.IN_ROOM=false;
 doorPane.visible=false;   // the doorway is open now: what fills it is the room's own white
 
 /* ---------- the room, built in the box's own frame (its door face looks back down the road along -z) ---------- */
-const STENCIL_IN={stencilWrite:true, stencilRef:3, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, depthFunc:THREE.LessEqualDepth};
+const STENCIL_IN={stencilWrite:true, stencilRef:8, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, depthFunc:THREE.LessEqualDepth};
 /* seen from outside, the room is drawn only where the doorway shows (stencil 4), over whatever lies behind the box */
 const STENCIL_OUT={stencilWrite:true, stencilRef:4, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, depthFunc:THREE.AlwaysDepth};
 const white=new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.DoubleSide, fog:false, toneMapped:false, ...STENCIL_OUT});
@@ -83,6 +83,7 @@ function setCut(on){ R.localClippingEnabled=true;
 /* the night grade: inside, only over the world seen through the door; outside, over everything but the room seen through the doorway */
 function setGrade(mode){ const k={stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, stencilZPass:THREE.KeepStencilOp};
   Object.assign(gradeMat, mode==='in'?{stencilWrite:true, stencilRef:0, stencilFuncMask:0xff, stencilFunc:THREE.EqualStencilFunc, ...k}
+                        : mode==='inKidsOut'?{stencilWrite:true, stencilRef:0, stencilFuncMask:8, stencilFunc:THREE.EqualStencilFunc, ...k}   // camera still inside, kids already out in the night: grade them, not the room
                         : mode==='out'?{stencilWrite:true, stencilRef:4, stencilFuncMask:0xff, stencilFunc:THREE.NotEqualStencilFunc, ...k}
                         : mode==='outKids'?{stencilWrite:true, stencilRef:0, stencilFuncMask:6, stencilFunc:THREE.EqualStencilFunc, ...k}   // nor the kids standing in the room's light (stencil 2), seen from outside
                         : {stencilWrite:false, stencilFunc:THREE.AlwaysStencilFunc}); }
@@ -94,9 +95,9 @@ function setCamIn(on){
   for(const m of frontWall) m.visible=on; sill.visible=true;
   boxMesh.visible=!on; doorGlow.visible=!on; fan.visible=!on;
   for(const g of grassAll) g.visible=!on; seeds.visible=!on;
-  setCut(on); setGrade(on?'in':(kidsIn?'outKids':'out'));
+  setCut(on); setGrade(on?(kidsIn?'in':'inKidsOut'):(kidsIn?'outKids':'out'));
 }
-function show(on){ roomG.visible=on; if(!on){ roomSound(false); if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; entering=exiting=false; prevD=-1; } else if(!camIn) setGrade('out'); }
+function show(on){ roomG.visible=on; if(!on){ kidGlowU.uA.value=0; roomSound(false); if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; entering=exiting=false; prevD=-1; } else if(!camIn) setGrade('out'); }
 
 /* ---------- each frame, after the kids have moved ---------- */
 const _ud=updateDesert;
@@ -114,7 +115,7 @@ updateDesert=function(dt,time){
     let lx=clamp(l[0],-X+0.6,X-0.6), lz=Math.min(l[1],Z1-0.6); if(!atDoor) lz=Math.max(lz,Z0+0.6);
     if(lx!==l[0]||lz!==l[1]){ const w=toWorld(lx,lz); P.x=w[0]; P.z=w[1]; }
     if(P.y>H-6){ P.y=H-6; P.vy=Math.min(0,P.vy); } if(P.alt>H-6) P.alt=H-6; }
-  if(anyIn!==kidsIn && !camIn) setGrade(anyIn?'outKids':'out');
+  if(anyIn!==kidsIn) setGrade(camIn?(anyIn?'in':'inKidsOut'):(anyIn?'outKids':'out'));
   kidsIn=anyIn;
   roomSound(anyIn);
   /* the door's light, from where the girl is: almost white at the threshold, easing off a few metres either side of it */
@@ -128,6 +129,8 @@ updateDesert=function(dt,time){
     /* between the girl passing the doorway and the camera passing it after her, the light holds: one long white, not two */
     const across=entering && al && Math.abs(d)<12 && d>0&&dc<0, vHold=across?0.9:0;
     const vDoor=(d<0&&!exiting)?Math.min(washU.uM.value,0.9):0, v=exiting?0:Math.max(vPos,vCam,vDoor,vHold);
+    /* walking out, the kids carry the room's light on them for their first few steps, fading as they leave the door behind */
+    { const t=exiting?clamp(-d/6,0,1):1; kidGlowU.uA.value=exiting?0.6*(1-t*t*(3-2*t)):0; }
     washU.uM.value=v;
     const s0=clamp((v-0.4)/0.6,0,1); frontU.uK.value=Math.pow(v,0.8); frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   // the kids dark, then faint in it, never quite gone
   /* inside: the box's flamingos stay outside, and the kids have their soft shadows */
@@ -167,10 +170,17 @@ const _pm=placeMates; placeMates=function(dt){ _pm(dt); if(camIn&&FL.mateBirds) 
 /* drawing: inside, no evening light, flare or ray, and the white centred on the view */
 const _pds=placeDoorScreen;
 placeDoorScreen=function(){ _pds(); if(camIn||crossing){ const W=innerWidth, Hh=innerHeight; washU.uC.value.set(W/2,Hh*0.45); washU.uR.value=Math.max(W,Hh)*1.35; washU.uSize.value.set(W,Hh); washU.uDpr.value=R.getPixelRatio(); } };
+/* the light on the kids alone (stencil 6: only they write it), laid over the finished frame */
+const kidGlowU={uA:{value:0}}, kidGlowScene=new THREE.Scene();
+{ const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:kidGlowU, transparent:true, depthTest:false, depthWrite:false,
+    stencilWrite:true, stencilRef:6, stencilFuncMask:6, stencilFunc:THREE.EqualStencilFunc, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, stencilZPass:THREE.KeepStencilOp,
+    vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`, fragmentShader:`uniform float uA; void main(){ gl_FragColor=vec4(1.0,1.0,250.0/255.0,uA); }`}));
+  m.frustumCulled=false; kidGlowScene.add(m); }
 const _rf=renderFrame;
 renderFrame=function(){
   if(camIn){ lightCv.style.opacity='0'; flareCv.style.opacity='0'; rayU.uA.value=0; }
   _rf();
+  if(kidGlowU.uA.value>0.003){ R.autoClear=false; R.render(kidGlowScene,washCam); R.autoClear=true; }
 };
 /* Reset level and To the box start outside */
 const _rl=resetLevel; resetLevel=function(){ show(false); return _rl(); };

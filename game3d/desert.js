@@ -53,7 +53,7 @@ doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.2); doorLight.
    and the light is not laid over those places. As the kids come up to the door, facing it, the light grows until it takes the whole view. */
 function softTex(stops,w=128,h=128){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'), gr=g.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.min(w,h)/2);
   for(const [o,col] of stops) gr.addColorStop(o,col); g.fillStyle=gr; g.fillRect(0,0,w,h); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
-const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.NotEqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
+const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFuncMask:2, stencilFunc:THREE.NotEqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
 const bloomMat=map=>new THREE.SpriteMaterial({map, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT});
 /* the glow round the doorway follows its shape: brightest right at its edges, falling away over the face and the sand as a tall soft halo,
    never brighter than the doorway itself, so the door stays a crisp white rectangle with light pouring out of it */
@@ -98,7 +98,7 @@ const washScene=new THREE.Scene(); washScene.add(new THREE.Mesh(new THREE.PlaneG
 washScene.children[0].frustumCulled=false;
 /* and what stands in front, as in the 2D game: nearer the door they lose their colours and stand dark against the light,
    then, right up at it, fade into the white until they are only faint shapes. Two passes over just those places (stencil 2). */
-const ONLY_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
+const ONLY_FRONT={ stencilWrite:true, stencilRef:2, stencilFuncMask:2, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
 const frontU={uK:{value:0}, uFade:{value:0}};
 const frontDark=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:frontU, transparent:true, depthTest:false, depthWrite:false, ...ONLY_FRONT,
   vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
@@ -129,7 +129,8 @@ const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeomet
       float a=1.0-(1.0-core)*(1.0-sheath); if(a<0.003) discard; gl_FragColor=vec4(1.0,1.0,250.0/255.0,a*uA); }`})); m.frustumCulled=false; rayScene.add(m); }
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
-function markFront(root){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK); }); }
+/* the bit worth 2 means 'stands in front of the light'; the kids also set the bit worth 4 (so they write 6), so the white room can light just them */
+function markFront(root,ref){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK,ref?{stencilRef:ref}:{}); }); }
 let doorNear=0, doorIn=0;
 /* ---------- laying the journey's end ---------- */
 let coastA=0;
@@ -167,7 +168,7 @@ function mateToShore(m){ const c=boxC(), dx=m.x-c[0], dz=m.z-c[1], al=dx*SUNDX_G
   Object.assign(m,{shore:true, homeLat:th*BOX_RING+(h2(m.id,41)-0.5)*600, homeCs:SHORE-40-Math.pow(h2(m.id,43),2)*850, wait:0, feed:0, eats:false, n:0, pace:30, rest:0, rests:h2(m.id,13)<0.7});
   const p=shorePos(m.homeLat,m.homeCs); m.tx=p[0]; m.tz=p[1]; }
 function updateDesert(dt,time){
-  if(!marked && FL.ready && girl){ marked=true; markFront(girl.root); markFront(boy.root); markFront(FL.birds[0].o); }
+  if(!marked && FL.ready && girl){ marked=true; markFront(girl.root,6); markFront(boy.root,6); markFront(FL.birds[0].o); }
   /* the first flight along the road toward the moon lays the journey's end far ahead */
   if(!COAST.on && pathOn && girl.P.state==='fly'){ const P=girl.P, gx=-P.x/U, gz=P.z/U; makeCoast(gx+SUNDX_G*COAST_DIST, gz+SUNDZ_G*COAST_DIST); }
   if(!COAST.on) return;
