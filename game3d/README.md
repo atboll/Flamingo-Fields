@@ -55,7 +55,9 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] The silver box and its door (built in code: brushed silver, a tone per face; a frameless doorway full of white light that pours out over the face, into the air and across the sand; nobody passes through it; by the box the night waits)
 - [x] Flamingos round the box (26, wandering, feeding and resting, as the 2D game's shore birds)
 - [ ] Landing on top of the box
-- [ ] Your flock walks off to join the box's flamingos
+- [x] Your flock walks off to join the box's flamingos (when the kids come close to the door; the counter goes, the wings stay)
+- [x] The door's light as in the 2D game: bloom over the face, the fan on the sand, the kids and birds dark against it, the light taking the view at the door
+- [ ] Through the door to level 2
 
 ### Level 2
 

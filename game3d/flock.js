@@ -49,8 +49,8 @@ async function loadFlamingo(base){
     FL.birds.push({o,mixer}); });
   /* five more for your own flock: flying, walking or standing, crossfaded */
   for(let i=0;i<MATES_MAX;i++){ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o); const mixer=new THREE.AnimationMixer(o), A={};
-    for(const k of ['fly_A1','walk_A1','idle_A1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); if(k==='fly_A1') A[k].timeScale=FLAP; A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length)*FL.clips[k].duration; }
-    FL.mateBirds.push({o,mixer,A,w:{fly_A1:0,walk_A1:0,idle_A1:1}}); }
+    for(const k of ['fly_A1','walk_A1','idle_A1','foraging_A1','idle_B1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); if(k==='fly_A1') A[k].timeScale=FLAP; A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length)*FL.clips[k].duration; }
+    FL.mateBirds.push({o,mixer,A,w:{fly_A1:0,walk_A1:0,idle_A1:1,foraging_A1:0,idle_B1:0}}); }
   FL.ready=true;
 }
 
@@ -132,6 +132,9 @@ function updateMates(K,dt,time){
   const P=K.P, lead={x:-P.x/U, z:P.z/U, y:P.y/U}, headX=-Math.sin(P.h), headZ=Math.cos(P.h);
   const air=P.state==='fly'||(P.state==='land'&&lead.y>30);   // a hop does not lift them
   mates.forEach((m,i)=>{
+    if(m.shore){   // gone to the box: down out of the air, then one of the flamingos there
+      if(m.y>0){ m.y=Math.max(0,m.y-Math.max(34,m.y*0.55)*dt); m.open=m.y<28?Math.max(0,m.open-dt/0.8):1; } else m.open=Math.max(0,(m.open||0)-dt/0.8);
+      stepShore(m,dt); return; }
     const row=Math.floor(i/2), side=i%2?1:-1, wob=Math.sin(time*0.4+m.ph*3)*(air?25:18);
     const back=(air?112:85)+row*(air?84:52), lat=side*((air?105:58)+row*(air?77:26))+wob;
     const tx=lead.x-headX*back+headZ*lat, tz=lead.z-headZ*back-headX*lat;
@@ -156,8 +159,9 @@ function updateMates(K,dt,time){
 function placeMates(dt){
   if(!FL.ready) return;
   FL.mateBirds.forEach((b,i)=>{ const m=mates[i]; if(!m){ b.o.visible=false; return; }
-    const want=m.open>0.5||m.y>6?'fly_A1':m.sp>15?'walk_A1':'idle_A1', k=1-Math.exp(-dt*4);
-    for(const n in b.w){ b.w[n]+=((n===want?1:0)-b.w[n])*k; b.A[n].setEffectiveWeight(b.w[n]); }
+    const flying=m.open>0.5||m.y>6, k=1-Math.exp(-dt*4), W={fly_A1:0,walk_A1:0,idle_A1:0,foraging_A1:0,idle_B1:0};
+    if(flying) W.fly_A1=1; else if(m.sp>15) W.walk_A1=1; else if(m.shore){ W.foraging_A1=m.feed||0; W.idle_B1=(m.rest||0)*(1-W.foraging_A1); W.idle_A1=Math.max(0,1-W.foraging_A1-W.idle_B1); } else W.idle_A1=1;
+    for(const n in b.w){ b.w[n]+=(W[n]-b.w[n])*k; b.A[n].setEffectiveWeight(b.w[n]); }
     /* the model flies with its body low and its legs trailing below where its feet stand: while in the flying pose it is held up by half a metre,
        so it comes down onto its feet instead of into the ground, and settles as the pose turns to walking */
     const x=-m.x*U, z=m.z*U; b.o.visible=true; b.o.position.set(x,groundAt(x,z)+m.y*U+b.w.fly_A1*0.5,z);

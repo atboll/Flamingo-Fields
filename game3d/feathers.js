@@ -6,7 +6,7 @@
 
 const NEED=10, FLY_TIME=10, FC=220, FEATHER_TOP=640, CEILING=2400, got=new Set();
 let feathers=0, flightLeft=0, lastGot=-9;
-const freeFly=()=>mates.length>=MATES_MAX;
+const freeFly=()=>arrived||mates.length>=MATES_MAX;   // having brought the flock to the box, the kids keep their wings
 
 /* ---------- where the feathers lie: the game's own cells, patches and trails ---------- */
 function featherAt(ci,cj){
@@ -132,7 +132,7 @@ function flamingoIcon(ctx,u,body,leg,bill){   // the 2D game's small standing fl
 function drawHud(time){
   const dpr=Math.min(devicePixelRatio,2), W=innerWidth, H=innerHeight;
   if(hudCv.width!==Math.round(W*dpr)||hudCv.height!==Math.round(H*dpr)){ hudCv.width=Math.round(W*dpr); hudCv.height=Math.round(H*dpr); }
-  const ctx=hudG; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); if(!featherOn||!girl) return;
+  const ctx=hudG; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); if(!featherOn||!girl||arrived) return;   // at the box there is nothing left to count
   const q=clamp(Math.min(W/1100,H/560),0.62,1.15), gap=24*q, y=W<500?62:Math.max(22,28*q), x0=W/2-(NEED-1)*gap/2;   // tucked against the top edge, smaller on a phone
   const flying=girl.P.state==='fly', free=freeFly(), have=free?NEED:flying?Math.ceil(flightLeft/FLY_TIME*NEED):feathers, ready=!flying&&(feathers>=NEED||free), lit=ready||flying;
   const fh=24*q, fw=fh*featherOn.width/featherOn.height;

@@ -45,39 +45,49 @@ const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),silver); boxMesh.po
 const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's local -z face looks back down the road */
 const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
 doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.03); doorLight.add(doorPane);
-/* a soft halo round the doorway, and its light lying on the sand in front */
+/* The door's light, as the 2D game draws it. Its bloom is laid in screen terms round the doorway: a tight white core, a wide soft haze
+   that pales most of the box's face, and a low wide flare, none smaller than a beacon should be from far off, and thinner when the door is
+   seen edge-on. Its light lies on the sand in a long fan widening outward from the threshold, brightest down its middle, gone at its sides.
+   Anything standing in front of it (the kids, the flamingos) is left as a dark shape against it: they mark where they are drawn (stencil 2),
+   and the light is not laid over those places. As the kids come up to the door, facing it, the light grows until it takes the whole view. */
 function softTex(stops,w=128,h=128){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'), gr=g.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.min(w,h)/2);
   for(const [o,col] of stops) gr.addColorStop(o,col); g.fillStyle=gr; g.fillRect(0,0,w,h); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
-/* the glow pouring out: a bright white bloom over the face round the doorway, and a wider soft one, both fading with no edge */
-const doorHalo=new THREE.Mesh(new THREE.PlaneGeometry(DW*4,DH*1.9),new THREE.MeshBasicMaterial({map:softTex([[0,'rgba(255,255,255,.95)'],[0.28,'rgba(255,255,255,.6)'],[0.55,'rgba(255,255,255,.22)'],[0.8,'rgba(255,255,255,.06)'],[1,'rgba(255,255,255,0)']]),
-  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
-doorHalo.rotation.y=Math.PI; doorHalo.position.set(0,DH*0.48,front-0.08); doorLight.add(doorHalo);
-const doorBloom=new THREE.Mesh(new THREE.PlaneGeometry(DW*12,DH*3.4),new THREE.MeshBasicMaterial({map:softTex([[0,'rgba(255,255,255,.4)'],[0.3,'rgba(255,255,255,.16)'],[0.6,'rgba(255,255,255,.05)'],[1,'rgba(255,255,255,0)']]),
-  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
-doorBloom.rotation.y=Math.PI; doorBloom.position.set(0,DH*0.45,front-0.12); doorLight.add(doorBloom);
-/* light in the air in front of the doorway: two crossed sheets standing out from it, brightest at the threshold, fading as they reach out */
-const beamTex=(()=>{ const c=document.createElement('canvas'); c.width=128; c.height=64; const g=c.getContext('2d'), gr=g.createLinearGradient(0,0,128,0);
-  gr.addColorStop(0,'rgba(255,255,255,.55)'); gr.addColorStop(0.3,'rgba(255,255,255,.2)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,128,64);
-  g.globalCompositeOperation='destination-in'; const v=g.createLinearGradient(0,0,0,64); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(0.25,'rgba(0,0,0,1)'); v.addColorStop(1,'rgba(0,0,0,1)'); g.fillStyle=v; g.fillRect(0,0,128,64);
-  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
-const BEAM_L=9, beams=[];
-for(const [w,h,ry] of [[BEAM_L,DH,Math.PI/2],[BEAM_L,DW,Math.PI/2]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:beamTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, side:THREE.DoubleSide}));
-  beams.push(m); doorLight.add(m); }
-beams[0].rotation.y=Math.PI/2; beams[0].position.set(0,DH/2,front-BEAM_L/2);                                   /* standing upright, out from the door */
-beams[1].rotation.set(-Math.PI/2,0,Math.PI/2); beams[1].position.set(0,DH*0.35,front-BEAM_L/2);                 /* and lying flat across it, a little above the sand */
-/* seen from far off the doorway is only a few pixels: a soft white glow round it that never shrinks below about 70 pixels across keeps it steady */
-const doorStar=new THREE.Sprite(new THREE.SpriteMaterial({map:softTex([[0,'rgba(255,255,255,1)'],[0.12,'rgba(255,255,255,.8)'],[0.35,'rgba(255,255,255,.25)'],[0.7,'rgba(255,255,255,.06)'],[1,'rgba(255,255,255,0)']]),
-  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
-doorStar.position.set(0,DH*0.45,front-0.3); doorLight.add(doorStar);
-/* and real light from the doorway on the kids, the birds and the sand in front */
-const doorLamp=new THREE.PointLight(0xffffff,0,34,1.6); doorLamp.position.set(0,DH*0.5,front-2.5); boxGroup.add(doorLamp);
-const SPILL_L=32, SPILL_W=16;
-const spill=new THREE.Mesh(new THREE.PlaneGeometry(SPILL_W,SPILL_L,12,24),new THREE.MeshBasicMaterial({map:(()=>{ const c=document.createElement('canvas'); c.width=64; c.height=128; const g=c.getContext('2d');
-    const gr=g.createRadialGradient(32,128,0,32,128,128); gr.addColorStop(0,'rgba(255,255,255,.95)'); gr.addColorStop(0.15,'rgba(255,255,255,.55)'); gr.addColorStop(0.45,'rgba(255,255,255,.16)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,64,128);
-    g.globalCompositeOperation='destination-in'; const sx=g.createLinearGradient(0,0,64,0); sx.addColorStop(0,'rgba(0,0,0,0)'); sx.addColorStop(0.3,'rgba(0,0,0,1)'); sx.addColorStop(0.7,'rgba(0,0,0,1)'); sx.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=sx; g.fillRect(0,0,64,128);   /* no edge at its sides */
-    const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, polygonOffset:true, polygonOffsetFactor:-2}));
-spill.geometry.rotateX(-Math.PI/2); doorLight.add(spill);   /* draped over the sand each time the box is laid (dropSpill) */
-
+const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.NotEqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
+const bloomMat=map=>new THREE.SpriteMaterial({map, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT});
+const bloomCore=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.85)'],[0.45,'rgba(255,253,240,.42)'],[1,'rgba(255,253,240,0)']])));
+const bloomHaze=new THREE.Sprite(bloomMat(softTex([[0,'rgba(248,250,240,.26)'],[0.5,'rgba(244,248,238,.1)'],[1,'rgba(244,248,238,0)']])));
+const bloomFlare=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,250,.3)'],[1,'rgba(255,255,250,0)']])));
+for(const b of [bloomFlare,bloomHaze,bloomCore]){ b.position.set(0,DH*0.5,front-0.2); b.renderOrder=6; doorLight.add(b); }
+/* the fan of light on the sand: thin bands outward from the door, each brightest down its middle and gone at its sides, each fainter than the last */
+const FAN_N=44, FAN_W=17, fanGeo=new THREE.BufferGeometry(), fanPos=new Float32Array((FAN_N+1)*FAN_W*3), fanCol=new Float32Array((FAN_N+1)*FAN_W*3), fanIdx=[];
+for(let i=0;i<FAN_N;i++) for(let k=0;k<FAN_W-1;k++){ const a=i*FAN_W+k, b=a+FAN_W; fanIdx.push(a,b,a+1, a+1,b,b+1); }
+fanGeo.setAttribute('position',new THREE.BufferAttribute(fanPos,3)); fanGeo.setAttribute('color',new THREE.BufferAttribute(fanCol,3).setUsage(THREE.DynamicDrawUsage)); fanGeo.setIndex(fanIdx);
+const fan=new THREE.Mesh(fanGeo,new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, polygonOffset:true, polygonOffsetFactor:-2, toneMapped:false}));
+fan.frustumCulled=false; fan.renderOrder=5; doorLight.add(fan);
+const FAN_LEN=2300*U, FAN_U=[];   /* each vertex's place along (t) and across (s) the fan */
+for(let i=0;i<=FAN_N;i++) for(let k=0;k<FAN_W;k++) FAN_U.push([i/FAN_N,(k/(FAN_W-1))*2-1]);
+function dropFan(near){ /* lay the fan over the sand's own shape; it reaches 40% farther as the kids come near */
+  const m=new THREE.Matrix4().makeRotationY(-SUN_B), v=new THREE.Vector3(), len=FAN_LEN*(1+0.4*near);
+  FAN_U.forEach(([t,s0],n)=>{ const hw=(DOOR_W*0.9+900*Math.pow(t,0.8))*U, x=s0*hw, z=front-0.05-len*t; v.set(x,0,z).applyMatrix4(m).add(doorLight.position);
+    fanPos[n*3]=x; fanPos[n*3+1]=groundAt(v.x,v.z)-doorLight.position.y+0.06; fanPos[n*3+2]=z; });
+  fanGeo.attributes.position.needsUpdate=true; fan.userData.near=near; }
+function lightFan(A){ FAN_U.forEach(([t,s0],n)=>{ const f=Math.pow(0.5+0.5*Math.cos(Math.PI*Math.abs(s0)),1.6)*A*Math.pow(1-t,2.3); fanCol[n*3]=fanCol[n*3+1]=f; fanCol[n*3+2]=f*0.97; }); fanGeo.attributes.color.needsUpdate=true; }
+/* the light taking the view: a full-screen wash round the door, over everything but what stands in front */
+const washU={uC:{value:new THREE.Vector2()}, uR:{value:1}, uM:{value:0}, uSize:{value:new THREE.Vector2(1,1)}, uDpr:{value:1}};
+const washScene=new THREE.Scene(); washScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:washU, transparent:true, depthTest:false, depthWrite:false, ...NOT_FRONT,
+  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+  fragmentShader:`uniform vec2 uC, uSize; uniform float uR, uM, uDpr;
+    void main(){ vec2 p=vec2(gl_FragCoord.x, uSize.y*uDpr-gl_FragCoord.y)/uDpr; float t=length(p-uC)/uR;
+      float a = t<0.5 ? mix(min(1.0,0.9*uM),0.5*uM*uM,t/0.5) : mix(0.5*uM*uM,0.0,clamp((t-0.5)/0.5,0.0,1.0));
+      float fl=pow(clamp(uM/0.93,0.0,1.0),2.6);
+      vec3 c=vec3(1.0,1.0,250.0/255.0); float A=a+fl*(1.0-a);
+      gl_FragColor=vec4(c,A); }`})));
+washScene.children[0].frustumCulled=false;
+const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+/* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
+const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
+function markFront(root){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK); }); }
+let doorNear=0;
 /* ---------- laying the journey's end ---------- */
 let coastA=0;
 const shore=[];
@@ -86,20 +96,13 @@ function makeCoast(gx,gz){
   groundNear.userData.cx=groundFar.userData.cx=NaN;            /* the ground is laid again with its dunes */
   const c=boxC(), wx=-c[0]*U, wz=c[1]*U, base=groundAt(wx,wz)-30*U;
   for(const G of [boxGroup,doorLight]){ G.position.set(wx,base,wz); G.rotation.set(0,-SUN_B,0); G.visible=true; }
-  dropSpill();
+  dropFan(0);
   /* the flamingos already there, round the box */
   shore.length=0;
   for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*5600, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
     shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),lat,cs,100+i)); }
   makeShoreBirds();
 }
-function dropSpill(){ /* the door's light follows the sand's own shape in front of the door */
-  const P=spill.geometry.attributes.position, m=new THREE.Matrix4().makeRotationY(-SUN_B), v=new THREE.Vector3();
-  if(!spill.userData.base){ spill.userData.base=Float32Array.from(P.array); }
-  const B=spill.userData.base;
-  for(let i=0;i<P.count;i++){ const x=B[i*3], z=B[i*3+2]-SPILL_L/2+front+0.05; v.set(x,0,z).applyMatrix4(m).add(boxGroup.position);
-    P.setXYZ(i,x,groundAt(v.x,v.z)-boxGroup.position.y+0.06,z); }
-  P.needsUpdate=true; spill.geometry.computeBoundingSphere(); }
 function clearCoast(){ COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
 /* the B key, for testing: the box about 120 m ahead, the kids already out on the sand */
 addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); coastA=1;
@@ -107,7 +110,13 @@ addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; co
 
 /* ---------- each frame ---------- */
 const _dsp=new THREE.Vector3();
+let arrived=false, marked=false;
+/* one of your flock leaves you for the box: it comes down if it is flying, and from then on wanders, feeds and rests with the others */
+function mateToShore(m){ const c=boxC(), dx=m.x-c[0], dz=m.z-c[1], al=dx*SUNDX_G+dz*SUNDZ_G, l=dx*SUNDZ_G-dz*SUNDX_G, th=Math.atan2(l,-al);
+  Object.assign(m,{shore:true, homeLat:th*BOX_RING+(h2(m.id,41)-0.5)*600, homeCs:SHORE-40-Math.pow(h2(m.id,43),2)*850, wait:0, feed:0, eats:false, n:0, pace:30, rest:0, rests:h2(m.id,13)<0.7});
+  const p=shorePos(m.homeLat,m.homeCs); m.tx=p[0]; m.tz=p[1]; }
 function updateDesert(dt,time){
+  if(!marked && FL.ready && girl){ marked=true; markFront(girl.root); markFront(boy.root); markFront(FL.birds[0].o); }
   /* the first flight along the road toward the moon lays the journey's end far ahead */
   if(!COAST.on && pathOn && girl.P.state==='fly'){ const P=girl.P, gx=-P.x/U, gz=P.z/U; makeCoast(gx+SUNDX_G*COAST_DIST, gz+SUNDZ_G*COAST_DIST); }
   if(!COAST.on) return;
@@ -118,15 +127,29 @@ function updateDesert(dt,time){
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
-  /* the door: white, pulsing gently, brighter against the night */
-  const pulse=0.9+0.1*Math.sin(time*1.7);
-  doorPane.material.color.setScalar(pulse); doorHalo.material.opacity=coastA*(0.75+0.25*night)*pulse; doorBloom.material.opacity=coastA*(0.55+0.45*night)*pulse; for(const b of beams) b.material.opacity=coastA*(0.45+0.55*night)*pulse; doorLamp.intensity=coastA*(1.2+1.3*night)*pulse; spill.material.opacity=coastA*(0.55+0.45*night)*pulse;
+  /* the door: white, pulsing gently */
+  const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3));
+  doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3));
+  /* how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it (the 2D game's rule) */
+  { const P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7; let tg=0;
+    if(v<-BOX_HALF && P.y/U<DOOR_H*1.6){ cam.getWorldDirection(_dsp); const fx=-_dsp.x, fz=_dsp.z, fm=Math.hypot(fx,fz)||1, facing=clamp(((fx*SUNDX_G+fz*SUNDZ_G)/fm-0.15)/0.6,0,1);
+      tg=clamp(1-(Math.hypot(-v-BOX_HALF,lat)-95)/1700,0,1)*facing; }
+    doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0; }
+  const near=doorNear;
+  /* seen edge-on the light thins; from behind the box there is none */
+  const dw=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)), toCam=cam.position.clone().sub(dw), nrm=new THREE.Vector3(Math.sin(SUN_B),0,-Math.cos(SUN_B)), cv=toCam.dot(nrm), dist=toCam.length(), edge=cv>0?clamp(cv/dist*3,0.25,1):0;
+  const focal=0.5*innerHeight/Math.tan(cam.fov*Math.PI/360), pxPerM=focal/Math.max(1,dist), dh=DH*pxPerM;
+  const R1=Math.max(10,dh*0.95)*(1+1.2*near), R2=Math.max(34,dh*3.4)*(1+1.2*near), toM=1/pxPerM;
+  bloomCore.scale.set(R1*2*toM,R1*2*toM,1); bloomHaze.scale.set(R2*2*toM,R2*2*toM,1); bloomFlare.scale.set(R2*3*toM,R2*3*0.16*toM,1);
+  for(const b of [bloomCore,bloomHaze,bloomFlare]){ b.material.opacity=A*edge; b.visible=edge>0; }
+  if(Math.abs((fan.userData.near??-1)-near)>0.02) dropFan(near);
+  lightFan(0.3*A*edge*edge*(1+1.6*near)*2);   /* the 2D game's bands each lap half over the next, so twice its strength */
+  /* the light taking the view */
+  { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=near*A; washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  /* your flock, come this close, wanders off to join the flamingos of the box */
+  if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
-  { const w=doorStar.getWorldPosition(_dsp), dist=w.distanceTo(cam.position), focal=0.5*innerHeight/Math.tan(cam.fov*Math.PI/360), px=70;
-    const sz=Math.max(DH*1.6, dist*px/focal); doorStar.scale.set(sz,sz,1);
-    /* close to, the door's own bloom takes over; from far off this glow is what you see */
-    doorStar.material.opacity=coastA*pulse*(0.5+0.5*night)*clamp((dist-40)/60,0.25,1); }
   updateShore(dt); placeShore(dt);
 }
 
@@ -134,15 +157,14 @@ function updateDesert(dt,time){
 function shorePos(lat,cs){ const c=boxC(), th=lat/BOX_RING, r=BOX_HALF*1.42+220+clamp(SHORE+40-cs,0,1100), al=-Math.cos(th)*r, l=Math.sin(th)*r;
   return [c[0]+SUNDX_G*al+SUNDZ_G*l, c[1]+SUNDZ_G*al-SUNDX_G*l]; }
 function shoreBird(x,z,hx,hz,homeLat,homeCs,id){ return {x,z,hx,hz,id,sp:0,homeLat,homeCs,tx:x,tz:z,wait:h2(id,7)*7,feed:0,eats:h2(id,11)<0.5,n:0,pace:30,rest:0,rests:h2(id,13)<0.7}; }
-function updateShore(dt){
-  for(const b of shore){
+function updateShore(dt){ for(const b of shore) stepShore(b,dt); }
+function stepShore(b,dt){
     const dx=b.tx-b.x, dz=b.tz-b.z, d=Math.hypot(dx,dz);
     if(d>6 && b.rest>0.03){ b.rest=Math.max(0,b.rest-dt*1.5); b.sp=0; }   // the tucked leg comes down before it walks on
     else if(d>6){ const v=b.pace, e=Math.min(1,dt*4); b.x+=dx/d*v*dt; b.z+=dz/d*v*dt; b.hx+=(dx/d-b.hx)*e; b.hz+=(dz/d-b.hz)*e; { const m=Math.hypot(b.hx,b.hz)||1; b.hx/=m; b.hz/=m; }
       b.sp=v; b.feed=Math.max(0,b.feed-dt*1.6); }
     else { b.sp=0; b.pace=30; b.wait-=dt; b.feed=clamp(b.feed+(b.eats?dt:-dt)*0.9,0,1); b.rest=clamp(b.rest+((b.rests&&!b.eats&&b.feed<0.05)?dt:-dt)*0.7,0,1);
       if(b.wait<=0){ const n=++b.n, p=shorePos(b.homeLat+(h2(b.id,n*3+1)-0.5)*700, clamp(b.homeCs+(h2(b.id+9,n*5+2)-0.5)*420,SHORE-950,SHORE+32)); b.tx=p[0]; b.tz=p[1]; b.wait=4+h2(b.id+3,n)*9; b.eats=h2(b.id+5,n)<0.5; b.rests=h2(b.id+7,n)<0.7; } }
-  }
 }
 /* drawn with the FAB flamingo: walking when it moves, feeding with its head down, resting (preening on one spot), or standing */
 const SB=[];

@@ -138,5 +138,6 @@ function renderFrame(){
     if(!fbTex||fbTex.image.width!==_db.x||fbTex.image.height!==_db.y){ if(fbTex) fbTex.dispose(); fbTex=new THREE.FramebufferTexture(_db.x,_db.y,THREE.RGBAFormat); gradeU.tFrame.value=fbTex; }
     R.copyFramebufferToTexture(_zero,fbTex); R.render(gradeScene,gradeCam); }
   R.render(lightScene,cam);
+  if(typeof washU!=='undefined' && washU.uM.value>0.002) R.render(washScene,washCam);   /* the door's light taking the view (desert.js) */
   R.autoClear=true;
 }
