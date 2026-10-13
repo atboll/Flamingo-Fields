@@ -12,7 +12,7 @@
 (function(){
 const ROOM=100, FLOOR=30*U;   // the room's size in metres; its floor in the box's own frame (the box stands sunk 30 units in the sand)
 const H=ROOM, Z0=front, Z1=front+ROOM, X=ROOM/2, Y0=FLOOR, Y1=FLOOR+H, DX=DW/2;
-let camIn=false, kidsIn=false, crossing=false;
+let camIn=false, kidsIn=false, crossing=false, entering=false, exiting=false, prevD=-1;
 window.IN_ROOM=false;
 
 /* ---------- the box gets a real doorway: its front face is built again with the opening cut out ---------- */
@@ -61,13 +61,19 @@ function toLocal(x,z){ const r=rot(), dx=x-boxGroup.position.x, dz=z-boxGroup.po
 function toWorld(lx,lz){ const r=rot(); return [boxGroup.position.x+lx*Math.cos(r)+lz*Math.sin(r), boxGroup.position.z-lx*Math.sin(r)+lz*Math.cos(r)]; }
 const inRoom=(lx,lz)=>Math.abs(lx)<X && lz>Z0 && lz<Z1;
 const active=()=>COAST.on && !(typeof level2On==='function' && level2On());
-const floorY=()=>boxGroup.position.y+FLOOR;
+let doorG=0;   // the sand's height right at the doorway: the room's floor, and the box seated so its doorway sits on it
+const floorY=()=>doorG;
 /* a kid in the room, or stepping through the doorway, is not pushed off by the box (desert.js asks) */
 window.passBox=function(K){ if(!active()) return false; const l=toLocal(K.P.x,K.P.z);
   return inRoom(l[0],l[1]) || (Math.abs(l[0])<DX-0.25 && l[1]>Z0-2.5 && K.P.y<DH-1.2); };
 
 /* inside, the land under the room is its flat white floor */
-const _ground=groundAt; groundAt=function(x,z){ if(kidsIn||camIn){ const l=toLocal(x,z); if(Math.abs(l[0])<=X+0.5 && l[1]>=Z0-0.05 && l[1]<=Z1+0.5) return floorY(); } return _ground(x,z); };
+const _ground=groundAt; groundAt=function(x,z){ if(!roomG.visible) return _ground(x,z);
+  const l=toLocal(x,z), ax=Math.abs(l[0]);
+  if((kidsIn||camIn) && ax<=X+0.5 && l[1]>=Z0-0.05 && l[1]<=Z1+0.5) return doorG;
+  /* the last two metres of sand before the doorway ease to the floor's height, so there is never a step at the threshold */
+  if(ax<DX+2 && l[1]<Z0 && l[1]>Z0-2.5){ const g=_ground(x,z), t=clamp((l[1]-(Z0-2.5))/2.3,0,1)*clamp((DX+2-ax)/2,0,1), k=t*t*(3-2*t); return g+(doorG-g)*k; }
+  return _ground(x,z); };
 /* with the camera inside, the world outside is cut away at the door's wall, so none of it (the sand, the dunes) shows in the room */
 const cut=new THREE.Plane(), _n=new THREE.Vector3(), _p=new THREE.Vector3();
 function setCut(on){ R.localClippingEnabled=true;
@@ -90,7 +96,7 @@ function setCamIn(on){
   for(const g of grassAll) g.visible=!on; seeds.visible=!on;
   setCut(on); setGrade(on?'in':(kidsIn?'outKids':'out'));
 }
-function show(on){ roomG.visible=on; if(!on){ if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; } else if(!camIn) setGrade('out'); }
+function show(on){ roomG.visible=on; if(!on){ if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; entering=exiting=false; prevD=-1; } else if(!camIn) setGrade('out'); }
 
 /* ---------- each frame, after the kids have moved ---------- */
 const _ud=updateDesert;
@@ -98,7 +104,9 @@ updateDesert=function(dt,time){
   _ud(dt,time);
   if(!active()){ if(roomG.visible) show(false); return; }
   orderKids();
-  if(!roomG.visible){ roomG.position.copy(boxGroup.position); roomG.rotation.copy(boxGroup.rotation); show(true); }
+  if(!roomG.visible){ /* seat the box (and its light) so the doorway's foot is the sand at the threshold, then the room in it */
+    const w=toWorld(0,Z0-0.6); doorG=_ground(w[0],w[1]); boxGroup.position.y=doorLight.position.y=doorG-FLOOR; if(typeof dropFan==='function') dropFan(0);
+    roomG.position.copy(boxGroup.position); roomG.rotation.copy(boxGroup.rotation); show(true); }
   /* the kids: the room's walls hold them; the doorway is the way in and out */
   let anyIn=false;
   for(const K of [girl,boy]){ const P=K.P, l=toLocal(P.x,P.z); if(!inRoom(l[0],l[1])) continue; anyIn=true;
@@ -109,13 +117,16 @@ updateDesert=function(dt,time){
   if(anyIn!==kidsIn && !camIn) setGrade(anyIn?'outKids':'out');
   kidsIn=anyIn;
   /* the door's light, from where the girl is: almost white at the threshold, easing off a few metres either side of it */
-  { const P=girl.P, l=toLocal(P.x,P.z), d=l[1]-Z0, al=Math.abs(l[0])<DX+1 && P.y<DH, s=clamp(1-Math.abs(d)/5,0,1), vPos=al?0.9*s*s*(3-2*s):0;
+  { const P=girl.P, l=toLocal(P.x,P.z), d=l[1]-Z0, al=Math.abs(l[0])<DX+1 && P.y<DH;
+    /* which way they are going: the white is only for coming in; going out they simply walk back into the world */
+    if(prevD<=0&&d>0){ entering=true; exiting=false; } else if(prevD>0&&d<=0){ exiting=true; entering=false; } prevD=d;
+    const s=clamp(1-Math.abs(d)/5,0,1), vPos=(al&&(d<=0||entering))?0.9*s*s*(3-2*s):0;
     /* and from where the camera is: it stays near-white while the camera itself passes the doorway, a few steps behind the kids */
-    const lc=toLocal(cam.position.x,cam.position.z), dc=lc[1]-Z0, sc=clamp(1-Math.abs(dc)/3,0,1), vCam=Math.abs(lc[0])<DX+1?0.9*sc*sc*(3-2*sc):0;
-    crossing=Math.abs(dc)<3;
+    const lc=toLocal(cam.position.x,cam.position.z), dc=lc[1]-Z0, sc=clamp(1-Math.abs(dc)/3,0,1), vCam=(entering&&Math.abs(lc[0])<DX+1)?0.9*sc*sc*(3-2*sc):0;
+    crossing=entering&&Math.abs(dc)<3; if(entering&&dc>3) entering=false; if(exiting&&d<-6) exiting=false;
     /* between the girl passing the doorway and the camera passing it after her, the light holds: one long white, not two */
-    const across=al && Math.abs(d)<12 && ((d>0&&dc<0)||(d<0&&dc>0)), vHold=across?0.9:0;
-    const vDoor=d<0?Math.min(washU.uM.value,0.9):0, v=Math.max(vPos,vCam,vDoor,vHold);
+    const across=entering && al && Math.abs(d)<12 && d>0&&dc<0, vHold=across?0.9:0;
+    const vDoor=(d<0&&!exiting)?Math.min(washU.uM.value,0.9):0, v=exiting?0:Math.max(vPos,vCam,vDoor,vHold);
     washU.uM.value=v;
     const s0=clamp((v-0.4)/0.6,0,1); frontU.uK.value=Math.pow(v,0.8); frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   // the kids dark, then faint in it, never quite gone
   /* inside: the box's flamingos stay outside, and the kids have their soft shadows */

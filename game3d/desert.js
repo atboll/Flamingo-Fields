@@ -205,14 +205,31 @@ function updateDesert(dt,time){
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
-  updateShore(dt); placeShore(dt);
+  landWildFlock(time); updateShore(dt); placeShore(dt);
 }
 
 /* ---------- the flamingos round the box: the 2D game's shore birds ---------- */
 function shorePos(lat,cs){ const c=boxC(), th=lat/BOX_RING, r=BOX_HALF*1.42+220+clamp(SHORE+40-cs,0,1100), al=-Math.cos(th)*r, l=Math.sin(th)*r;
   return [c[0]+SUNDX_G*al+SUNDZ_G*l, c[1]+SUNDZ_G*al-SUNDX_G*l]; }
-function shoreBird(x,z,hx,hz,homeLat,homeCs,id){ return {x,z,hx,hz,id,sp:0,homeLat,homeCs,tx:x,tz:z,wait:h2(id,7)*7,feed:0,eats:h2(id,11)<0.5,n:0,pace:30,rest:0,rests:h2(id,13)<0.7}; }
-function updateShore(dt){ for(const b of shore) stepShore(b,dt); }
+function shoreBird(x,z,hx,hz,homeLat,homeCs,id,y,gv){ return {x,z,hx,hz,id,sp:0,homeLat,homeCs,tx:x,tz:z,wait:h2(id,7)*7,feed:0,eats:h2(id,11)<0.5,n:0,pace:30,rest:0,rests:h2(id,13)<0.7,y:y||0,open:(y||0)>6?1:0,gv:gv||0}; }
+/* a bird still in the air (a wild flock landing) glides on and down, its wings folding just before it touches, then it is one of them */
+function updateShore(dt){ for(const b of shore){
+  if(b.y>0||b.gv>1){ const e=1-Math.exp(-dt*0.7); b.gv-=b.gv*e; b.x+=b.hx*b.gv*dt; b.z+=b.hz*b.gv*dt; b.sp=b.gv;
+    b.y=Math.max(0,b.y-Math.max(30,b.y*0.5)*dt); b.open=b.y<28?Math.max(0,b.open-dt/0.8):1;
+    if(b.y===0&&b.gv<=1){ b.gv=0; const p=shorePos(b.homeLat,b.homeCs); b.tx=p[0]; b.tz=p[1]; b.pace=60; b.wait=2+h2(b.id,17)*3; } continue; }   // down: they walk on up to the box, to their own spot round it
+  stepShore(b,dt); } }
+const boxLat=(gx,gz)=>{ const c=boxC(), dx=gx-c[0], dz=gz-c[1], al=dx*SUNDX_G+dz*SUNDZ_G, l=dx*SUNDZ_G-dz*SUNDX_G; return Math.atan2(l,-al)*BOX_RING; };
+/* the 2D game's rule: a wild flock that comes in over the last stretch to the box lands there, and stays (up to SHORE_MAX birds) */
+const SHORE_MAX=40;
+function landWildFlock(time){
+  const f=flock; if(!f||!COAST.on||!FL.ready) return;
+  const al=(f.x-COAST.x)*SUNDX_G+(f.z-COAST.z)*SUNDZ_G; if(al<=SHORE-6500 || al>SHORE-BOX_HALF-900 || boxDist(f.x,f.z)>=4000) return;   // still out in front of the box, within about 60 m of it
+  const n=BIRDS.length-(f.gave?1:0);
+  for(let i=0;i<n && shore.length<SHORE_MAX;i++){ const o=BIRDS[i], ol=o[0]+Math.sin(time*0.23+BIRD_PH[i]*2)*13, of=o[1]+Math.sin(time*0.31+BIRD_PH[i]*5)*17;
+    const bx=f.x+ol*f.dz+of*f.dx, bz=f.z-ol*f.dx+of*f.dz, id=400+shore.length, y=Math.max(60,f.y-groundAt(-bx*U,bz*U)/U);
+    const b=shoreBird(bx,bz,f.dx,f.dz,boxLat(bx,bz)+(h2(id,3)-0.5)*500,SHORE-70-h2(id,5)*520,id,y,Math.max(420,f.sp)*(0.85+0.3*h2(id,9)));
+    shore.push(b); const sb=SB[shore.length-1]; if(sb) sb.w={idle_A1:0,idle_B1:0,walk_A1:0,foraging_A1:0,fly_A1:1}; }   // already in the flying pose, so nothing jumps
+  flock=null; nextFlock=time+50; }
 function stepShore(b,dt){
     const dx=b.tx-b.x, dz=b.tz-b.z, d=Math.hypot(dx,dz);
     if(d>6 && b.rest>0.03){ b.rest=Math.max(0,b.rest-dt*1.5); b.sp=0; }   // the tucked leg comes down before it walks on
@@ -226,19 +243,20 @@ const SB=[];
 function makeShoreBirds(){
   if(!FL.ready||SB.length) return;
   const proto=FL.birds[0].o;
-  for(let i=0;i<26;i++){ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o); const mixer=new THREE.AnimationMixer(o), A={};
-    for(const k of ['idle_A1','idle_B1','walk_A1','foraging_A1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length*3)*FL.clips[k].duration; }
-    SB.push({o,mixer,A,w:{idle_A1:1,idle_B1:0,walk_A1:0,foraging_A1:0},skip:0}); }
+  for(let i=0;i<SHORE_MAX;i++){ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o); const mixer=new THREE.AnimationMixer(o), A={};
+    for(const k of ['idle_A1','idle_B1','walk_A1','foraging_A1','fly_A1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length*3)*FL.clips[k].duration; }
+    A.fly_A1.timeScale=FLAP; SB.push({o,mixer,A,w:{idle_A1:1,idle_B1:0,walk_A1:0,foraging_A1:0,fly_A1:0},skip:0}); }
 }
 function placeShore(dt){
   if(!SB.length){ makeShoreBirds(); if(!SB.length) return; }
   const far=scene.fog.far*1.1;
   SB.forEach((b,i)=>{ const m=shore[i]; if(!m){ b.o.visible=false; return; }
-    const x=-m.x*U, z=m.z*U; b.o.position.set(x,groundAt(x,z),z); const vis=b.o.position.distanceTo(cam.position)<far; b.o.visible=vis; if(!vis) return;
+    const x=-m.x*U, z=m.z*U; b.o.position.set(x,groundAt(x,z)+(m.y||0)*U+b.w.fly_A1*0.5,z); const vis=b.o.position.distanceTo(cam.position)<far; b.o.visible=vis; if(!vis) return;   /* in the flying pose the model hangs low: held up half a metre, as your flock */
     b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),0);
-    const want={walk_A1:m.sp>0?1:0, foraging_A1:m.sp>0?0:m.feed, idle_B1:m.sp>0?0:m.rest*(1-m.feed), idle_A1:0}; want.idle_A1=Math.max(0,1-want.walk_A1-want.foraging_A1-want.idle_B1);
+    const fly=(m.open||0)>0.5||(m.y||0)>6;
+    const want=fly?{walk_A1:0,foraging_A1:0,idle_B1:0,idle_A1:0,fly_A1:1}:{walk_A1:m.sp>0?1:0, foraging_A1:m.sp>0?0:m.feed, idle_B1:m.sp>0?0:m.rest*(1-m.feed), idle_A1:0, fly_A1:0}; if(!fly) want.idle_A1=Math.max(0,1-want.walk_A1-want.foraging_A1-want.idle_B1);
     const k=1-Math.exp(-dt*3); for(const n in b.w){ b.w[n]+=(want[n]-b.w[n])*k; b.A[n].setEffectiveWeight(b.w[n]); }
-    b.A.walk_A1.timeScale=0.8;
+    b.A.walk_A1.timeScale=m.sp>40?clamp(m.sp*U/1.1,0.8,2.6):0.8;   // landing at a run, a longer stride
     /* far off, they move a little less often: every other frame beyond 60 m */
     const dist=b.o.position.distanceTo(cam.position); b.skip+=dt; if(dist<60||(b.skip>0.06)){ b.mixer.update(b.skip); b.skip=0; } });
 }
