@@ -232,13 +232,13 @@ function makeGround(size,seg,shadows){
           float cs=coastAlong(vWXZ);
           if(cs>0.0){ float sa = cs>${(0.78*SAND_RAMP).toFixed(1)} ? 1.0 : cs>${(0.48*SAND_RAMP).toFixed(1)} ? 0.8 : cs>${(0.22*SAND_RAMP).toFixed(1)} ? 0.55 : 0.3;
             vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sNear,sFar,smoothstep(8.0,120.0,d));
-            float t0=clamp(0.5+litAt(vWXZ,uSunXZ)*3.6,0.0,1.0), t=t0*t0*(3.0-2.0*t0);
+            float ck=mix(1.0,0.35,smoothstep(60.0,700.0,d)), t0=clamp(0.5+litAt(vWXZ,uSunXZ)*3.6*ck,0.0,1.0), t=t0*t0*(3.0-2.0*t0);
             vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r);
             diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); } }`); };
   const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
 const groundTime={value:0}, groundAir={value:0};   /* 0 on the ground, 1 well up in the air */
-const groundNear=makeGround(260,260,true), groundFar=makeGround(3200,200,false);
+const groundNear=makeGround(260,260,true), groundFar=makeGround(6400,320,false);
 /* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
    it is sunk well out of the way, on the graphics card, following the near piece as it moves */
 const uNearC={value:new THREE.Vector2()};
@@ -306,8 +306,7 @@ function makeGrass(count,L){
         float rr=aRnd.z, gust=gustAt(p,uTime);
         float t=position.y, h=aRnd.x*(1.0-0.18*gust)*(0.35+0.65*fade)*step(0.001,fade);
         { float cs=coastAlong(p); if(cs>0.0){ float gf=1.0-cs/${SAND_RAMP.toFixed(1)};   /* the desert, on the 2D game's rule */
-            if(gf<=0.0){ vec2 cell=floor(vec2(-p.x,p.y)/${(80*U).toFixed(4)}); float hh=fract(sin(dot(cell,vec2(12.9898,78.233)))*43758.5453);
-              h*= hh<0.075 ? 0.5+0.5*fract(hh*91.7) : 0.0; }
+            if(gf<=0.0) h=0.0;   /* out on the sand, no plants at all */
             else h*= fract(rr*13.37+aOff.z*7.1)>gf*gf ? 0.0 : 0.35+0.65*gf; } }
         /* turned to face you, like a stroke on paper */
         vec2 toCam=normalize(cameraPosition.xz-p+0.0001), side=vec2(toCam.y,-toCam.x);

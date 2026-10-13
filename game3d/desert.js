@@ -65,6 +65,10 @@ for(const [w,h,ry] of [[BEAM_L,DH,Math.PI/2],[BEAM_L,DW,Math.PI/2]]){ const m=ne
   beams.push(m); doorLight.add(m); }
 beams[0].rotation.y=Math.PI/2; beams[0].position.set(0,DH/2,front-BEAM_L/2);                                   /* standing upright, out from the door */
 beams[1].rotation.set(-Math.PI/2,0,Math.PI/2); beams[1].position.set(0,DH*0.35,front-BEAM_L/2);                 /* and lying flat across it, a little above the sand */
+/* seen from far off the doorway is only a few pixels: a soft white glow round it that never shrinks below about 70 pixels across keeps it steady */
+const doorStar=new THREE.Sprite(new THREE.SpriteMaterial({map:softTex([[0,'rgba(255,255,255,1)'],[0.12,'rgba(255,255,255,.8)'],[0.35,'rgba(255,255,255,.25)'],[0.7,'rgba(255,255,255,.06)'],[1,'rgba(255,255,255,0)']]),
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
+doorStar.position.set(0,DH*0.45,front-0.3); doorLight.add(doorStar);
 /* and real light from the doorway on the kids, the birds and the sand in front */
 const doorLamp=new THREE.PointLight(0xffffff,0,34,1.6); doorLamp.position.set(0,DH*0.5,front-2.5); boxGroup.add(doorLamp);
 const SPILL_L=32, SPILL_W=16;
@@ -102,6 +106,7 @@ addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; co
   P.h=-SUN_B; boy.P.h=-SUN_B; placeCam(girl,0,true); });
 
 /* ---------- each frame ---------- */
+const _dsp=new THREE.Vector3();
 function updateDesert(dt,time){
   /* the first flight along the road toward the moon lays the journey's end far ahead */
   if(!COAST.on && pathOn && girl.P.state==='fly'){ const P=girl.P, gx=-P.x/U, gz=P.z/U; makeCoast(gx+SUNDX_G*COAST_DIST, gz+SUNDZ_G*COAST_DIST); }
@@ -118,6 +123,10 @@ function updateDesert(dt,time){
   doorPane.material.color.setScalar(pulse); doorHalo.material.opacity=coastA*(0.75+0.25*night)*pulse; doorBloom.material.opacity=coastA*(0.55+0.45*night)*pulse; for(const b of beams) b.material.opacity=coastA*(0.45+0.55*night)*pulse; doorLamp.intensity=coastA*(1.2+1.3*night)*pulse; spill.material.opacity=coastA*(0.55+0.45*night)*pulse;
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
+  { const w=doorStar.getWorldPosition(_dsp), dist=w.distanceTo(cam.position), focal=0.5*innerHeight/Math.tan(cam.fov*Math.PI/360), px=70;
+    const sz=Math.max(DH*1.6, dist*px/focal); doorStar.scale.set(sz,sz,1);
+    /* close to, the door's own bloom takes over; from far off this glow is what you see */
+    doorStar.material.opacity=coastA*pulse*(0.5+0.5*night)*clamp((dist-40)/60,0.25,1); }
   updateShore(dt); placeShore(dt);
 }
 
