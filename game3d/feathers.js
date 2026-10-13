@@ -102,7 +102,7 @@ function flightRules(dt){
 /* with a wild flock and hands off the arrows, the kids settle into the gap behind its leader and keep its height */
 function flockAssist(In,air){
   if(!air||!flock||!flock.joined) return In;
-  const P=girl.P, gx=-P.x/U, gz=P.z/U, gh=groundAt(P.x,P.z)/U;
+  const P=girl.P, gx=-P.x/U, gz=P.z/U, gh=(P.gref??groundAt(P.x,P.z))/U;
   In.alt=clamp(flock.y-gh-25,120,720)*U;
   if(!keys.has('left')&&!keys.has('right')){ const vx=flock.dx*flock.sp+(flock.x-flock.dx*95-gx)*1.2, vz=flock.dz*flock.sp+(flock.z-flock.dz*95-gz)*1.2;
     In.heading=Math.atan2(-vx,vz); In.airSpeed=Math.hypot(vx,vz)*U; }

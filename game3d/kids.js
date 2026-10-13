@@ -99,8 +99,9 @@ function addWind(mat,W,key,face){
 /* the swing spring: driven by how the kid accelerates, seen from their own body (forward, sideways, up) */
 function swingStep(K,dt){
   if(dt<=0) return; const P=K.P, S=K.SW;
-  if(!S.init){ S.px=P.x; S.py=P.y; S.pz=P.z; S.init=true; }
-  const vx=(P.x-S.px)/dt, vy=(P.y-S.py)/dt, vz=(P.z-S.pz)/dt; S.px=P.x; S.py=P.y; S.pz=P.z;
+  const py=P.wy??P.y;   // world height, so the hair and clothes feel the real climb, not the ground passing underneath
+  if(!S.init){ S.px=P.x; S.py=py; S.pz=P.z; S.init=true; }
+  const vx=(P.x-S.px)/dt, vy=(py-S.py)/dt, vz=(P.z-S.pz)/dt; S.px=P.x; S.py=py; S.pz=P.z;
   const ax=(vx-S.ox)/dt, ay=(vy-S.oy)/dt, az=(vz-S.oz)/dt; S.ox=vx; S.oy=vy; S.oz=vz;
   const c=Math.cos(P.h), s=Math.sin(P.h), lim=v=>Math.max(-0.11,Math.min(0.11,v));
   const tx=lim(-(ax*c-az*s)*0.006), ty=lim(-ay*0.004), tz=lim(-(ax*s+az*c)*0.006);
@@ -435,15 +436,22 @@ function stepKid(K,dt,In){
     speed=P.stopEntry+(v-P.stopEntry)*Math.min(1,(t-P.stopFrom)/0.15); P.spd=speed; }   // from his running speed into the skid's own slide
   else if(P.state==='turn'){ const t=K.spA.time, d=K.spA.getClip().duration; speed=In.speed*Math.max(0,Math.min(1,(t-(d-0.6))/0.6)); P.spd=speed; }
   else speed=P.spd*(1-P.flyW)+(In.airSpeed??FLY_SPEED)*P.flyW;
+  const g0=groundAt(P.x,P.z);
   P.x+=Math.sin(P.h)*speed*dt; P.z+=Math.cos(P.h)*speed*dt;
+  /* in the air the height is kept over a gentler ground (the page's airGround: about 30% of the dunes), worked in world height so the
+     kid does not bob with every ridge; P.y stays the height over the real ground underneath, for everything else */
+  const g1=groundAt(P.x,P.z), gA=typeof airGround==='function'?airGround(P.x,P.z):g1;
+  P.gref=g1+(gA-g1)*P.flyW;
   if(P.state==='crouch'){ P.crouch-=dt; if(P.crouch<=0){ P.state='hop'; P.vy=HOP*Math.sqrt(K.scale); } }   // a smaller kid hops lower
   else if(P.state==='hop'){ P.vy-=G*dt; P.y+=P.vy*dt; if(P.y<=0){ P.y=0; P.vy=0; P.state='ground'; } }
   else if(P.state==='fly'){
     if(In.alt!=null) P.alt=In.alt;
     else { if(!In.climb) P.upLock=false;   // ↑ held from the run does not count; let go once, then ↑ climbs
       if(In.climb&&!P.upLock) P.alt=Math.min(ALT_MAX,P.alt+4*dt); if(In.sink) P.alt=Math.max(1.2,P.alt-4*dt); }
-    const want=(P.alt-P.y)*2.2; P.vy+=(want-P.vy)*ease(3); P.y+=P.vy*dt; }
-  else if(P.state==='land'){ P.vy+=(-Math.max(2.6,P.y*0.55)-P.vy)*ease(3); P.y+=P.vy*dt;
+    const la=speed*0.6, gAh=Math.max(g1,groundAt(P.x+Math.sin(P.h)*la,P.z+Math.cos(P.h)*la));   // looking a little ahead, so a crest is risen over in time
+    const wy=g0+P.y, tg=Math.max(P.gref+P.alt, gAh+Math.min(P.alt,1.6));   // never closer than 1.6 m over a crest
+    const want=(tg-wy)*2.2; P.vy+=(want-P.vy)*ease(3); P.y=Math.max(0.4,wy+P.vy*dt-g1); }
+  else if(P.state==='land'){ const wy=g0+P.y; P.vy+=(-Math.max(2.6,P.y*0.55)-P.vy)*ease(3); P.y=wy+P.vy*dt-g1;
     A.land.paused=true; A.land.time=c.landFrom;                          // legs reaching down
     if(P.y<=0.05){ P.y=0; P.vy=0;
       if(A.roll && Math.random()<rollChance){ P.state='roll'; setSp(K,A.roll); P.spd=K.RUN_SPEED; }   // sometimes he trips and rolls
@@ -453,6 +461,7 @@ function stepKid(K,dt,In){
   else if(P.state==='roll'){ if(A.roll.time>=c.rollEnd){ P.state='ground'; P.spd=Math.max(P.spd,K.RUN_SPEED*0.6); } }
   else if(P.state==='stop'){ const t=A.stop.time, d=A.stop.getClip().duration; if(t>=d-0.05){ P.state='ground'; P.spd=0; P.standT=0; P.backReq=false; } else if(In.speed>0.5&&t>0.35&&!P.backReq){ P.state='ground'; } }
   else if(P.state==='turn'){ if(K.spA.time>=K.spA.getClip().duration-0.05){ P.state='ground'; } }
+  P.wy=g1+P.y; P.ya=Math.max(0,P.wy-P.gref);   // world height, and height over the flying ground (the camera and the flock use it)
   const r=Math.min(1,P.spd/K.RUN_SPEED);
   P.bank+=((air?-P.turn*0.35:-P.turn*0.06*r)-P.bank)*ease(5);
   /* flying, they tilt a little with the climb: chest up rising, head dipping sinking, at most about 12 degrees, and upright again for the landing */

@@ -98,6 +98,11 @@ function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1,
       f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0), d1=al*0.0012+Math.sin(lat*0.0008)*1.6, d2=lat*0.0009+al*0.0004+1.7;
       g=g*(1-0.65*r)+A*(210*Math.sin(d1)+70*Math.sin(d2)); } }
   return g*U; }
+/* flying, heights are measured from a gentler ground: 30% of the real hills and dunes, 70% their average over a disc about 46 m across
+   (wide enough to cancel the dune ridges). The kids, the camera and your flock all use it in the air; on foot it is the real ground. */
+const AIR_REAL=0.3, AIR_R=46, AIR_PTS=[];
+for(const [r,n] of [[0.4597,6],[0.8881,10]]) for(let i=0;i<n;i++){ const t=(i+(n>6?0.5:0))/n*6.2832; AIR_PTS.push([Math.cos(t)*r*AIR_R,Math.sin(t)*r*AIR_R,0.5/n]); }
+function airGround(x,z){ let s=0; for(const p of AIR_PTS) s+=groundAt(x+p[0],z+p[1])*p[2]; return AIR_REAL*groundAt(x,z)+(1-AIR_REAL)*s; }
 const GROUND_GLSL=`
 uniform vec4 uCoast;   /* xy: the coast point in game units; z: 1 once it is laid */
 const vec2 SUNDG=vec2(${Math.sin(SUN_B).toFixed(8)},${Math.cos(SUN_B).toFixed(8)});
@@ -494,17 +499,20 @@ function placeCam(K,dt,snap){
   if(!snap&&moving){ let d=P.h-camYaw; d=Math.atan2(Math.sin(d),Math.cos(d)); camYaw+=d*(1-Math.exp(-dt*1.5)); }
   const ce=snap?1:1-Math.exp(-dt*3.2);
   focX+=(P.x+velX*0.12-focX)*ce; focZ+=(P.z+velZ*0.12-focZ)*ce;
-  const air=P.state==='fly'||P.state==='land', hy=Math.max(0,P.y);
+  /* in the air the camera rides the same gentler ground as the kids, and keeps their real height above it (so it stays with them, not the dunes) */
+  const air=P.state==='fly'||P.state==='land', g0F=groundAt(focX,focZ), gF=P.flyW>0.001?g0F+(airGround(focX,focZ)-g0F)*P.flyW:g0F;
+  const hy=P.wy!=null&&P.flyW>0.001?Math.max(0,P.y+(groundAt(P.x,P.z)-gF)*P.flyW):Math.max(0,P.y);
   lift+=(clamp(hy/(240*U),0,2.7)-lift)*(snap?1:1-Math.exp(-dt*2.5));
   const back=CAM_BACK+Math.min(lift,1.4)*170*U+(air?1:0)*P.flyW*110*U;
   const fx=Math.sin(camYaw), fz=Math.cos(camYaw), px=focX-fx*back, pz=focZ-fz*back;
-  const gt=Math.max(groundAt(focX,focZ),groundAt(px,pz)-15*U)+CAM_H+(hy-Math.min(hy*0.15,95*U))*Math.min(1,lift*1.6);
+  /* the ground behind the camera is only a floor (it never pushes the camera up over a dune it is already well above) */
+  const gt=Math.max(gF+CAM_H+(hy-Math.min(hy*0.15,95*U))*Math.min(1,lift*1.6), groundAt(px,pz)-15*U+CAM_H);
   camY+=(gt-camY)*(snap?1:1-Math.exp(-dt*4));
   cam.position.set(px,camY,pz);
   const pitch=-Math.atan(0.1*Math.min(lift,1.7)/0.9);                   // in the air the horizon rises, so the view tips down a little
   cam.lookAt(px+fx*Math.cos(pitch),camY+Math.sin(pitch),pz+fz*Math.cos(pitch));
   /* the sky, clouds and ranges stay at the horizon; the sun's shadow box follows the kids */
-  { const hk=Math.pow(Math.max(1,(camY-groundAt(focX,focZ))/CAM_H),0.75); scene.fog.near=FOG_NEAR*hk; scene.fog.far=FOG_FAR*hk; }
+  { const hk=Math.pow(Math.max(1,(camY-gF)/CAM_H),0.75); scene.fog.near=FOG_NEAR*hk; scene.fog.far=FOG_FAR*hk; }
   sky.position.copy(cam.position); clouds.position.set(cam.position.x,cam.position.y-30,cam.position.z); ranges.position.set(cam.position.x,cam.position.y-CAM_H,cam.position.z);
   sun.target.position.set(P.x,groundAt(P.x,P.z),P.z); sun.position.copy(sun.target.position).addScaledVector(LIGHTDIR,40);
 }

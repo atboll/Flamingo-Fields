@@ -147,7 +147,7 @@ function updateMates(K,dt,time){
     { const ang=Math.atan2(m.hx,m.hz); let da=ang-(m.ang===undefined?ang:m.ang); da=Math.atan2(Math.sin(da),Math.cos(da)); m.ang=ang;   // how fast it is turning, for the bank
       m.turn=(m.turn||0)+(clamp(da/Math.max(dt,0.004),-3,3)-(m.turn||0))*(1-Math.exp(-dt*3)); }
     // in the air with the kids, down in the grass otherwise; a bird left far behind flies to catch up
-    const tgt=(air||d>900)?Math.max(40,(air?lead.y:120)+12+row*10):0;
+    const tgt=(air||d>900)?Math.max(40,(air?(P.ya??P.y)/U:120)+12+row*10):0;   // the kids' height over the gentler flying ground
     const wasUp=m.y>1.5; m.rising=tgt>0;
     m.open=clamp((m.open||0)+(tgt>0?dt/0.55:(m.y<25?-dt/0.6:0)),0,1);   /* wings start folding just before touchdown (the 2D game waited until it was down) */
     if(tgt>0 && m.y<1.5 && m.open<0.85){ m.y=0; m.vy=0; }                       // still on its run-up: no lift until the wings are nearly spread
@@ -164,7 +164,9 @@ function placeMates(dt){
     for(const n in b.w){ b.w[n]+=(W[n]-b.w[n])*k; b.A[n].setEffectiveWeight(b.w[n]); }
     /* the model flies with its body low and its legs trailing below where its feet stand: while in the flying pose it is held up by half a metre,
        so it comes down onto its feet instead of into the ground, and settles as the pose turns to walking */
-    const x=-m.x*U, z=m.z*U; b.o.visible=true; b.o.position.set(x,groundAt(x,z)+m.y*U+b.w.fly_A1*0.5,z);
+    /* in the air they ride the kids' gentler flying ground (about 30% of the dunes), easing back to the real ground as they come down */
+    const x=-m.x*U, z=m.z*U, g=groundAt(x,z), wa=typeof airGround==='function'?clamp(m.y/60,0,1):0, base=wa>0?g+(airGround(x,z)-g)*wa:g;
+    b.o.visible=true; b.o.position.set(x,Math.max(base+m.y*U,g+Math.min(m.y*U,1.2))+b.w.fly_A1*0.5,z);
     /* banking into its turns, as in the 2D game: up to about 25 degrees, and only with its wings open */
     b.o.rotation.order='YXZ'; b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),clamp((m.turn||0)*0.36,-0.44,0.44)*m.open);
     b.A.walk_A1.timeScale=clamp(m.sp*U/1.1,0.6,2.6);   /* a stride to suit its speed */
