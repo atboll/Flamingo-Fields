@@ -227,9 +227,9 @@ function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
   const mat=new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES});
-  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uCoast=uCoast; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uRoll=groundRoll; sh.uniforms.uRollW=groundRollW; sh.uniforms.uCoast=uCoast; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; uniform vec2 uRoll; uniform float uRollW; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
       .replace('#include <map_fragment>',`{ /* the ground's own paint: the same five golds by the same rule as the strokes, but in soft painted patches, not cells.
              From the air the far ground loses its hill shading (the 2D game does the same), keeps out of the darkest brown,
              and blends its patches softly where they would be smaller than a few pixels, so it never shimmers. */
@@ -249,7 +249,7 @@ function makeGround(size,seg,shadows){
                of the dune slopes carried all the way out, a little softer far off, so the ridges read as rows of waves to the mist */
             float v=clamp((cameraPosition.y-groundAt(vWXZ))/max(d,1.0)*1.64,0.0,1.0);
             vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sFar,sNear,v);
-            float L=litAt(vWXZ,uSunXZ), ck=mix(1.0,0.55,smoothstep(80.0,900.0,d)), sw=clamp(fwidth(L)*3.6*ck*1.5,0.0,0.5);
+            float rw=uRollW*smoothstep(8.0,40.0,d), L=mix(litAt(vWXZ,uSunXZ),litAt(vWXZ+uRoll,uSunXZ),rw), ck=mix(1.0,0.55,smoothstep(80.0,900.0,d)), sw=clamp(fwidth(L)*3.6*ck*1.5,0.0,0.5);
             float t0=clamp(0.5+L*3.6*ck,0.0,1.0), t=mix(t0*t0*(3.0-2.0*t0),t0,sw*2.0);   /* where a slope is only a pixel or two, it blends instead of flickering */
             vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r*(1.0-smoothstep(40.0,160.0,d)));
             diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); sandA=sa; sandLin=pow(sand,vec3(2.2)); } }`)
@@ -268,7 +268,16 @@ function makeGround(size,seg,shadows){
     sh.fragmentShader=sh.fragmentShader.replace('void main() {','float sandA=0.0; vec3 sandLin=vec3(0.0);\nvoid main() {'); };
   const m=new THREE.Mesh(g,mat);
   m.receiveShadow=shadows; m.userData={size,seg,cx:NaN,cz:NaN}; scene.add(m); return m; }
-const groundTime={value:0}, groundAir={value:0};   /* 0 on the ground, 1 well up in the air */
+const groundTime={value:0}, groundAir={value:0};
+/* flying, the dunes roll: their light and shade drift toward you a little faster than the sand itself passes, the way the 2D game's
+   painted strips made them swell and roll. Only in the air, only past a few metres out, and it fades away as the kids come down.
+   ROLL_K: how much faster than the sand the light rolls (0 = still, 0.5 = half again). */
+let ROLL_K=0.5;
+const groundRoll={value:new THREE.Vector2()}, groundRollW={value:0};
+function rollDunes(dt){ const P=girl.P, fly=P.state==='fly'?P.flyW:0;
+  groundRollW.value+=(fly-groundRollW.value)*(1-Math.exp(-dt*(fly>groundRollW.value?1.2:2.5)));
+  if(fly>0.01){ const v=FLY_SPEED*ROLL_K*fly*dt; groundRoll.value.x+=Math.sin(P.h)*v; groundRoll.value.y+=Math.cos(P.h)*v; }
+  else if(groundRollW.value<0.01) groundRoll.value.set(0,0); }   /* 0 on the ground, 1 well up in the air */
 const groundNear=makeGround(260,260,true), groundFar=makeGround(6400,320,false);
 /* the far piece is coarse, so in the valleys its flat cells would stand above the true ground; wherever the near piece lies over it,
    it is sunk well out of the way, on the graphics card, following the near piece as it moves */
@@ -702,7 +711,7 @@ function frame(now){
     updateFlock(girl,dt,clock); placeFlock(dt,clock); updateMates(girl,dt,clock); placeMates(dt);
     updatePath(girl,dt,clock); pickFeathers(clock); flightRules(dt); placeRoad(girl,clock); placeFeathers(girl,clock);
     followGround(girl.P.x,girl.P.z); buildGroves(girl.P.x,girl.P.z); moveSeeds(dt,clock); moveClouds(clock);
-    groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
+    rollDunes(dt); groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
   nightFrame(clock); renderFrame(); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
