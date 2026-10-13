@@ -120,8 +120,7 @@ window.enterLevel2=enterLevel2; window.leaveLevel2=leaveLevel2;
 const _ud=updateDesert;
 updateDesert=function(dt,time){
   if(LEVEL!==2){ _ud(dt,time);
-    /* level 1: stood in the doorway, in the white, for half a second, and through */
-    if(COAST.on && doorIn>0.97 && doorNear>0.9){ inT+=dt; if(inT>0.5) enterLevel2(); } else inT=0;
+    /* (the door now leads into the white room, room.js; level 2 waits for its puzzle) */
     return; }
   coastA=1;
   if(!sign2 && clock-enteredAt>=10){ sign2=true; showLevelSign('LEVEL 2'); }
