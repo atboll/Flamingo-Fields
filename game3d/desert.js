@@ -104,6 +104,14 @@ function makeCoast(gx,gz){
   makeShoreBirds();
 }
 function clearCoast(){ COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
+/* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet) */
+function goToBox(){
+  if(!girl) return;
+  if(!COAST.on){ const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); }
+  coastA=1; const c=boxC(), d=BOX_HALF+3100, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
+  [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, spd:0, state:'ground'}));
+  events.length=0; placeCam(girl,0,true);
+}
 /* the B key, for testing: the box about 120 m ahead, the kids already out on the sand */
 addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); coastA=1;
   P.h=-SUN_B; boy.P.h=-SUN_B; placeCam(girl,0,true); });
