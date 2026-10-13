@@ -582,7 +582,7 @@ function frame(now){
     groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  R.render(scene,cam); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
+  nightFrame(clock); renderFrame(); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
@@ -602,6 +602,7 @@ followGround(0,0); buildGroves(0,0);
   requestAnimationFrame(frame);
 })();
 </script>
+<script src="night.js"></script>
 <script src="feathers.js"></script>   <!-- after the page: it uses the page's scene, units and kids -->
 </body>
 </html>

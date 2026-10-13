@@ -67,6 +67,9 @@ function updateFlock(K,dt,time){
   const lead=flockLead(K);
   if(!flock){ if(time>=nextFlock){ spawnFlock(lead,time); nextFlock=time+FLOCK_EVERY; } return; }
   const f=flock; f.t+=dt;
+  if(night>0.5){   // when night comes, a flock already in the air swings round toward the moon
+    let a=Math.atan2(f.dx,f.dz), d=SUN_B-a; d=Math.atan2(Math.sin(d),Math.cos(d));
+    if(Math.abs(d)>0.001){ a+=clamp(d,-0.16*dt,0.16*dt); f.dx=Math.sin(a); f.dz=Math.cos(a); } }
   const dK=Math.hypot(lead.x-f.x,lead.z-f.z);
   if(f.s<-FLOCK_NEAR){
     // coming in, fast while far off and easing down to cruising speed; while still a speck it keeps its place relative to the kids

@@ -30,11 +30,11 @@ const RAYS_TEX=(()=>{ const c=document.createElement('canvas'); c.width=c.height
 let FEATHER_TEX=null, featherImg=null;
 const FEATHER_LEN=24*U, FEATHER_W=FEATHER_LEN*160/512;   /* a little over a third of a metre: a real flight feather */
 const POOL=[], POOL_N=140;
-function spriteOf(tex,order){ const m=new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false, fog:false}); const s=new THREE.Sprite(m); s.renderOrder=order; s.visible=false; scene.add(s); return s; }
+function spriteOf(tex,order,glows){ const m=new THREE.SpriteMaterial({map:tex, transparent:true, depthWrite:false, fog:false}); const s=new THREE.Sprite(m); s.renderOrder=order; s.visible=false; (glows?lightScene:scene).add(s); return s; }   /* the glows are drawn after the night grade: they give light */
 function loadFeathers(base){
   return new Promise((res,rej)=>{ new THREE.TextureLoader().load(base+'feather.png',t=>{ t.encoding=THREE.sRGBEncoding; t.anisotropy=4; FEATHER_TEX=t; featherImg=t.image;
-    for(let i=0;i<POOL_N;i++){ const glow=spriteOf(GLOW_TEX,2), card=spriteOf(FEATHER_TEX,3); card.material.alphaTest=0.05; POOL.push({glow,card}); }
-    POOL.halo=spriteOf(HALO_TEX,1); POOL.rays=spriteOf(RAYS_TEX,1);
+    for(let i=0;i<POOL_N;i++){ const glow=spriteOf(GLOW_TEX,2), card=spriteOf(FEATHER_TEX,3), nglow=spriteOf(GLOW_TEX,4,true); card.material.alphaTest=0.05; POOL.push({glow,card,nglow}); }
+    POOL.halo=spriteOf(HALO_TEX,4,true); POOL.rays=spriteOf(RAYS_TEX,4,true);
     makeHudArt(); res(); },undefined,rej); }); }
 
 /* each frame: the feathers within sight, floating just above the grass tips, bobbing and turning, never smaller than a few pixels */
@@ -56,9 +56,11 @@ function placeFeathers(K,time){
     P.card.visible=P.glow.visible=true; P.card.position.set(x,y,z); P.glow.position.set(x,y,z);
     P.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); P.card.material.rotation=-(0.6+Math.sin(time*1.6+f.ph*9)*0.5); P.card.material.opacity=fade;
     const gr=FEATHER_LEN*sz*(2.8/2.2)*2; P.glow.scale.set(gr,gr,1); P.glow.material.opacity=0.65*tw*fade;
+    /* by night each gives off its own light, drawn over the night grade, as in the 2D game */
+    P.nglow.visible=night>0.05; if(P.nglow.visible){ P.nglow.position.set(x,y,z); const nr=gr*(big?3.2:2.6)/2.8; P.nglow.scale.set(nr,nr,1); P.nglow.material.opacity=0.85*night*fade; P.nglow.material.color.setRGB(1,0.75,0.84); }
     if(big&&!bigShown){ bigShown=true; const R=FEATHER_LEN*sz*(5/2.2)*2; POOL.halo.visible=POOL.rays.visible=true; POOL.halo.position.set(x,y,z); POOL.rays.position.set(x,y,z);
       POOL.halo.scale.set(R,R,1); POOL.halo.material.opacity=0.55*tw*fade; const rr=FEATHER_LEN*sz*(2.6/2.2)*2.2; POOL.rays.scale.set(rr,rr,1); POOL.rays.material.rotation=-time*0.5; POOL.rays.material.opacity=0.5*tw*fade; } }
-  for(let i=n;i<POOL_N;i++){ POOL[i].card.visible=POOL[i].glow.visible=false; }
+  for(let i=n;i<POOL_N;i++){ POOL[i].card.visible=POOL[i].glow.visible=POOL[i].nglow.visible=false; }
   if(!bigShown) POOL.halo.visible=POOL.rays.visible=false;
 }
 const _w=new THREE.Vector3();

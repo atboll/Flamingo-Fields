@@ -13,6 +13,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - `index.html`: the world (hills, grass, sky, clouds, ranges), the camera, the controls and the loop.
 - `flock.js`: the wild flamingo flocks: the 2D game's own rules (in its units), drawn with the FAB American flamingo.
 - `feathers.js`: feathers in the grass, the counter at the top, and flight earned with feathers.
+- `night.js`: the day and night clock, the night grade, the moon and the stars.
 - `kids.js`: the two kids, lifted from `mockups/kids-test-field.html`. It holds their models, animations, wind in hair and skirt, painted faces, recolouring, the default look ("Look 1"), and all their movement rules.
 - `assets/`: the kids' FBX models, textures and animation clips. Where `.fbx` files can't be served, the loader also accepts each model as base64 text (`girl.fbx.b64.txt`).
 
@@ -42,9 +43,9 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Fly with a flock for 8 s and a bird joins (it flies with the kids, and walks or stands on the ground)
 - [x] A full flock of five gives free, high, fast flight (about 1.9 times feather speed, as in the 2D game)
 - [x] The flamingo icons
-- [ ] Golden evening until the 4th flamingo, then the 8-minute day and night
-- [ ] Moon and stars
-- [ ] The night grade
+- [x] Golden evening until the 4th flamingo, then the 8-minute day and night (`night.js`; the N key skips to the next part of the day, for testing)
+- [x] Moon and stars (the moon rises between the peaks, clouds pass over it)
+- [x] The night grade (violet dusk, moonlit blue, the moon's glow and its pool of light on the field; the feathers glow)
 - [ ] The feather road to the moon, which parts the mountains and shows the sea
 - [ ] The desert dunes
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
