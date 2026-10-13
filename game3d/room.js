@@ -96,7 +96,7 @@ function setCamIn(on){
   for(const g of grassAll) g.visible=!on; seeds.visible=!on;
   setCut(on); setGrade(on?'in':(kidsIn?'outKids':'out'));
 }
-function show(on){ roomG.visible=on; if(!on){ if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; entering=exiting=false; prevD=-1; } else if(!camIn) setGrade('out'); }
+function show(on){ roomG.visible=on; if(!on){ roomSound(false); if(camIn) setCamIn(false); setGrade(null); for(const s of shadows) s.visible=false; kidsIn=false; crossing=false; entering=exiting=false; prevD=-1; } else if(!camIn) setGrade('out'); }
 
 /* ---------- each frame, after the kids have moved ---------- */
 const _ud=updateDesert;
@@ -116,6 +116,7 @@ updateDesert=function(dt,time){
     if(P.y>H-6){ P.y=H-6; P.vy=Math.min(0,P.vy); } if(P.alt>H-6) P.alt=H-6; }
   if(anyIn!==kidsIn && !camIn) setGrade(anyIn?'outKids':'out');
   kidsIn=anyIn;
+  roomSound(anyIn);
   /* the door's light, from where the girl is: almost white at the threshold, easing off a few metres either side of it */
   { const P=girl.P, l=toLocal(P.x,P.z), d=l[1]-Z0, al=Math.abs(l[0])<DX+1 && P.y<DH;
     /* which way they are going: the white is only for coming in; going out they simply walk back into the world */
@@ -134,6 +135,18 @@ updateDesert=function(dt,time){
   [girl,boy].forEach((K,i)=>{ const s=shadows[i], P=K.P, l=toLocal(P.x,P.z), on=inRoom(l[0],l[1]); s.visible=on; if(!on) return;
     const k=clamp(1-P.y/8,0,1); s.position.set(P.x,floorY()+0.01,P.z); const sz=1.3+P.y*0.25; s.scale.set(sz,sz,1); s.material.opacity=k; });
 };
+/* the sound: in the room the kids' footsteps are all there is. Everything else (the wind, the flamingos, the music, the chimes)
+   goes through the page's master volume, so the footsteps are given their own way out, and the master fades away inside
+   (over about a second and a half) and back as they step out. The footsteps themselves are unchanged. */
+let stepBus=null, muted=null;
+function roomSound(inside){
+  if(typeof actx==='undefined'||!actx||!master||!runGain) return;
+  if(!stepBus){ stepBus=actx.createGain(); stepBus.gain.value=master.gain.value; stepBus.connect(actx.destination);
+    for(const g of [runGain,palGain]) if(g){ g.disconnect(); g.connect(stepBus); } }
+  const t=actx.currentTime, on=soundOn?0.85:0;
+  stepBus.gain.setTargetAtTime(on,t,0.15);
+  const want=inside?0:on, key=want+'|'+soundOn; if(key!==muted){ muted=key; master.gain.cancelScheduledValues(t); master.gain.setTargetAtTime(want,t,0.5); }   // (the Sound button sets the master too; this puts it right again)
+}
 /* the camera: through the doorway it must pass the opening itself, and inside it stays within the room */
 const _pc=placeCam;
 placeCam=function(K,dt,snap){ _pc(K,dt,snap);
