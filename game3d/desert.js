@@ -54,10 +54,21 @@ function softTex(stops,w=128,h=128){ const c=document.createElement('canvas'); c
   for(const [o,col] of stops) gr.addColorStop(o,col); g.fillStyle=gr; g.fillRect(0,0,w,h); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
 const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.NotEqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
 const bloomMat=map=>new THREE.SpriteMaterial({map, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT});
-const bloomCore=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.85)'],[0.45,'rgba(255,253,240,.42)'],[1,'rgba(255,253,240,0)']])));
-const bloomHaze=new THREE.Sprite(bloomMat(softTex([[0,'rgba(248,250,240,.26)'],[0.5,'rgba(244,248,238,.1)'],[1,'rgba(244,248,238,0)']])));
-const bloomFlare=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,250,.3)'],[1,'rgba(255,255,250,0)']])));
-for(const b of [bloomFlare,bloomHaze,bloomCore]){ b.position.set(0,DH*0.5,front-0.2); b.renderOrder=6; doorLight.add(b); }
+/* the glow round the doorway follows its shape: brightest right at its edges, falling away over the face and the sand as a tall soft halo,
+   never brighter than the doorway itself, so the door stays a crisp white rectangle with light pouring out of it */
+const GLOW_W=DW*9, GLOW_H=DH*2.3;
+const doorGlowTex=(()=>{ const N=256, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), im=g.createImageData(N,N), px=im.data;
+  for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const mx=(x+0.5)/N*GLOW_W-GLOW_W/2, my=(1-(y+0.5)/N)*GLOW_H;   /* metres across the face, and up from the sand */
+    const dx=Math.max(0,Math.abs(mx)-DW/2), dy=Math.max(0,my-DH), d=Math.hypot(dx,dy*0.8), inDoor=dx===0&&dy===0;
+    const a=inDoor?0:Math.min(1,0.42*Math.exp(-d/0.9)+0.2*Math.exp(-d/3.2)+0.07*Math.exp(-d/9));
+    const fadeEdge=Math.min(1,(GLOW_W/2-Math.abs(mx))/(GLOW_W*0.12))*Math.min(1,(GLOW_H-my)/(GLOW_H*0.15));   /* nothing left at the plane's own edges */
+    const i=(y*N+x)*4; px[i]=px[i+1]=255; px[i+2]=250; px[i+3]=Math.round(255*a*Math.max(0,fadeEdge)); }
+  g.putImageData(im,0,0); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
+const doorGlow=new THREE.Mesh(new THREE.PlaneGeometry(GLOW_W,GLOW_H),new THREE.MeshBasicMaterial({map:doorGlowTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT}));
+doorGlow.rotation.y=Math.PI; doorGlow.position.set(0,GLOW_H/2,front-0.06); doorGlow.renderOrder=6; doorLight.add(doorGlow);
+/* from far off the doorway is only a few pixels: a soft beacon that never shrinks below about 40 pixels keeps it steady, and gives way to the door's own glow as you come near */
+const doorBeacon=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.7)'],[0.25,'rgba(255,253,244,.25)'],[0.6,'rgba(255,253,244,.06)'],[1,'rgba(255,253,244,0)']])));
+doorBeacon.position.set(0,DH*0.5,front-0.2); doorBeacon.renderOrder=6; doorLight.add(doorBeacon);
 /* the fan of light on the sand: thin bands outward from the door, each brightest down its middle and gone at its sides, each fainter than the last */
 const FAN_N=44, FAN_W=17, fanGeo=new THREE.BufferGeometry(), fanPos=new Float32Array((FAN_N+1)*FAN_W*3), fanCol=new Float32Array((FAN_N+1)*FAN_W*3), fanIdx=[];
 for(let i=0;i<FAN_N;i++) for(let k=0;k<FAN_W-1;k++){ const a=i*FAN_W+k, b=a+FAN_W; fanIdx.push(a,b,a+1, a+1,b,b+1); }
@@ -102,7 +113,7 @@ const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
 function markFront(root){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK); }); }
-let doorNear=0;
+let doorNear=0, doorIn=0;
 /* ---------- laying the journey's end ---------- */
 let coastA=0;
 const shore=[];
@@ -157,18 +168,19 @@ function updateDesert(dt,time){
   { const P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7; let tg=0;
     if(v<-BOX_HALF && P.y/U<DOOR_H*1.6){ cam.getWorldDirection(_dsp); const fx=-_dsp.x, fz=_dsp.z, fm=Math.hypot(fx,fz)||1, facing=clamp(((fx*SUNDX_G+fz*SUNDZ_G)/fm-0.15)/0.6,0,1);
       tg=clamp(1-(Math.hypot(-v-BOX_HALF,lat)-95)/1700,0,1)*facing; }
-    doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0; }
+    doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0;
+    /* in the doorway itself: right at the face, between its sides */
+    const at=(v<-BOX_HALF && -v-BOX_HALF<170 && Math.abs(u)<DOOR_W*0.55 && P.y/U<DOOR_H)?1:0; doorIn+=(at-doorIn)*(1-Math.exp(-dt*(at?2.5:4))); }
   const near=doorNear;
   /* seen edge-on the light thins; from behind the box there is none */
   const dw=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)), toCam=cam.position.clone().sub(dw), nrm=new THREE.Vector3(Math.sin(SUN_B),0,-Math.cos(SUN_B)), cv=toCam.dot(nrm), dist=toCam.length(), edge=cv>0?clamp(cv/dist*3,0.25,1):0;
   const focal=0.5*innerHeight/Math.tan(cam.fov*Math.PI/360), pxPerM=focal/Math.max(1,dist), dh=DH*pxPerM;
-  const R1=Math.max(10,dh*0.95)*(1+1.2*near), R2=Math.max(34,dh*3.4)*(1+1.2*near), toM=1/pxPerM;
-  bloomCore.scale.set(R1*2*toM,R1*2*toM,1); bloomHaze.scale.set(R2*2*toM,R2*2*toM,1); bloomFlare.scale.set(R2*3*toM,R2*3*0.16*toM,1);
-  for(const b of [bloomCore,bloomHaze,bloomFlare]){ b.material.opacity=A*edge; b.visible=edge>0; }
+  doorGlow.material.opacity=A*edge*(0.6+0.4*night)*(1+0.6*near); doorGlow.visible=edge>0;
+  { const bp=Math.max(40,dh*1.4), far=clamp((dist-70)/90,0,1); doorBeacon.scale.set(bp/pxPerM,bp/pxPerM,1); doorBeacon.material.opacity=A*edge*far; doorBeacon.visible=edge>0&&far>0; }
   if(Math.abs((fan.userData.near??-1)-near)>0.02) dropFan(near);
   lightFan(0.3*A*edge*edge*(1+1.6*near)*2);   /* the 2D game's bands each lap half over the next, so twice its strength */
   /* the light taking the view */
-  { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=near*A; washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
