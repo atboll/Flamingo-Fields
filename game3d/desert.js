@@ -68,6 +68,7 @@ const doorGlow=new THREE.Mesh(new THREE.PlaneGeometry(GLOW_W,GLOW_H),new THREE.M
 doorGlow.rotation.y=Math.PI; doorGlow.position.set(0,GLOW_H/2,front-0.06); doorGlow.renderOrder=6; doorLight.add(doorGlow);
 /* from far off the doorway is only a few pixels: a soft beacon that never shrinks below about 40 pixels keeps it steady, and gives way to the door's own glow as you come near */
 const doorBeacon=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.7)'],[0.25,'rgba(255,253,244,.25)'],[0.6,'rgba(255,253,244,.06)'],[1,'rgba(255,253,244,0)']])));
+doorBeacon.material.depthTest=true;   /* hidden by hills and dunes in front of the door */
 doorBeacon.position.set(0,DH*0.5,front-0.2); doorBeacon.renderOrder=6; doorLight.add(doorBeacon);
 /* the fan of light on the sand: thin bands outward from the door, each brightest down its middle and gone at its sides, each fainter than the last */
 const FAN_N=44, FAN_W=17, fanGeo=new THREE.BufferGeometry(), fanPos=new Float32Array((FAN_N+1)*FAN_W*3), fanCol=new Float32Array((FAN_N+1)*FAN_W*3), fanIdx=[];
@@ -113,9 +114,10 @@ const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* the ray: by night, once the moon is up, a thin blade of light straight up out of the doorway, far taller than the box, as in the 2D game.
    It is laid on the screen itself, so it stands straight up however the camera turns, climbs or tips. A beacon from far off,
    it shortens and fades as the kids come near, and is gone some 60 m from the door. */
-const rayU={uC:{value:new THREE.Vector2()}, uLen:{value:0}, uW:{value:1}, uA:{value:0}, uSize:{value:new THREE.Vector2(1,1)}, uDpr:{value:1}};
-const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:rayU, transparent:true, depthTest:false, depthWrite:false, ...NOT_FRONT,
-  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+const rayU={uZ:{value:0}, uC:{value:new THREE.Vector2()}, uLen:{value:0}, uW:{value:1}, uA:{value:0}, uSize:{value:new THREE.Vector2(1,1)}, uDpr:{value:1}};
+/* it is laid at the doorway's own depth, so whatever stands nearer (a hill, a dune) hides its foot, as the 2D game cuts it off at the ground in front */
+const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:rayU, transparent:true, depthTest:true, depthWrite:false, ...NOT_FRONT,
+  vertexShader:`uniform float uZ; void main(){ gl_Position=vec4(position.xy,uZ,1.0); }`,
   fragmentShader:`uniform vec2 uC, uSize; uniform float uLen, uW, uA, uDpr;
     float blade(vec2 p, float w0, float w1, float a0, float a25){ float t=(uC.y-p.y)/uLen; if(t<0.0||t>1.0) return 0.0;
       float hw=mix(w0,w1,t), x=abs(p.x-uC.x), side=clamp(hw-x+0.5,0.0,1.0);          /* a soft pixel at each side */
@@ -196,7 +198,7 @@ function updateDesert(dt,time){
   { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const top=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)).project(cam), W=innerWidth, H=innerHeight, q=H/650, dwPx=DW*pxPerM;
     const fade=clamp((dist-60)/150,0,1), len=Math.max(140*q,dh*7.5)*(0.35+0.65*fade);
-    rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
+    rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uZ.value=Math.min(top.z,0.99999); rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
     rayU.uA.value=(top.z<1&&edge>0)? A*edge*clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*fade : 0; }
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
