@@ -83,6 +83,21 @@ const washScene=new THREE.Scene(); washScene.add(new THREE.Mesh(new THREE.PlaneG
       vec3 c=vec3(1.0,1.0,250.0/255.0); float A=a+fl*(1.0-a);
       gl_FragColor=vec4(c,A); }`})));
 washScene.children[0].frustumCulled=false;
+/* and what stands in front, as in the 2D game: nearer the door they lose their colours and stand dark against the light,
+   then, right up at it, fade into the white until they are only faint shapes. Two passes over just those places (stencil 2). */
+const ONLY_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp };
+const frontU={uK:{value:0}, uFade:{value:0}};
+const frontDark=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:frontU, transparent:true, depthTest:false, depthWrite:false, ...ONLY_FRONT,
+  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+  fragmentShader:`uniform float uK; void main(){ gl_FragColor=vec4(vec3(33.0,29.0,47.0)/255.0, 0.8*uK); }`}));
+const frontFade=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:Object.assign({},washU,frontU), transparent:true, depthTest:false, depthWrite:false, ...ONLY_FRONT,
+  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`,
+  fragmentShader:`uniform vec2 uC, uSize; uniform float uR, uM, uDpr, uFade;
+    void main(){ vec2 p=vec2(gl_FragCoord.x, uSize.y*uDpr-gl_FragCoord.y)/uDpr; float t=length(p-uC)/uR;
+      float a = t<0.5 ? mix(min(1.0,0.9*uM),0.5*uM*uM,t/0.5) : mix(0.5*uM*uM,0.0,clamp((t-0.5)/0.5,0.0,1.0));
+      float W=a+pow(clamp(uM/0.93,0.0,1.0),2.6)*(1.0-a);              /* how white the light round them is here */
+      gl_FragColor=vec4(1.0,1.0,250.0/255.0, W*uFade); }`}));
+for(const [m,o] of [[frontDark,1],[frontFade,2]]){ m.frustumCulled=false; m.renderOrder=o; washScene.add(m); }
 const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
@@ -154,6 +169,7 @@ function updateDesert(dt,time){
   lightFan(0.3*A*edge*edge*(1+1.6*near)*2);   /* the 2D game's bands each lap half over the next, so twice its strength */
   /* the light taking the view */
   { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=near*A; washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
