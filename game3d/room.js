@@ -74,17 +74,34 @@ window.enterRoom=enterRoom; window.leaveRoom=leaveRoom;
 
 /* each frame, after the kids have moved */
 const _ud=updateDesert;
+/* going through the door, either way: the light rises until the whole view is white, kids and all; it holds a moment while
+   the kids are moved through; then it pulls back the way it came, the kids coming out of the white as faint shades,
+   dark shapes, then their own colours. Nothing of the switch can be seen. */
+const T={phase:null, w:0, t:0, dir:null};
+function startThrough(dir){ if(T.phase) return; T.phase='up'; T.dir=dir; T.t=0; T.w=clamp(washU.uM.value,0,1); }
+function stepThrough(dt){
+  if(!T.phase) return;
+  if(T.phase==='up'){ T.w=Math.min(1,T.w+dt/0.5); if(T.w>=1){ T.phase='hold'; T.t=0; } }
+  else if(T.phase==='hold'){ T.t+=dt; if(T.t>0.35){ if(T.dir==='in') enterRoom(); else leaveRoom(true); T.phase='down'; T.w=1; } }
+  else if(T.phase==='down'){ T.w-=dt/2.2; if(T.w<=0){ T.w=0; T.phase=null; } }
+  if(!T.phase) return;
+  const v=T.phase==='down'?T.w*T.w*(3-2*T.w):T.w;   // easing back out of the white
+  washU.uM.value=v;
+  const s0=clamp((v-0.4)/0.6,0,1); frontU.uK.value=Math.pow(v,0.8); frontU.uFade.value=0.8*s0*s0*(3-2*s0)+0.2*clamp((v-0.85)/0.15,0,1);   // the kids white too at the top
+}
 updateDesert=function(dt,time){
   _ud(dt,time);
-  if(typeof level2On==='function' && level2On()) return;
+  if(typeof level2On==='function' && level2On()){ T.phase=null; return; }
   if(!inside){
-    /* in the doorway, in the white, for half a second: inside */
-    if(COAST.on && doorIn>0.97 && doorNear>0.9){ inT+=dt; if(inT>0.5) enterRoom(); } else inT=0;
+    /* in the doorway: through */
+    if(!T.phase && COAST.on && doorIn>0.9 && doorNear>0.85) startThrough('in');
+    stepThrough(dt);
     return; }
+  stepThrough(dt);
   /* inside: the walls hold; the doorway is the way out */
   for(const K of [girl,boy]){ const P=K.P, l=toLocal(P.x,P.z); let lx=clamp(l[0],-X+0.6,X-0.6), lz=Math.min(l[1],Z1-0.6);
     const atDoor=Math.abs(l[0])<DW/2-0.3 && P.y<DH-1.2;
-    if(K===girl && atDoor && l[1]<Z0+0.4){ leaveRoom(true); return; }
+    if(K===girl && atDoor && l[1]<Z0+0.4 && !T.phase) startThrough('out');
     lz=Math.max(lz,Z0+(atDoor&&K===girl?0.2:0.6));
     if(lx!==l[0]||lz!==l[1]){ const w=toWorld(lx,lz); P.x=w[0]; P.z=w[1]; }
     if(P.y>H-6){ P.y=H-6; P.vy=Math.min(0,P.vy); } if(P.alt>H-6) P.alt=H-6; }
@@ -102,12 +119,15 @@ placeCam=function(K,dt,snap){ _pc(K,dt,snap); if(!inside) return;
 /* the mates of the box stay out of the room after they are placed */
 const _pm=placeMates; placeMates=function(dt){ _pm(dt); if(inside&&FL.mateBirds) for(const b of FL.mateBirds) b.o.visible=false; };
 /* drawing: no evening light, flare, ray or door light over the room */
+/* while going through, the white is centred on the view itself */
+const _pds=placeDoorScreen;
+placeDoorScreen=function(){ _pds(); if(T.phase){ const W=innerWidth, H=innerHeight; washU.uC.value.set(W/2,H*0.45); washU.uR.value=Math.max(W,H)*1.35; washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); } };
 const _rf=renderFrame;
 renderFrame=function(){
   if(inside){ lightCv.style.opacity='0'; flareCv.style.opacity='0'; rayU.uA.value=0; }
   _rf();
 };
 /* Reset level and To the box start outside */
-const _rl=resetLevel; resetLevel=function(){ leaveRoom(false); return _rl(); };
-const _gb=goToBox; goToBox=function(){ leaveRoom(false); return _gb(); };
+const _rl=resetLevel; resetLevel=function(){ T.phase=null; leaveRoom(false); return _rl(); };
+const _gb=goToBox; goToBox=function(){ T.phase=null; leaveRoom(false); return _gb(); };
 })();
