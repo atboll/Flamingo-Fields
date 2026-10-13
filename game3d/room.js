@@ -91,7 +91,7 @@ updateDesert=function(dt,time){
   for(const b of SB) b.o.visible=false;   // the box's flamingos stay outside
   if(FL.mateBirds) for(const b of FL.mateBirds) b.o.visible=false;
   /* the soft shadows */
-  [girl,boy].forEach((K,i)=>{ const s=shadows[i], P=K.P, k=clamp(1-P.y/8,0,1); s.position.set(P.x,boxGroup.position.y+FLOOR+0.01,P.z); const sz=1.3+P.y*0.25; s.scale.set(sz,sz,1); s.material.opacity=k*0.45; });   // only the faintest pool: in this much light there is hardly a shadow
+  [girl,boy].forEach((K,i)=>{ const s=shadows[i], P=K.P, k=clamp(1-P.y/8,0,1); s.position.set(P.x,boxGroup.position.y+FLOOR+0.01,P.z); const sz=1.3+P.y*0.25; s.scale.set(sz,sz,1); s.material.opacity=k; });
 };
 /* the camera stays inside the room */
 const _pc=placeCam;
@@ -102,55 +102,10 @@ placeCam=function(K,dt,snap){ _pc(K,dt,snap); if(!inside) return;
 /* the mates of the box stay out of the room after they are placed */
 const _pm=placeMates; placeMates=function(dt){ _pm(dt); if(inside&&FL.mateBirds) for(const b of FL.mateBirds) b.o.visible=false; };
 /* drawing: no evening light, flare, ray or door light over the room */
-/* the kids in the room: faint pale shades of themselves, as in the doorway, with the light bleeding into their edges.
-   Their shape is drawn alone into a small picture and blurred; the blur is then cut back hard, so arms, hair and hems thin out
-   and glow away at the rim while the body holds. Their own colours are painted out first (stencil 2, where they stand). */
-const KID_LAYER=5; let kidsLayered=false;
-const maskMat=new THREE.MeshBasicMaterial({color:0xffffff, fog:false});
-const rtA=new THREE.WebGLRenderTarget(4,4,{depthBuffer:true}), rtB=new THREE.WebGLRenderTarget(4,4,{depthBuffer:false});
-const blurU={t:{value:null}, uDir:{value:new THREE.Vector2()}};
-const blurScene=new THREE.Scene(); blurScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:blurU, depthTest:false, depthWrite:false,
-  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
-  fragmentShader:`uniform sampler2D t; uniform vec2 uDir; varying vec2 vUv;
-    void main(){ float w[5]; w[0]=0.227; w[1]=0.195; w[2]=0.122; w[3]=0.054; w[4]=0.016; float m=texture2D(t,vUv).r*w[0];
-      for(int i=1;i<5;i++){ m+=texture2D(t,vUv+uDir*float(i)).r*w[i]; m+=texture2D(t,vUv-uDir*float(i)).r*w[i]; }
-      gl_FragColor=vec4(m,m,m,1.0); }`})));
-const ghostU={t:{value:rtA.texture}};
-const ghostScene=new THREE.Scene();
-ghostScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({transparent:true, depthTest:false, depthWrite:false,   // their colours painted out, where they stand
-  stencilWrite:true, stencilRef:2, stencilFunc:THREE.EqualStencilFunc, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp, stencilZPass:THREE.KeepStencilOp,
-  vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`, fragmentShader:`void main(){ gl_FragColor=vec4(1.0); }`})));
-ghostScene.add(new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:ghostU, transparent:true, depthTest:false, depthWrite:false,   // and their faint shade, cut back at the rim
-  vertexShader:`varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }`,
-  fragmentShader:`uniform sampler2D t; varying vec2 vUv;
-    void main(){ float m=texture2D(t,vUv).r, a=smoothstep(0.34,0.82,m);
-      gl_FragColor=vec4(vec3(206.0,200.0,214.0)/255.0, a*0.95); }`})));
-ghostScene.children.forEach((m,i)=>{ m.frustumCulled=false; m.renderOrder=i; });
-const _cc=new THREE.Color(), _gp=new THREE.Vector3(), _gq=new THREE.Vector3();
-function drawGhosts(){
-  if(!kidsLayered){ kidsLayered=true; for(const K of [girl,boy]) K.root.traverse(n=>{ if(n.isMesh) n.layers.enable(KID_LAYER); }); }
-  const db=R.getDrawingBufferSize(new THREE.Vector2()), w=Math.max(4,db.x>>1), h=Math.max(4,db.y>>1);
-  if(rtA.width!==w||rtA.height!==h){ rtA.setSize(w,h); rtB.setSize(w,h); }
-  const mask=cam.layers.mask, ca=R.getClearAlpha(); R.getClearColor(_cc);
-  /* their shape alone */
-  const su=R.shadowMap.autoUpdate; R.shadowMap.autoUpdate=false;   // the sun's shadows were drawn already this frame
-  cam.layers.set(KID_LAYER); scene.overrideMaterial=maskMat; R.setRenderTarget(rtA); R.setClearColor(0x000000,1); R.clear(); R.render(scene,cam);
-  scene.overrideMaterial=null; cam.layers.mask=mask; R.shadowMap.autoUpdate=su;
-  /* blurred, across then down: the glow scales with how big the kids stand on the screen (a twenty-fifth of their height),
-     so a far-off or high-flying kid thins at the rim like a near one instead of melting away */
-  const P=girl.P, gy=groundAt(P.x,P.z)+P.y, f=_gp.set(P.x,gy,P.z).project(cam).y, hd=_gq.set(P.x,gy+1.2,P.z).project(cam).y, kidPx=Math.abs(hd-f)/2*h;
-  const rad=clamp(kidPx/25,0.6,(db.y/2)/160)/4;
-  blurU.t.value=rtA.texture; blurU.uDir.value.set(rad/w,0); R.setRenderTarget(rtB); R.render(blurScene,washCam);
-  blurU.t.value=rtB.texture; blurU.uDir.value.set(0,rad/h); R.setRenderTarget(rtA); R.render(blurScene,washCam);
-  R.setRenderTarget(null); R.setClearColor(_cc,ca);
-  /* over the finished frame */
-  R.autoClear=false; R.render(ghostScene,washCam); R.autoClear=true;
-}
 const _rf=renderFrame;
 renderFrame=function(){
   if(inside){ lightCv.style.opacity='0'; flareCv.style.opacity='0'; rayU.uA.value=0; }
   _rf();
-  if(inside&&girl) drawGhosts();
 };
 /* Reset level and To the box start outside */
 const _rl=resetLevel; resetLevel=function(){ leaveRoom(false); return _rl(); };
