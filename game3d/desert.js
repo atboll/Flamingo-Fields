@@ -44,7 +44,8 @@ const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),silver); boxMesh.po
 /* the door, on the face toward the kids: a clean opening, no frame, full of white light that pours out of the box */
 const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's local -z face looks back down the road */
 const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
-doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.03); doorLight.add(doorPane);
+Object.assign(doorPane.material,{polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-8});
+doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.2); doorLight.add(doorPane);
 /* The door's light, as the 2D game draws it. Its bloom is laid in screen terms round the doorway: a tight white core, a wide soft haze
    that pales most of the box's face, and a low wide flare, none smaller than a beacon should be from far off, and thinner when the door is
    seen edge-on. Its light lies on the sand in a long fan widening outward from the threshold, brightest down its middle, gone at its sides.
@@ -56,16 +57,17 @@ const NOT_FRONT={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.NotEqualSte
 const bloomMat=map=>new THREE.SpriteMaterial({map, transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT});
 /* the glow round the doorway follows its shape: brightest right at its edges, falling away over the face and the sand as a tall soft halo,
    never brighter than the doorway itself, so the door stays a crisp white rectangle with light pouring out of it */
-const GLOW_W=BW*1.9, GLOW_H=BH*1.15;   /* wide and tall enough to pale the whole face, as the 2D game's haze does */
+const GLOW_W=BW*0.98, GLOW_H=BH*0.98;   /* the whole face and no more: nothing sticks out past the box's edges */
 const doorGlowTex=(()=>{ const N=256, c=document.createElement('canvas'); c.width=c.height=N; const g=c.getContext('2d'), im=g.createImageData(N,N), px=im.data;
   for(let y=0;y<N;y++) for(let x=0;x<N;x++){ const mx=(x+0.5)/N*GLOW_W-GLOW_W/2, my=(1-(y+0.5)/N)*GLOW_H;   /* metres across the face, and up from the sand */
     const dx=Math.max(0,Math.abs(mx)-DW/2), dy=Math.max(0,my-DH), d=Math.hypot(dx,dy*0.8), inDoor=dx===0&&dy===0;
     const a=Math.min(1,0.14*Math.exp(-d/1.0)+0.3*Math.exp(-d/5)+0.22*Math.exp(-d/14));   /* full strength right up to (and under) the doorway, so no dark rim shows round it */
     const fadeEdge=Math.min(1,(GLOW_W/2-Math.abs(mx))/(GLOW_W*0.12))*Math.min(1,(GLOW_H-my)/(GLOW_H*0.15));   /* nothing left at the plane's own edges */
-    const i=(y*N+x)*4; px[i]=px[i+1]=255; px[i+2]=250; px[i+3]=Math.round(255*a*Math.max(0,fadeEdge)); }
+    const i=(y*N+x)*4; px[i]=px[i+1]=255; px[i+2]=250; px[i+3]=Math.round(255*a); }   /* the plane is the face itself now, so no fade at its edges (that made the face look rounded) */
   g.putImageData(im,0,0); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
 const doorGlow=new THREE.Mesh(new THREE.PlaneGeometry(GLOW_W,GLOW_H),new THREE.MeshBasicMaterial({map:doorGlowTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, ...NOT_FRONT}));
-doorGlow.rotation.y=Math.PI; doorGlow.position.set(0,GLOW_H/2,front-0.06); doorGlow.renderOrder=6; doorLight.add(doorGlow);
+doorGlow.material.polygonOffset=true; doorGlow.material.polygonOffsetFactor=-2; doorGlow.material.polygonOffsetUnits=-8;   /* drawn clear of the face, so from far off the two never flicker in patches */
+doorGlow.rotation.y=Math.PI; doorGlow.position.set(0,GLOW_H/2,front-0.3); doorGlow.renderOrder=6; doorLight.add(doorGlow);
 /* from far off the doorway is only a few pixels: a soft beacon that never shrinks below about 40 pixels keeps it steady, and gives way to the door's own glow as you come near */
 const doorBeacon=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.7)'],[0.25,'rgba(255,253,244,.25)'],[0.6,'rgba(255,253,244,.06)'],[1,'rgba(255,253,244,0)']])));
 doorBeacon.position.set(0,DH*0.5,front-0.2); doorBeacon.renderOrder=6; doorLight.add(doorBeacon);
@@ -144,7 +146,7 @@ function makeCoast(gx,gz){
     shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),lat,cs,100+i)); }
   makeShoreBirds();
 }
-function clearCoast(){ rayU.uA.value=0; washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
+function clearCoast(){ seaPart=0; partRanges(0); rayU.uA.value=0; washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
 /* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet) */
 function goToBox(){
   if(!girl) return;
@@ -170,6 +172,8 @@ function updateDesert(dt,time){
   if(!COAST.on && pathOn && girl.P.state==='fly'){ const P=girl.P, gx=-P.x/U, gz=P.z/U; makeCoast(gx+SUNDX_G*COAST_DIST, gz+SUNDZ_G*COAST_DIST); }
   if(!COAST.on) return;
   coastA=Math.min(1,coastA+dt/8);
+  /* however the kids come to the box, the mountains have finished parting by the time they near it (the 2D game's rule) */
+  { const P=girl.P, al=(-P.x/U-COAST.x)*SUNDX_G+(P.z/U-COAST.z)*SUNDZ_G; seaPart=Math.max(seaPart,clamp(1+(al+2200)/(COAST_DIST-2200),0,1)); partRanges(seaPart); }
   const c=boxC(), top=groundAt(-c[0]*U,c[1]*U)/U-30+BOX_H;
   /* nobody passes through the box, and the kids keep a step clear of it */
   for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;

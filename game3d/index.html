@@ -132,7 +132,7 @@ THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
 #endif`;
 const FOG_NEAR=320*U, FOG_FAR=(320+9000)*U;
 scene.fog=new THREE.Fog(rgb(HAZE).convertSRGBToLinear(),FOG_NEAR,FOG_FAR);
-const cam=new THREE.PerspectiveCamera(58,1,0.1,6000);     // the game's view: focal = 0.9 × the screen's height, so 58° tall
+const cam=new THREE.PerspectiveCamera(58,1,0.25,6000);     // the game's view: focal = 0.9 × the screen's height, so 58° tall
 
 /* the evening light: a low warm sun at the game's bearing, and a golden sky light */
 const SUNDIR=new THREE.Vector3(-Math.sin(SUN_B)*Math.cos(0.025),Math.sin(0.025),Math.cos(SUN_B)*Math.cos(0.025));   // the disc sits on the horizon
@@ -196,17 +196,16 @@ const RANGES=[
   {base:10,amp:42,col:[58,126,126], ks:[7,11,17,29],ph:[4.4,2.8,0.9,1.3],pk:0.19, r:3300},
   {base:2, amp:30,col:[54,114,88],  ks:[9,14,19,31],ph:[1.2,5.1,2.6,3.9],pk:0.24, r:3000}];
 const ranges=new THREE.Group(); scene.add(ranges);
+/* Flying toward the box slides the mountains apart from the dip under the moon (seaPart 0..1, desert.js): the land is laid out again
+   as it lay before it parted, pushed aside by the gap, the ranges by the bay rising taller and sharper, their flanks running down to nothing.
+   The 2D game's drawMountains, round the whole ring. */
+let seaPart=0, partBuilt=-1;
+const RANGE_N=900, rangeMeshes=[];
 for(const Rg of RANGES){
-  const N=900, pos=[], col=[], idx=[], top=rgb(mixA(Rg.col,[30,60,80],0.12)), mid=rgb(mixA(Rg.col,HAZE,0.1)), foot=rgb(mixA(Rg.col,HAZE,0.5));
-  for(let i=0;i<=N;i++){ const th=i/N*Math.PI*2, d=Math.atan2(Math.sin(th-SUN_B),Math.cos(th-SUN_B)), src=Math.abs(d);
-    const n=0.45*Math.sin(Rg.ks[0]*th+Rg.ph[0])+0.3*Math.sin(Rg.ks[1]*th+Rg.ph[1])+0.17*Math.sin(Rg.ks[2]*th+Rg.ph[2])+0.08*Math.sin(Rg.ks[3]*th+Rg.ph[3]);
-    const w=Math.exp(-(src/0.36)*(src/0.36)), pe=(src-Rg.pk)/0.08, des=0.2+1.0*Math.exp(-pe*pe); let v=Math.pow(0.5+0.5*n,1.6); v+=(des-v)*w;
-    const ang=(Rg.base+Rg.amp*v*1.3)/585, hTop=Rg.r*Math.tan(ang), sx=-Math.sin(th)*Rg.r, sz=Math.cos(th)*Rg.r;
-    pos.push(sx,-Rg.r*0.012,sz, sx,hTop*0.4-Rg.r*0.012*0.6,sz, sx,hTop,sz);
-    for(const C of [foot,mid,top]) col.push(C.r,C.g,C.b);
-    if(i<N){ const a=i*3; idx.push(a,a+3,a+1, a+1,a+3,a+4, a+1,a+4,a+2, a+2,a+4,a+5); } }
-  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx);
-  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true, fog:false, side:THREE.DoubleSide})); m.renderOrder=-8; ranges.add(m); }
+  const N=RANGE_N, pos=new Float32Array((N+1)*9), col=[], idx=[], top=rgb(mixA(Rg.col,[30,60,80],0.12)), mid=rgb(mixA(Rg.col,HAZE,0.1)), foot=rgb(mixA(Rg.col,HAZE,0.5));
+  for(let i=0;i<=N;i++){ for(const C of [foot,mid,top]) col.push(C.r,C.g,C.b); if(i<N){ const a=i*3; idx.push(a,a+3,a+1, a+1,a+3,a+4, a+1,a+4,a+2, a+2,a+4,a+5); } }
+  const g=new THREE.BufferGeometry(); g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.Float32BufferAttribute(col,3)); g.setIndex(idx);
+  const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true, fog:false, side:THREE.DoubleSide})); m.renderOrder=-8; m.frustumCulled=false; m.userData.Rg=Rg; ranges.add(m); rangeMeshes.push(m); }
 /* the ranges' colours are written straight to the screen, as the game paints them, so they are kept as given (no light, no conversion) */
 ranges.children.forEach(m=>{ m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); }; });
 
@@ -402,11 +401,30 @@ function paintGrove(seed){
     const lit=0.42+(d-dens(x+6,y-6))*4.5-d*0.5+(r()-0.5)*0.2, col=lit<0.4?G_SH:lit<0.72?G_MID:G_HI, i=(Y*GW+X)*4;
     px[i]=col[0]; px[i+1]=col[1]; px[i+2]=col[2]; px[i+3]=y>64?255*(70-y)/6:235; }
   g.putImageData(img,0,0); const t=new THREE.CanvasTexture(c); return t; }
+const treelines=[];
 { const art=[11,23,37,51].map(paintGrove), r=rng(31), RG=2850;
   for(let i=0;i<11;i++){ const th=(i+r()*0.8)/11*Math.PI*2, k=0.55+r()*0.95, w=RG*200*k/585, h=RG*56*k/585;
     const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:art[i%4], transparent:true, opacity:0.92, fog:false, depthWrite:false}));
     m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); };
-    m.position.set(-Math.sin(th)*RG, h/2-RG*0.012, Math.cos(th)*RG); m.lookAt(0,m.position.y,0); m.renderOrder=-7; ranges.add(m); } }
+    m.userData={th,h,RG}; m.renderOrder=-7; ranges.add(m); treelines.push(m); } }
+function fromMoon(th){ const d=th-SUN_B; return Math.atan2(Math.sin(d),Math.cos(d)); }
+function partRanges(sea){
+  if(Math.abs(sea-partBuilt)<0.003) return; partBuilt=sea;
+  const grow=sea*sea*(3-2*sea), gap=0.5*grow;
+  for(const m of rangeMeshes){ const Rg=m.userData.Rg, P=m.geometry.attributes.position.array, N=RANGE_N;
+    for(let i=0;i<=N;i++){ const th=i/N*Math.PI*2, d=fromMoon(th), ad=Math.abs(d), src=ad<=gap?0:(ad-gap)*Math.PI/(Math.PI-gap), t0=SUN_B+(d<0?-src:src);   // the land as it lay before it parted
+      const n=0.45*Math.sin(Rg.ks[0]*t0+Rg.ph[0])+0.3*Math.sin(Rg.ks[1]*t0+Rg.ph[1])+0.17*Math.sin(Rg.ks[2]*t0+Rg.ph[2])+0.08*Math.sin(Rg.ks[3]*t0+Rg.ph[3]);
+      const w=Math.exp(-(src/0.36)*(src/0.36)), pe=(src-Rg.pk)/0.08, des=0.2+1.0*Math.exp(-pe*pe); let v=Math.pow(0.5+0.5*n,1.6); v+=(des-v)*w;
+      if(grow>0){ const wg=Math.exp(-(src/0.75)*(src/0.75)); v=v*(1+1.25*grow*wg)+grow*wg*0.16*(Math.abs(Math.sin(src*43+Rg.pk*31))+0.6*Math.abs(Math.sin(src*97+Rg.pk*7))-0.7); }   // the ranges by the bay rise taller and sharper
+      const edge=clamp((ad-gap)/0.06+(1-Math.min(1,gap/0.05)),0,1), es=edge*edge*(3-2*edge);                                                                           // the flanks run down to nothing
+      const ang=(Rg.base+Rg.amp*v*1.3)*es/585, hTop=Rg.r*Math.tan(ang), sx=-Math.sin(th)*Rg.r, sz=Math.cos(th)*Rg.r, b=-Rg.r*0.012, o=i*9;
+      P[o]=sx; P[o+1]=b; P[o+2]=sz; P[o+3]=sx; P[o+4]=b+(hTop-b)*0.4; P[o+5]=sz; P[o+6]=sx; P[o+7]=Math.max(b,hTop); P[o+8]=sz; }
+    m.geometry.attributes.position.needsUpdate=true; }
+  /* the treelines slide apart with the mountains */
+  for(const m of treelines){ const {th,h,RG}=m.userData, d=fromMoon(th), t=SUN_B+(d<0?-1:1)*(Math.abs(d)*(Math.PI-gap)/Math.PI+gap);
+    m.position.set(-Math.sin(t)*RG, h/2-RG*0.012, Math.cos(t)*RG); m.rotation.set(0,Math.atan2(Math.sin(t),-Math.cos(t)),0); }   /* facing the middle of the ring */
+}
+partRanges(0);
 
 /* ---------- drifting seeds: little lit tufts carried on the wind past the kids ---------- */
 const SEEDS=isPhone?70:160, seedBox=24;

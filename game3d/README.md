@@ -49,7 +49,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Moon and stars (the moon is your pencil drawing, `assets/moon.png`, with a soft corona and bloom; it rises between the peaks, clouds pass over it)
 - [x] The night grade (violet dusk, moonlit blue, the moon's glow and its pool of light on the field; the feathers glow)
 - [x] The feather road to the moon (`road.js`: gathers on a full-flock night, scatters round the kids, answers with `path.mp3`)
-- [ ] The mountains part as the road is flown
+- [x] The mountains part as you near the box (the 2D game's rule; the treelines slide apart with them; the cloud banks behind the peaks are still to come)
 - [x] The desert dunes (`desert.js`, with the dunes in `groundAt` on both the processor and the graphics card; laid when the road is first flown; B jumps there for testing)
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
 - [x] The silver box and its door (built in code: brushed silver, a tone per face; a frameless doorway full of white light that pours out over the face, into the air and across the sand; nobody passes through it; by the box the night waits)
