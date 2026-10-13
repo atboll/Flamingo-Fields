@@ -3,7 +3,7 @@
    The first time the kids fly along the feather road toward the moon, a coast point is laid far ahead along it (52000 game units, about 760 m).
    Half way there the field turns to desert (the dunes themselves are in index.html's groundAt, shared with the grass and the ground's paint).
    6250 units past the coast point stands the huge silver box, about 29 m on a side, square to the moon, with a tall narrow door in the face
-   the kids come to. The door glows warm and pulses; its light lies on the sand in front; at night a thin ray stands straight up out of it.
+   the kids come to. Its doorway is full of white light that pours out over the face, into the air and across the sand, pulsing gently.
    Nobody passes through the box. By the box the night waits. Round it, 26 flamingos are already there: standing, feeding,
    resting on one leg, and wandering slowly round on their own small errands.
    For testing, the B key lays the journey's end just ahead of the kids. */
@@ -26,7 +26,7 @@ const brushed=(()=>{ const c=document.createElement('canvas'); c.width=c.height=
   const t=new THREE.CanvasTexture(c); t.wrapS=t.wrapT=THREE.RepeatWrapping; t.repeat.set(3,3); t.anisotropy=8; return t; })();
 const silver=new THREE.MeshStandardMaterial({color:0x6f757e, metalness:0.62, roughness:0.4, roughnessMap:brushed, map:brushed, envMap:boxEnv, envMapIntensity:1.0});
 const BW=BOX_HALF*2*U, BH=BOX_H*U;
-/* so the cube reads as a solid even face-on: its edges catch a thin line of light, and its foot is a little darker where it meets the sand.
+/* so the cube reads as a solid: each face its own tone, and its foot is a little darker where it meets the sand.
    It takes the groves' gentler haze, so from far off it fades into the evening without washing out up close. */
 silver.defines={SOFT_HAZE:''}; const boxNight={value:0};
 silver.onBeforeCompile=sh=>{ sh.uniforms.uNight=boxNight;
@@ -38,35 +38,41 @@ silver.onBeforeCompile=sh=>{ sh.uniforms.uNight=boxNight;
         float rim=1.0-smoothstep(0.05,0.45,e), foot=smoothstep(0.0,5.0,vObj.y+hb.y);
         /* each face its own tone, as a painter would give a cube: the face toward the sun and moon lightest, the top light, one side mid, the other darker, the door's face in shadow */
         float face = vNo.z>0.5 ? 1.2 : vNo.y>0.5 ? 1.1 : vNo.x>0.5 ? 0.86 : vNo.x<-0.5 ? 1.0 : 0.6;
-        outgoingLight*=face*(0.72+0.28*foot); outgoingLight+=vec3(1.0,0.95,0.85)*rim*0.28*(1.0-0.6*uNight); }
+        outgoingLight*=face*(0.72+0.28*foot); }
       #include <output_fragment>`); };
 const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),silver); boxMesh.position.y=BH/2; boxGroup.add(boxMesh);
-/* the door, on the face toward the kids: a thin silver frame standing out from the face, and the light set in it */
+/* the door, on the face toward the kids: a clean opening, no frame, full of white light that pours out of the box */
 const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's local -z face looks back down the road */
-for(const [w,h,x,y] of [[FR,DH+FR,-(DW+FR)/2,(DH+FR)/2],[FR,DH+FR,(DW+FR)/2,(DH+FR)/2],[DW+FR*2,FR,0,DH+FR/2]]){ const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,FD),silver); m.position.set(x,y,front-FD/2+0.05); boxGroup.add(m); }
-const doorGlowTex=(()=>{ const c=document.createElement('canvas'); c.width=64; c.height=128; const g=c.getContext('2d'), gr=g.createLinearGradient(0,128,0,0);
-  gr.addColorStop(0,'#fff6dc'); gr.addColorStop(0.6,'#fff0c8'); gr.addColorStop(1,'#ffe2a6'); g.fillStyle=gr; g.fillRect(0,0,64,128);
-  const e=g.createLinearGradient(0,0,64,0); e.addColorStop(0,'rgba(255,214,150,.6)'); e.addColorStop(0.18,'rgba(255,214,150,0)'); e.addColorStop(0.82,'rgba(255,214,150,0)'); e.addColorStop(1,'rgba(255,214,150,.6)'); g.fillStyle=e; g.fillRect(0,0,64,128);
-  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
-const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({map:doorGlowTex, toneMapped:false, fog:false}));
+const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
 doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.03); doorLight.add(doorPane);
 /* a soft halo round the doorway, and its light lying on the sand in front */
 function softTex(stops,w=128,h=128){ const c=document.createElement('canvas'); c.width=w; c.height=h; const g=c.getContext('2d'), gr=g.createRadialGradient(w/2,h/2,0,w/2,h/2,Math.min(w,h)/2);
   for(const [o,col] of stops) gr.addColorStop(o,col); g.fillStyle=gr; g.fillRect(0,0,w,h); const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; }
-const doorHalo=new THREE.Mesh(new THREE.PlaneGeometry(DW*3.2,DH*1.7),new THREE.MeshBasicMaterial({map:softTex([[0,'rgba(255,236,190,.55)'],[0.45,'rgba(255,220,160,.18)'],[1,'rgba(255,220,160,0)']]),
+/* the glow pouring out: a bright white bloom over the face round the doorway, and a wider soft one, both fading with no edge */
+const doorHalo=new THREE.Mesh(new THREE.PlaneGeometry(DW*4,DH*1.9),new THREE.MeshBasicMaterial({map:softTex([[0,'rgba(255,255,255,.95)'],[0.28,'rgba(255,255,255,.6)'],[0.55,'rgba(255,255,255,.22)'],[0.8,'rgba(255,255,255,.06)'],[1,'rgba(255,255,255,0)']]),
   transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
-doorHalo.rotation.y=Math.PI; doorHalo.position.set(0,DH*0.5,front-0.08); doorLight.add(doorHalo);
-const SPILL_L=26, SPILL_W=12;
+doorHalo.rotation.y=Math.PI; doorHalo.position.set(0,DH*0.48,front-0.08); doorLight.add(doorHalo);
+const doorBloom=new THREE.Mesh(new THREE.PlaneGeometry(DW*12,DH*3.4),new THREE.MeshBasicMaterial({map:softTex([[0,'rgba(255,255,255,.4)'],[0.3,'rgba(255,255,255,.16)'],[0.6,'rgba(255,255,255,.05)'],[1,'rgba(255,255,255,0)']]),
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false}));
+doorBloom.rotation.y=Math.PI; doorBloom.position.set(0,DH*0.45,front-0.12); doorLight.add(doorBloom);
+/* light in the air in front of the doorway: two crossed sheets standing out from it, brightest at the threshold, fading as they reach out */
+const beamTex=(()=>{ const c=document.createElement('canvas'); c.width=128; c.height=64; const g=c.getContext('2d'), gr=g.createLinearGradient(0,0,128,0);
+  gr.addColorStop(0,'rgba(255,255,255,.55)'); gr.addColorStop(0.3,'rgba(255,255,255,.2)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,128,64);
+  g.globalCompositeOperation='destination-in'; const v=g.createLinearGradient(0,0,0,64); v.addColorStop(0,'rgba(0,0,0,0)'); v.addColorStop(0.25,'rgba(0,0,0,1)'); v.addColorStop(1,'rgba(0,0,0,1)'); g.fillStyle=v; g.fillRect(0,0,128,64);
+  const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })();
+const BEAM_L=9, beams=[];
+for(const [w,h,ry] of [[BEAM_L,DH,Math.PI/2],[BEAM_L,DW,Math.PI/2]]){ const m=new THREE.Mesh(new THREE.PlaneGeometry(w,h),new THREE.MeshBasicMaterial({map:beamTex, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, side:THREE.DoubleSide}));
+  beams.push(m); doorLight.add(m); }
+beams[0].rotation.y=Math.PI/2; beams[0].position.set(0,DH/2,front-BEAM_L/2);                                   /* standing upright, out from the door */
+beams[1].rotation.set(-Math.PI/2,0,Math.PI/2); beams[1].position.set(0,DH*0.35,front-BEAM_L/2);                 /* and lying flat across it, a little above the sand */
+/* and real light from the doorway on the kids, the birds and the sand in front */
+const doorLamp=new THREE.PointLight(0xffffff,0,34,1.6); doorLamp.position.set(0,DH*0.5,front-2.5); boxGroup.add(doorLamp);
+const SPILL_L=32, SPILL_W=16;
 const spill=new THREE.Mesh(new THREE.PlaneGeometry(SPILL_W,SPILL_L,12,24),new THREE.MeshBasicMaterial({map:(()=>{ const c=document.createElement('canvas'); c.width=64; c.height=128; const g=c.getContext('2d');
-    const gr=g.createRadialGradient(32,128,0,32,128,128); gr.addColorStop(0,'rgba(255,226,160,.75)'); gr.addColorStop(0.25,'rgba(255,214,150,.35)'); gr.addColorStop(1,'rgba(255,214,150,0)'); g.fillStyle=gr; g.fillRect(0,0,64,128);
+    const gr=g.createRadialGradient(32,128,0,32,128,128); gr.addColorStop(0,'rgba(255,255,255,.95)'); gr.addColorStop(0.15,'rgba(255,255,255,.55)'); gr.addColorStop(0.45,'rgba(255,255,255,.16)'); gr.addColorStop(1,'rgba(255,255,255,0)'); g.fillStyle=gr; g.fillRect(0,0,64,128);
+    g.globalCompositeOperation='destination-in'; const sx=g.createLinearGradient(0,0,64,0); sx.addColorStop(0,'rgba(0,0,0,0)'); sx.addColorStop(0.3,'rgba(0,0,0,1)'); sx.addColorStop(0.7,'rgba(0,0,0,1)'); sx.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=sx; g.fillRect(0,0,64,128);   /* no edge at its sides */
     const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, polygonOffset:true, polygonOffsetFactor:-2}));
 spill.geometry.rotateX(-Math.PI/2); doorLight.add(spill);   /* draped over the sand each time the box is laid (dropSpill) */
-/* the ray: a thin blade of light straight up out of the doorway, far taller than the box (by night, once the moon is up) */
-const ray=new THREE.Mesh(new THREE.PlaneGeometry(DW*0.55,BH*9),new THREE.MeshBasicMaterial({map:(()=>{ const c=document.createElement('canvas'); c.width=32; c.height=256; const g=c.getContext('2d');
-    const v=g.createLinearGradient(0,256,0,0); v.addColorStop(0,'rgba(255,240,205,1)'); v.addColorStop(0.15,'rgba(255,236,200,.75)'); v.addColorStop(1,'rgba(255,236,200,0)'); g.fillStyle=v; g.fillRect(0,0,32,256);
-    g.globalCompositeOperation='destination-in'; const h=g.createLinearGradient(0,0,32,0); h.addColorStop(0,'rgba(0,0,0,0)'); h.addColorStop(0.5,'rgba(0,0,0,1)'); h.addColorStop(1,'rgba(0,0,0,0)'); g.fillStyle=h; g.fillRect(0,0,32,256);
-    const t=new THREE.CanvasTexture(c); t.encoding=THREE.sRGBEncoding; return t; })(), transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, side:THREE.DoubleSide}));
-ray.position.set(0,BH*4.5,front-1.0); doorLight.add(ray);
 
 /* ---------- laying the journey's end ---------- */
 let coastA=0;
@@ -92,7 +98,7 @@ function dropSpill(){ /* the door's light follows the sand's own shape in front 
   P.needsUpdate=true; spill.geometry.computeBoundingSphere(); }
 function clearCoast(){ COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
 /* the B key, for testing: the box about 120 m ahead, the kids already out on the sand */
-addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d);
+addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); coastA=1;
   P.h=-SUN_B; boy.P.h=-SUN_B; placeCam(girl,0,true); });
 
 /* ---------- each frame ---------- */
@@ -107,11 +113,9 @@ function updateDesert(dt,time){
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
-  /* the door: warm, pulsing gently; the ray only by night, once the moon is up */
+  /* the door: white, pulsing gently, brighter against the night */
   const pulse=0.9+0.1*Math.sin(time*1.7);
-  doorPane.material.color.setScalar(pulse); doorHalo.material.opacity=coastA*(0.6+0.4*night)*pulse; spill.material.opacity=coastA*(0.55+0.45*night)*pulse;
-  ray.material.opacity=clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*coastA*0.55;
-  { const toCam=Math.atan2(cam.position.x-doorLight.position.x,cam.position.z-doorLight.position.z); ray.rotation.y=toCam+SUN_B; }   /* the ray turns to face you */
+  doorPane.material.color.setScalar(pulse); doorHalo.material.opacity=coastA*(0.75+0.25*night)*pulse; doorBloom.material.opacity=coastA*(0.55+0.45*night)*pulse; for(const b of beams) b.material.opacity=coastA*(0.45+0.55*night)*pulse; doorLamp.intensity=coastA*(1.2+1.3*night)*pulse; spill.material.opacity=coastA*(0.55+0.45*night)*pulse;
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
   updateShore(dt); placeShore(dt);

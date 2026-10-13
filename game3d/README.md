@@ -52,7 +52,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [ ] The mountains part as the road is flown
 - [x] The desert dunes (`desert.js`, with the dunes in `groundAt` on both the processor and the graphics card; laid when the road is first flown; B jumps there for testing)
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
-- [x] The silver box and its door (built in code: brushed silver, a tone per face, a glowing door that pulses, its light on the sand, and the ray at night; nobody passes through it; by the box the night waits)
+- [x] The silver box and its door (built in code: brushed silver, a tone per face; a frameless doorway full of white light that pours out over the face, into the air and across the sand; nobody passes through it; by the box the night waits)
 - [x] Flamingos round the box (26, wandering, feeding and resting, as the 2D game's shore birds)
 - [ ] Landing on top of the box
 - [ ] Your flock walks off to join the box's flamingos
