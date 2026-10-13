@@ -305,7 +305,8 @@ function followGround(x,z){
    Each blade has a fixed spot in a square of ground that repeats under the kids, so the field never runs out.
    Blades bend downwind in travelling gusts, bow away from the kids as they run through, and glow when the sun is behind them. */
 const BLADE=[[136,86,14],[176,120,22],[212,158,38],[238,192,66],[255,226,122]];
-function bladeGeo(){ const NS=3, pos=[], idx=[];
+/* a blade is a strip of six pieces up to a point, so it bends in one smooth curve and tapers like the 2D game's painted stroke */
+function bladeGeo(){ const NS=6, pos=[], idx=[];
   for(let i=0;i<NS;i++){ const t=i/NS; pos.push(-1,t,0, 1,t,0); } pos.push(0,1,0);
   for(let i=0;i<NS-1;i++){ const a=i*2; idx.push(a,a+1,a+2, a+1,a+3,a+2); } const a=(NS-1)*2; idx.push(a,a+1,NS*2);
   const g=new THREE.InstancedBufferGeometry(); g.setAttribute('position',new THREE.Float32BufferAttribute(pos,3)); g.setIndex(idx); return g; }
@@ -340,22 +341,21 @@ function makeGrass(count,L){
       varying float vTone; varying float vT; varying float vNear;
       ${LIGHT_GLSL}
       #include <fog_pars_vertex>
-      vec2 push(vec2 p, vec3 k){ vec2 d=p-k.xz; float dd=length(d); float w=(1.0-smoothstep(0.25,0.9,dd))*(1.0-smoothstep(0.4,1.0,k.y)); return d/(dd+0.001)*w*1.3; }
       void main(){
         vec2 p=aOff.xy+${L.S.toFixed(1)}*floor((uCentre-aOff.xy)/${L.S.toFixed(1)}+0.5);
         float dist=length(p-uCentre), fade=(1.0-smoothstep(${(L.R*0.62).toFixed(1)},${L.R.toFixed(1)},dist))*smoothstep(${L.in0.toFixed(1)},${L.in1.toFixed(1)},dist);
         float rr=aRnd.z, gust=gustAt(p,uTime);
-        float t=position.y, h=aRnd.x*(1.0-0.18*gust)*(0.35+0.65*fade)*step(0.001,fade);
+        float t=position.y, h=aRnd.x*(1.0-0.18*gust)*(0.35+0.65*fade)*step(0.001,fade)${L.camFade?'*smoothstep(1.2,3.5,length(p-cameraPosition.xz))':''};   /* the long grass keeps clear of the camera itself */
         { float cs=coastAlong(p); if(cs>0.0){ float gf=1.0-cs/${SAND_RAMP.toFixed(1)};   /* the desert, on the 2D game's rule */
             if(gf<=0.0) h=0.0;   /* out on the sand, no plants at all */
             else h*= fract(rr*13.37+aOff.z*7.1)>gf*gf ? 0.0 : 0.35+0.65*gf; } }
         /* turned to face you, like a stroke on paper */
         vec2 toCam=normalize(cameraPosition.xz-p+0.0001), side=vec2(toCam.y,-toCam.x);
-        float w=aRnd.y*(1.0-t*0.55)*(0.6+0.4*fade);
+        float w=aRnd.y*1.25*pow(1.0-t,0.75)*(1.0+0.35*t)*(0.6+0.4*fade);   /* wide at the foot, swelling a little, then tapering to a point */
         vec3 pos=vec3(p.x,groundAt(p),p.y); pos.xz+=side*position.x*w;
         /* combed downwind: the game's bend, harder in a gust, each stroke's own lean, and a flutter */
         float lean=(0.4+0.85*gust)+0.15+(fract(rr*7.31)-0.5)*0.45+sin(uTime*4.5+rr*40.0)*0.07;
-        vec2 bend=uWind*lean*0.8+push(p,uKid0)+push(p,uKid1);
+        vec2 bend=uWind*lean*0.8;
         float tt=t*t; pos.xz+=bend*h*tt; pos.y+=h*t*(1.0-0.22*min(1.0,dot(bend,bend))*tt);
         float air=uAir*smoothstep(25.0,90.0,length(p-cameraPosition.xz));   /* from the air, far strokes lose their hill shading, as in the 2D game */
         vTone=toneAt(rr,gust*(1.0-0.5*air)+air*0.5,litAt(p,uSunXZ)*(1.0-air)); vT=t;
@@ -379,9 +379,12 @@ function makeGrass(count,L){
   mat.uniforms.uCoast=uCoast;   /* shared, so the desert reaches the grass */
   const mesh=new THREE.Mesh(g,mat); mesh.frustumCulled=false; scene.add(mesh); return mesh; }
 const isPhone=matchMedia('(pointer: coarse)').matches;
-const NEAR={S:50,R:24,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:170,R:84,in0:15,in1:23,seed:77,tall:1.2,wide:3.2};
-const grass=makeGrass(isPhone?60000:170000,NEAR), grassMid=makeGrass(isPhone?30000:90000,MIDL);
-const grassAll=[grass,grassMid];
+/* three layers: long grass packed thick round the kids and the camera, the field's own strokes out to 24 m, and broad far strokes beyond.
+   Blades were moved from the far layer, where they are only a gold blur in the haze, to the long grass, where you see them. */
+const NEAR={S:50,R:24,in0:-1,in1:0,seed:2024,tall:1,wide:1}, MIDL={S:170,R:84,in0:15,in1:23,seed:77,tall:1.2,wide:3.2},
+      LONG={S:30,R:14,in0:-1,in1:0,seed:909,tall:1.6,wide:1.25,camFade:true};
+const grass=makeGrass(isPhone?55000:160000,NEAR), grassMid=makeGrass(isPhone?18000:55000,MIDL), grassLong=makeGrass(isPhone?32000:90000,LONG);
+const grassAll=[grass,grassMid,grassLong];
 
 /* ---------- groves: real trees standing out in the field, in clumps, at fixed places ----------
    The ground is split into squares 260 m across; about a third hold a grove of 5 to 14 trees. Only the squares
@@ -716,7 +719,7 @@ function frame(now){
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
   nightFrame(clock); renderFrame(); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
-  fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+((grass.geometry.instanceCount+grassMid.geometry.instanceCount)/1000).toFixed(0)+'k blades';
+  fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+(grassAll.reduce((a,gm)=>a+gm.geometry.instanceCount,0)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
     fpsN=0; fpsT=0; }
   requestAnimationFrame(frame);
