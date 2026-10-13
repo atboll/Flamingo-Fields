@@ -63,7 +63,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 - [x] Field ambience (`assets/field01.mp3`, the new field recording, looped with a 4 s crossfade)
 - [x] Footsteps (the 2D game's `run_big.wav`, the small kid's 10% faster and offset)
 - [x] The chimes when you fall in with a flock
-- [ ] Flock calls
+- [x] Flock calls (the 2D game's `flamingos.mp3`, louder as the flock nears, and heard from its side)
 - [ ] Music
 - [ ] Wind
 - [ ] The road's answer
@@ -74,6 +74,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 
 - [x] Feather counter
 - [x] Sound button
+- [x] The pink arrow at the screen's edge when a coming flock is out of view
 - [ ] Hint
 - [ ] `#test` buttons
 - [x] Phone controls

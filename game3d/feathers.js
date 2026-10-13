@@ -156,4 +156,18 @@ function drawHud(time){
   if(time-mateMsgT<5){
     ctx.save(); ctx.globalAlpha=clamp((5-(time-mateMsgT))/1.2,0,1); ctx.font='600 '+Math.round(17*q)+'px system-ui,-apple-system,"Segoe UI",sans-serif'; ctx.textAlign='center';
     ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(freeFly()?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+118*q); ctx.restore(); }
+  flockArrow(ctx,W,H,time);
+}
+/* a wild flock out of view and still coming: a small pink arrow at the edge of the screen on its side, as in the 2D game.
+   In 3D the flock can also be behind the camera; the arrow then points to the side it is nearer. */
+const _fp=new THREE.Vector3();
+function flockArrow(ctx,W,H,time){
+  if(!flock || flock.s>=FLOCK_NEAR) return;
+  _fp.set(-flock.x*U, flock.y*U, flock.z*U).project(cam);
+  const behind=_fp.z>1, inView=!behind && Math.abs(_fp.x)<=1 && Math.abs(_fp.y)<=1; if(inView) return;
+  /* which side: (rx,rz) is the camera's left, so this is right even when the flock is behind */
+  const rx=Math.cos(camYaw), rz=-Math.sin(camYaw), dx=-flock.x*U-cam.position.x, dz=flock.z*U-cam.position.z, sd=(dx*rx+dz*rz)>0?-1:1;
+  const ax=sd>0?W-22:22, ay=H*0.3, pu=1+0.15*Math.sin(time*6);
+  ctx.save(); ctx.translate(ax,ay); ctx.scale(sd*pu,pu); ctx.fillStyle='#f6a3b6'; ctx.shadowColor='rgba(120,40,60,.6)'; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.moveTo(9,0); ctx.lineTo(-7,-10); ctx.lineTo(-2,0); ctx.lineTo(-7,10); ctx.closePath(); ctx.fill(); ctx.restore();
 }
