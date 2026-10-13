@@ -69,7 +69,7 @@ doorGlow.rotation.y=Math.PI; doorGlow.position.set(0,GLOW_H/2,front-0.06); doorG
 /* from far off the doorway is only a few pixels: a soft beacon that never shrinks below about 40 pixels keeps it steady, and gives way to the door's own glow as you come near */
 const doorBeacon=new THREE.Sprite(bloomMat(softTex([[0,'rgba(255,255,252,.7)'],[0.25,'rgba(255,253,244,.25)'],[0.6,'rgba(255,253,244,.06)'],[1,'rgba(255,253,244,0)']])));
 doorBeacon.material.depthTest=true;   /* hidden by hills and dunes in front of the door */
-doorBeacon.position.set(0,DH*0.5,front-0.2); doorBeacon.renderOrder=6; doorLight.add(doorBeacon);
+doorBeacon.position.set(0,DH*0.5,front-3); doorBeacon.renderOrder=6; doorLight.add(doorBeacon);
 /* the fan of light on the sand: thin bands outward from the door, each brightest down its middle and gone at its sides, each fainter than the last */
 const FAN_N=44, FAN_W=17, fanGeo=new THREE.BufferGeometry(), fanPos=new Float32Array((FAN_N+1)*FAN_W*3), fanCol=new Float32Array((FAN_N+1)*FAN_W*3), fanIdx=[];
 for(let i=0;i<FAN_N;i++) for(let k=0;k<FAN_W-1;k++){ const a=i*FAN_W+k, b=a+FAN_W; fanIdx.push(a,b,a+1, a+1,b,b+1); }
@@ -198,7 +198,7 @@ function updateDesert(dt,time){
   { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const top=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)).project(cam), W=innerWidth, H=innerHeight, q=H/650, dwPx=DW*pxPerM;
     const fade=clamp((dist-60)/150,0,1), len=Math.max(140*q,dh*7.5)*(0.35+0.65*fade);
-    rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uZ.value=Math.min(top.z,0.99999); rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
+    rayU.uC.value.set((top.x+1)/2*W,(1-top.y)/2*H); rayU.uZ.value=Math.min(doorLight.localToWorld(_dsp.set(0,DH*0.5,front-3)).project(cam).z,0.99999);   /* its depth is taken a few metres out in front of the doorway, so the box's own face never hides it: it rises from the door itself */ rayU.uLen.value=len; rayU.uW.value=clamp(dwPx*0.2,1.6,6*q); rayU.uSize.value.set(W,H); rayU.uDpr.value=R.getPixelRatio();
     rayU.uA.value=(top.z<1&&edge>0)? A*edge*clamp(night*1.4,0,1)*clamp(moonUp*3,0,1)*fade : 0; }
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
