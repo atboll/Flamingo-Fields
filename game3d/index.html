@@ -27,6 +27,9 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 #sound[aria-pressed="false"]{ opacity:.7 }
 #plus1{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:calc(max(12px,env(safe-area-inset-top)) + 40px); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
   background:rgba(170,70,98,.7); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#reset{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:calc(max(12px,env(safe-area-inset-top)) + 80px); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
+  background:rgba(58,42,18,.62); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#reset:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #plus1:disabled{ opacity:.45; cursor:default }
 #plus1:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #sound:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
@@ -42,6 +45,7 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
   On a phone: drag to run, tap to hop.</p></div>
 <button id="sound" type="button" aria-pressed="true">Sound on</button>
 <button id="plus1" type="button" title="Test: one more flamingo joins your flock">+1 flamingo</button>
+<button id="reset" type="button" title="Start level 1 again: no feathers, no flock, golden evening">Reset level</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
 
@@ -561,6 +565,20 @@ soundBtn.addEventListener('click',e=>{ e.stopPropagation(); startSound(); soundO
   if(master) master.gain.setTargetAtTime(soundOn?0.85:0,actx.currentTime,0.15); });
 soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
 $('plus1').addEventListener('pointerdown',e=>e.stopPropagation());
+$('reset').addEventListener('pointerdown',e=>e.stopPropagation());
+$('reset').addEventListener('click',e=>{ e.stopPropagation(); resetLevel(); $('view').focus(); });
+/* Reset level: level 1 from the start. The kids back where they began, no feathers, no flock, the wild flocks starting over,
+   the feathers back in the grass, and the golden evening standing still again. */
+function resetLevel(){
+  if(!girl) return;
+  feathers=0; flightLeft=0; got.clear(); lastGot=-9;
+  mates.length=0; mateMsgT=-99; flock=null; flockN=0; nextFlock=clock+FLOCK_FIRST;
+  nightOn=false; dayOffset=-clock; night=0; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
+  if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(_){ } } padPlayed=false;
+  events.length=0; keys.clear();
+  [[girl,0,0],[boy,-1.5,-1.4]].forEach(([K,x,z])=>{ Object.assign(K.P,{x,z,y:0,vy:0,h:0.1,turn:0,bank:0,pitch:0,spd:0,alt:CRUISE,state:'ground',crouch:0,upLock:false}); });
+  placeCam(girl,0,true); $('plus1').disabled=false;
+}
 $('plus1').addEventListener('click',e=>{ e.stopPropagation(); startSound(); giftMate(); $('plus1').disabled=mates.length>=MATES_MAX; $('view').focus(); });
 addEventListener('keydown',()=>startSound()); addEventListener('pointerdown',()=>startSound());
 document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
