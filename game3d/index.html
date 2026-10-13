@@ -31,6 +31,9 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
   background:rgba(58,42,18,.62); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
 #tobox{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:calc(max(12px,env(safe-area-inset-top)) + 120px); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
   background:rgba(58,42,18,.62); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#skipday{ position:fixed; right:max(12px,env(safe-area-inset-right)); top:calc(max(12px,env(safe-area-inset-top)) + 160px); font:600 13px/1 system-ui,sans-serif; color:#fff8e8;
+  background:rgba(40,52,96,.7); border:0; border-radius:999px; padding:9px 14px; cursor:pointer; backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px) }
+#skipday:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #tobox:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #reset:focus-visible{ outline:2px solid #fff3cc; outline-offset:2px }
 #plus1:disabled{ opacity:.45; cursor:default }
@@ -50,6 +53,7 @@ kbd{ font:600 11px/1 ui-monospace,Menlo,monospace; background:#fffaf0; border:1p
 <button id="plus1" type="button" title="Test: one more flamingo joins your flock">+1 flamingo</button>
 <button id="reset" type="button" title="Start level 1 again: no feathers, no flock, golden evening">Reset level</button>
 <button id="tobox" type="button" title="Test: stand in front of the silver box, about 45 m from its door">To the box</button>
+<button id="skipday" type="button" title="Test: skip to the next part of the day (the N key)">Dusk ›</button>
 <div id="load">Loading the kids…</div>
 <div id="stats" hidden></div>
 
@@ -606,6 +610,8 @@ soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
 $('plus1').addEventListener('pointerdown',e=>e.stopPropagation());
 $('reset').addEventListener('pointerdown',e=>e.stopPropagation());
 $('tobox').addEventListener('pointerdown',e=>e.stopPropagation());
+$('skipday').addEventListener('pointerdown',e=>e.stopPropagation());
+$('skipday').addEventListener('click',e=>{ e.stopPropagation(); skipDayPart(); $('view').focus(); });
 $('tobox').addEventListener('click',e=>{ e.stopPropagation(); goToBox(); $('view').focus(); });
 $('reset').addEventListener('click',e=>{ e.stopPropagation(); resetLevel(); $('view').focus(); });
 /* Reset level: level 1 from the start. The kids back where they began, no feathers, no flock, the wild flocks starting over,
