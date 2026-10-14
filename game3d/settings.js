@@ -26,6 +26,9 @@ const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now
   lightTime:1.5,                                 // seconds for a ring to brighten, all at once, once its flamingo stands in it
   beamH:260, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
 
+/* going through the door: the kids walk in through the doorway, and this many metres past its face (about 5 steps) the view is all white and they are through */
+const DOOR={walkIn:3.5};
+
 /* the level the game is on (1: the field and the desert; 2: the clouds and the whales). Changed only by enterLevel2 and leaveLevel2 (level2.js). */
 let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
 

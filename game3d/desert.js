@@ -120,7 +120,7 @@ const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
 /* the bit worth 2 means 'stands in front of the light'; the kids also set the bit worth 4 (so they write 6) */
 function markFront(root,ref){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK,ref?{stencilRef:ref}:{}); }); }
-let doorNear=0, doorIn=0;
+let doorNear=0, doorIn=0, doorPass=0;   /* doorPass: how far (m) the girl has walked in past the door's face */
 /* ---------- laying the journey's end ---------- */
 let coastA=0;
 const shore=[];
@@ -168,8 +168,13 @@ function updateDesert(dt,time){
   /* however the kids come to the box, the mountains have finished parting by the time they near it (the 2D game's rule) */
   { const P=girl.P, al=(-P.x/U-COAST.x)*SUNDX_G+(P.z/U-COAST.z)*SUNDZ_G; seaPart=Math.max(seaPart,clamp(1+(al+2200)/(COAST_DIST-2200),0,1)); partRanges(seaPart); }
   const c=boxC(), top=groundAt(-c[0]*U,c[1]*U)/U-30+BOX_H;
-  /* nobody passes through the box, and the kids keep a step clear of it */
-  for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;
+  /* nobody passes through the box, and the kids keep a step clear of it; but once the door is open they can walk in through it,
+     along a short passage of light as wide as the doorway */
+  doorPass=0;
+  for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80; let u=dx*SUNDZ_G-dz*SUNDX_G;
+    const passage=doorOpen>0.95 && Math.abs(u)<DOOR_W*0.5 && v<-BOX_HALF+DOOR.walkIn/U+200 && P.y/U<DOOR_H;
+    if(passage){ if(v>-BOX_HALF-80){ const cu=clamp(u,-DOOR_W*0.38,DOOR_W*0.38); if(cu!==u){ const du=cu-u; P.x=-(gx+SUNDZ_G*du)*U; P.z=(gz-SUNDX_G*du)*U; u=cu; } }   // inside, kept between the doorway's sides
+      if(K===girl) doorPass=Math.max(0,(v+BOX_HALF)*U); continue; }
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
@@ -191,9 +196,9 @@ function updateDesert(dt,time){
   if(Math.abs((fan.userData.near??-1)-near)>0.02) dropFan(near);
   lightFan(0.3*A*edge*edge*(1+1.6*near)*4);   /* the 2D game's bands each lap half over the next, so twice its strength */
   /* the light taking the view */
-  { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.4*doorIn;   /* the view only turns fully white as the kids pass in at the door; until then the doorway stays the brightest thing in it */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  { const sp=dw.clone().project(cam), W=innerWidth, H=innerHeight; washU.uC.value.set((sp.x+1)/2*W,(1-sp.y)/2*H); washU.uR.value=Math.max(W,H)*(0.25+1.1*near); washU.uM.value=Math.min(near*A,0.6)+0.15*doorIn;   /* bright at the door, never white: it turns white only as the kids walk in past its face (level2.js) */ washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   /* the beacon and where the white is centred are set just before drawing (placeDoorScreen), from this frame's camera */
-  { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
+  { const k=Math.pow(near*A,0.8); frontU.uK.value=k; frontU.uFade.value=0; }   /* dark against the light, silhouettes right up to and into the doorway */
   /* your flock, come this close, wanders off to join the flamingos of the box */
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) if(m.ring===undefined) mateToShore(m); }   // (those standing in the rings stay there)
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */

@@ -123,9 +123,10 @@ function leaveLevel2(){ whiteIn=0; whiteHold=0; if(LEVEL!==2) return; LEVEL=1; G
    no stop, no turn, the kids walk on out of the same door onto the clouds */
 function updateDoor(dt,time){
   if(!COAST.on) return;
-  /* stepping into the doorway: the view goes all white, kids and all, and only then are they through (so the change is never seen) */
-  const inDoor=doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly';
-  whiteIn=clamp(whiteIn+(inDoor?dt/0.45:-dt/0.3),0,1);
+  /* walking in through the doorway: dark shapes into the light, and over the next few steps past its face the view goes all white,
+     kids and all; only then are they through (so the change is never seen). Turning back, the white falls away again. */
+  const want=girl.P.state!=='fly'?clamp(doorPass/DOOR.walkIn,0,1):0;
+  whiteIn+=(want-whiteIn)*(1-Math.exp(-dt*(want>whiteIn?10:4))); if(want>=1&&whiteIn>0.97) whiteIn=1;
   if(whiteIn>0){ const w=whiteIn*whiteIn*(3-2*whiteIn); washU.uM.value=Math.max(washU.uM.value,w); frontU.uFade.value=Math.max(frontU.uFade.value,w); frontU.uK.value=frontU.uK.value*(1-w); }
   if(whiteIn>=1){ enterLevel2(true); return; }
   /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
