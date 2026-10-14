@@ -104,7 +104,7 @@ function enterLevel2(walking){
   LEVEL=2; inT=0; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
   G=LEVELS[2].gravity; HOP=LEVELS[2].hop;   // up here gravity is lighter: the hop goes about 5.5 m high and floats (settings.js)
   setLevelLook(true);
-  mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true; rayU.uA.value=0;
+  mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true;
   /* the door stands where it stood, on the cloud */
   const c=boxC(); { const dx=-(c[0]-SUNDX_G*BOX_HALF)*U, dz=(c[1]-SUNDZ_G*BOX_HALF)*U, base=groundAt(dx,dz)-8*U; boxY=boxGroup.position.y; boxGroup.position.y=doorLight.position.y=base; }
   /* the kids just past it, on the cloud, walking on toward the sun */
@@ -141,13 +141,13 @@ function updateClouds(dt,time){
   washU.uM.value=m*A; { const W=innerWidth, H=innerHeight; washU.uR.value=Math.max(W,H)*(0.25+1.1*m); washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const k=Math.pow(m*A,0.8), s0=clamp((m*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }
 }
-/* the door's light on the screen: on the clouds it shines both ways, and there is no ray (called by placeDoorScreen, desert.js) */
+/* the door's light on the screen: on the clouds it shines both ways (called by placeDoorScreen, desert.js) */
 const _sd=new THREE.Vector3();
 function placeDoorScreen2(){
   const W=innerWidth, H=innerHeight, focal=0.5*H/Math.tan(cam.fov*Math.PI/360), dc=doorLight.localToWorld(_sd.set(0,DH*0.5,front)), dist=cam.position.distanceTo(dc), pxPerM=focal/Math.max(1,dist);
   const p=dc.clone().project(cam), cx=(p.x+1)/2*W, cy=(1-p.y)/2*H, ahead=p.z<1, A=0.9+0.1*Math.sin(clock*1.3);
   const bp=Math.max(40,DH*pxPerM*1.4), far=clamp((dist-30)/60,0,1); doorBeacon.scale.set(bp/pxPerM,bp/pxPerM,1); doorBeacon.material.opacity=A*far; doorBeacon.visible=ahead&&far>0;
-  rayU.uA.value=0; washU.uC.value.set(cx,ahead?cy:H*0.45);
+  washU.uC.value.set(cx,ahead?cy:H*0.45);
 }
 /* just before drawing: the LEVEL 1 sign when the game opens; on the clouds the lumps placed from this frame's camera, and no moon */
 function level2Frame(){
