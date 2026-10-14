@@ -105,7 +105,7 @@ function setLevelLook(on){
 function enterLevel2(walking){
   if(!girl||!COAST.on) return;
   LEVEL=2; inT=0; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
-  G=10.5; HOP=7.8;   // up here gravity is lighter: the hop goes three times as high and lasts about twice as long
+  G=10.5; HOP=11.0;   // up here gravity is lighter: the hop goes about 5.5 m high (over five times the field) and floats
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true; rayU.uA.value=0;
   /* the door stands where it stood, on the cloud */
