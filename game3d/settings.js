@@ -16,6 +16,10 @@ const SOUND={fastWind:0.9, music:1.4};
 /* flying: the height the kids cruise at, and their speed (the page raises it for full-flock flight) */
 const CRUISE=4.5, FLY_BASE=13;
 
+/* the camera near the top of the sky (level 1): over the last quarter of the height the kids may reach (feathers or a full flock)
+   it rises a little more (metres, at the feather and full-flock limits), tips down further (degrees) and widens its view (degrees) */
+const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
+
 /* the level the game is on (1: the field and the desert; 2: the clouds and the whales). Changed only by enterLevel2 and leaveLevel2 (level2.js). */
 let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
 
