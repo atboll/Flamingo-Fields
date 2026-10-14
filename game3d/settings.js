@@ -20,6 +20,10 @@ const CRUISE=4.5, FLY_BASE=13;
    it rises a little more (metres, at the feather and full-flock limits), tips down further (degrees) and widens its view (degrees) */
 const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
 
+/* the puzzle at the box (rings.js): a bank of fog over the desert round the box (radius and height in metres, density per metre),
+   and five rings of stones in it (radius in metres). Land in a ring and one of your flamingos stays there; five, and the fog lifts and the door opens. */
+const PUZZLE={fogR:380, fogH:45, fog:0.02, ringR:3};
+
 /* the level the game is on (1: the field and the desert; 2: the clouds and the whales). Changed only by enterLevel2 and leaveLevel2 (level2.js). */
 let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
 
@@ -28,6 +32,7 @@ let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
      #dev-level2    starts on the clouds of level 2
      #dev-dunes     the kids out in the dunes, with sliders for the dunes
      #dev-flamingo  a flamingo in front of the kids, with buttons for each of its moves
+     #dev-box       the kids at the edge of the fog round the box, with a full flock and the door still shut (the F key fills the next ring)
    A built test page can set window.DEVMODE ('' for plain dev, or a mode's name) instead of the address. */
 const DEV=(()=>{ const h=window.DEVMODE!==undefined ? '#dev'+(window.DEVMODE?'-'+window.DEVMODE:'') : location.hash,
-  m=/^#dev(?:-(level2|dunes|flamingo))?$/.exec(h); return m?{on:true, mode:m[1]||''}:{on:false, mode:''}; })();
+  m=/^#dev(?:-(level2|dunes|flamingo|box))?$/.exec(h); return m?{on:true, mode:m[1]||''}:{on:false, mode:''}; })();

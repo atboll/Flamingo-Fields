@@ -4,7 +4,7 @@
    Half way there the field turns to desert (the dunes themselves are in index.html's groundAt, shared with the grass and the ground's paint).
    6250 units past the coast point stands the huge silver box, about 29 m on a side, square to the moon, with a tall narrow door in the face
    the kids come to. Its doorway is full of white light that pours out over the face, into the air and across the sand, pulsing gently.
-   Nobody passes through the box. By the box the night waits. Round it, 26 flamingos are already there: standing, feeding,
+   Its door is shut until the five rings in the fog round it are lit (rings.js). By the box the night waits. Round it, 26 flamingos are already there: standing, feeding,
    resting on one leg, and wandering slowly round on their own small errands.
    For testing (with #dev), the B key lays the journey's end just ahead of the kids. */
 
@@ -46,6 +46,10 @@ const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's lo
 const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
 Object.assign(doorPane.material,{polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-8});
 doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.2); doorLight.add(doorPane);
+doorPane.material.transparent=true;   /* it fades in as the door opens (rings.js) */
+/* the shut door: a dark, slightly sunk panel in the face, lost in the fog with the box until the rings are lit (rings.js) */
+const doorShutMesh=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshStandardMaterial({color:0x2c2f37, metalness:0.35, roughness:0.75}));
+doorShutMesh.material.defines={SOFT_HAZE:''}; doorShutMesh.rotation.y=Math.PI; doorShutMesh.position.set(0,DH/2,front-0.03); boxGroup.add(doorShutMesh);
 /* The door's light, as the 2D game draws it. Its bloom is laid in screen terms round the doorway: a tight white core, a wide soft haze
    that pales most of the box's face, and a low wide flare, none smaller than a beacon should be from far off, and thinner when the door is
    seen edge-on. Its light lies on the sand in a long fan widening outward from the threshold, brightest down its middle, gone at its sides.
@@ -127,18 +131,20 @@ function makeCoast(gx,gz){
   for(const G of [boxGroup,doorLight]){ G.position.set(wx,base,wz); G.rotation.set(0,-SUN_B,0); G.visible=true; }
   dropFan(0);
   /* the flamingos already there, round the box */
+  makeRings();   /* the fog, the five rings, and the door shut (rings.js) */
   shore.length=0;
   for(let i=0;i<26;i++){ const lat=(h2(i,201)-0.5)*5600, cs=h2(i,205)<0.25?SHORE+8+h2(i,207)*24:SHORE-40-Math.pow(h2(i,203),2)*850, p=shorePos(lat,cs), a=h2(i,209)*6.283;
     shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),lat,cs,100+i)); }
   makeShoreBirds();
 }
-function clearCoast(){ seaPart=0; partRanges(0); washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
-/* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet) */
+function clearCoast(){ clearRings(); seaPart=0; partRanges(0); washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
+/* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet),
+   with the rings already lit and the door open */
 function goToBox(){
   if(!girl) return;
   leaveLevel2();   // it starts from level 1
   if(!COAST.on){ const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); }
-  coastA=1; const c=boxC(), d=BOX_HALF+3100, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
+  solveRings(); coastA=1; const c=boxC(), d=BOX_HALF+3100, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
   [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, spd:0, state:'ground'}));
   events.length=0; placeCam(girl,0,true);
 }
@@ -168,15 +174,15 @@ function updateDesert(dt,time){
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
   /* the door: white, pulsing gently */
-  const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3));
-  doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3));
+  const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3))*doorOpen;   // shut until the rings are lit (rings.js)
+  doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3)); doorPane.material.opacity=doorOpen; doorPane.visible=doorOpen>0.001; doorShutMesh.visible=doorOpen<0.999;
   /* how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it (the 2D game's rule) */
   { const P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7; let tg=0;
     if(v<-BOX_HALF && P.y/U<DOOR_H*1.6){ cam.getWorldDirection(_dsp); const fx=-_dsp.x, fz=_dsp.z, fm=Math.hypot(fx,fz)||1, facing=clamp(((fx*SUNDX_G+fz*SUNDZ_G)/fm-0.15)/0.6,0,1);
-      tg=clamp(1-(Math.hypot(-v-BOX_HALF,lat)-95)/1700,0,1)*facing; }
+      tg=clamp(1-(Math.hypot(-v-BOX_HALF,lat)-95)/1700,0,1)*facing*doorOpen; }
     doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0;
     /* in the doorway itself: right at the face, between its sides */
-    const at=(v<-BOX_HALF && -v-BOX_HALF<170 && Math.abs(u)<DOOR_W*0.55 && P.y/U<DOOR_H)?1:0; doorIn+=(at-doorIn)*(1-Math.exp(-dt*(at?2.5:4))); }
+    const at=(doorOpen>0.95 && v<-BOX_HALF && -v-BOX_HALF<170 && Math.abs(u)<DOOR_W*0.55 && P.y/U<DOOR_H)?1:0; doorIn+=(at-doorIn)*(1-Math.exp(-dt*(at?2.5:4))); }
   const near=doorNear;
   /* seen edge-on the light thins; from behind the box there is none */
   const dw=doorLight.localToWorld(_dsp.set(0,DH*0.5,front)), toCam=cam.position.clone().sub(dw), nrm=new THREE.Vector3(Math.sin(SUN_B),0,-Math.cos(SUN_B)), cv=toCam.dot(nrm), dist=toCam.length(), edge=cv>0?clamp(cv/dist*3,0.25,1):0;
@@ -189,7 +195,7 @@ function updateDesert(dt,time){
   /* the beacon and where the white is centred are set just before drawing (placeDoorScreen), from this frame's camera */
   { const k=Math.pow(near*A,0.8), s0=clamp((near*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }   /* dark against the light, then faint in the white */
   /* your flock, come this close, wanders off to join the flamingos of the box */
-  if(near>0.3 && !arrived){ arrived=true; for(const m of mates) mateToShore(m); }
+  if(near>0.3 && !arrived){ arrived=true; for(const m of mates) if(m.ring===undefined) mateToShore(m); }   // (those standing in the rings stay there)
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
   landWildFlock(time); updateShore(dt); placeShore(dt);
@@ -256,7 +262,7 @@ function placeDoorScreen(){
   const W=innerWidth, H=innerHeight, q=H/650, focal=0.5*H/Math.tan(cam.fov*Math.PI/360);
   const dc=doorLight.localToWorld(_sd.set(0,DH*0.5,front)), toCam=_sc.copy(cam.position).sub(dc), nrm=new THREE.Vector3(Math.sin(SUN_B),0,-Math.cos(SUN_B));
   const cv=toCam.dot(nrm), dist=toCam.length(), edge=cv>0?clamp(cv/dist*3,0.25,1):0, pxPerM=focal/Math.max(1,dist), dh=DH*pxPerM, dwPx=DW*pxPerM;
-  const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(clock*1.3));
+  const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(clock*1.3))*doorOpen;
   const c=_sq.copy(dc).project(cam), cx=(c.x+1)/2*W, cy=(1-c.y)/2*H, ahead=c.z<1;
   /* the ground in front of the door: walk out from the camera toward the door's foot and keep the highest point any ground reaches on the screen */
   let clip=1e5; { const foot=doorLight.localToWorld(new THREE.Vector3(0,0.3,front)); for(let i=1;i<48;i++){ const t=Math.pow(i/48,1.6)*0.985, x=cam.position.x+(foot.x-cam.position.x)*t, z=cam.position.z+(foot.z-cam.position.z)*t;

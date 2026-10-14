@@ -61,6 +61,11 @@ function start(){
     [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, state:'ground', spd:0}));
     mates.forEach(m=>{ m.x=gx; m.z=gz; m.y=0; }); placeCam(girl,0,true); }
   if(DEV.mode==='flamingo') flamStart();
+  /* the kids at the edge of the fog round the box, about 400 m out along the way they come, with a full flock; the door still shut */
+  if(DEV.mode==='box'){ for(let i=0;i<5;i++) giftMate(); const P=girl.P, d0=8000-SHORE; makeCoast(-P.x/U+SUNDX_G*d0, P.z/U+SUNDZ_G*d0); coastA=1;
+    const c=boxC(), d=BOX_HALF+26500, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
+    [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, state:'ground', spd:0}));
+    mates.forEach(m=>{ m.x=gx; m.z=gz; m.y=0; }); placeCam(girl,0,true); }
 }
 
 /* ---------- #dev-flamingo: one flamingo standing a few metres in front of the kids, with a button for each of its moves ---------- */

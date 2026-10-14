@@ -23,6 +23,7 @@ The 3D world is in metres. The original game's units convert with `U = 1.43 / 98
 | `night.js` | The day and night clock, the night grade, the moon and stars, and drawing the frame. |
 | `road.js` | The feather road to the moon. |
 | `desert.js` | The desert, the silver box and its door and light, and the flamingos round it. |
+| `rings.js` | The puzzle at the box: the fog bank over the desert, the five rings, and the door opening when all five are lit. |
 | `feathers.js` | Feathers in the grass, the counter, and when the kids may fly. |
 | `level2.js` | Level 2: through the door onto the pink clouds, the lone door, dawn, the level signs, flying only near whales. |
 | `whales.js` | The ten whales of level 2, their swimming, crossings and songs. |
@@ -42,6 +43,7 @@ Add one of these to the address:
 - `#dev-level2`: starts on the clouds of level 2.
 - `#dev-dunes`: the kids out in the dunes with sliders for the dunes' shape and paint; it prints a `DUNE=` line to paste into `settings.js`.
 - `#dev-flamingo`: a flamingo in front of the kids, with a button for each of its moves, its speed and its turn.
+- `#dev-box`: the kids at the edge of the fog round the box with a full flock, the door still shut. The F key fills the next ring. (The To the box button opens the door at once.)
 
 Without these the player sees only Sound and Reset level.
 
@@ -87,9 +89,10 @@ The editors and the whale page that made the game's looks are in `../tools/` (se
 - [x] The desert dunes (`desert.js`, with the dunes in `groundAt` on both the processor and the graphics card; laid when the road is first flown; with `#dev` the B key jumps there)
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
 - [x] The silver box and its door (built in code: brushed silver, a tone per face; a frameless doorway full of white light that pours out over the face, into the air and across the sand; by the box the night waits)
+- [x] The puzzle at the box (`rings.js`): the box hides in a bank of fog with its door shut; land in each of five stone rings and a flamingo stays there and the ring lights; five, and the fog lifts and the door opens
 - [x] Flamingos round the box (26, wandering, feeding and resting, as the 2D game's shore birds)
 - [ ] Landing on top of the box
-- [x] Your flock walks off to join the box's flamingos (when the kids come close to the door; the counter goes, the wings stay)
+- [x] Your flock stays behind in the five rings round the box, one by one (the counter empties as they do; the wings stay)
 - [x] The door's light as in the 2D game: bloom over the face, the fan on the sand, the kids and birds dark against it, the light taking the view at the door
 - [x] Through the door to level 2 (walk into the light and on out onto the clouds)
 

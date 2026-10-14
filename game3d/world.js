@@ -15,7 +15,22 @@ THREE.ShaderChunk.fog_fragment=`#ifdef USE_FOG
   float fogFactor=pow(clamp((vFogDepth-fogNear)/(fogFar-fogNear),0.0,1.0),0.6)*0.96;
   #endif
   gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,fogFactor);
+  #include <bank_fragment>
 #endif`;
+/* the fog bank round the box (rings.js): every fogged thing also knows where it is in the world, so the bank can lie over it */
+THREE.ShaderChunk.fog_pars_vertex+=`
+#ifdef USE_FOG
+varying vec3 vFogW; uniform mat4 uBankVI;
+#endif`;
+THREE.ShaderChunk.fog_vertex+=`
+#ifdef USE_FOG
+vFogW=(uBankVI*vec4(mvPosition.xyz,1.0)).xyz;   /* back from the camera's view into the world (uBankVI: the camera's own matrix, rings.js) */
+#endif`;
+THREE.ShaderChunk.fog_pars_fragment+=`
+#ifdef USE_FOG
+varying vec3 vFogW; uniform vec4 uBank; uniform vec4 uBankR; uniform mat4 uBankVI;
+#endif`;
+THREE.ShaderChunk.bank_fragment='';   /* filled in by rings.js */
 const FOG_NEAR=320*U, FOG_FAR=(320+9000)*U;
 scene.fog=new THREE.Fog(rgb(HAZE).convertSRGBToLinear(),FOG_NEAR,FOG_FAR);
 const cam=new THREE.PerspectiveCamera(58,1,0.25,6000);     // the game's view: focal = 0.9 × the screen's height, so 58° tall
@@ -153,6 +168,7 @@ function makeGround(size,seg,shadows){
       .replace('#include <fog_fragment>',`#ifdef USE_FOG
           { float fogFactor=pow(clamp((vFogDepth-fogNear)/(fogFar-fogNear),0.0,1.0),0.6)*0.96, mist=pow(smoothstep(${MIST0.toFixed(1)},${MIST1.toFixed(1)},length(vWXZ-cameraPosition.xz)),1.3)*0.94;
             gl_FragColor.rgb=mix(gl_FragColor.rgb,fogColor,mix(fogFactor,mist,sandA)); }
+          #include <bank_fragment>
           #endif`);
     sh.fragmentShader=sh.fragmentShader.replace('void main() {','float sandA=0.0; vec3 sandLin=vec3(0.0);\nvoid main() {'); };
   const m=new THREE.Mesh(g,mat);

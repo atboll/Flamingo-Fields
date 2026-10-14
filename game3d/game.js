@@ -11,7 +11,7 @@ function frame(now){
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
     stepKid(boy,dt,followInput(girl,boy));
     if(LEVEL===1){ updateDesert(dt,clock); updateDoor(dt,clock); } else updateClouds(dt,clock);
-    updateLift(dt); updateWhales(dt); updateRidges();
+    updateRings(dt,clock); updateLift(dt); updateWhales(dt); updateRidges();
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
     placeCam(girl,dt,false);
     if(LEVEL===1) updateFlock(girl,dt,clock); else flock=null;   // no wild flocks, feather road or feathers on the clouds
@@ -22,7 +22,7 @@ function frame(now){
     rollDunes(dt); groundTime.value=clock; groundAir.value=clamp((cam.position.y-groundAt(cam.position.x,cam.position.z)-120*U)/(200*U),0,1);
     for(const gm of grassAll){ const u=gm.material.uniforms; u.uCentre.value.set(girl.P.x,girl.P.z); u.uTime.value=clock; u.uAir.value=groundAir.value;
       u.uKid0.value.set(girl.P.x,girl.P.y,girl.P.z); u.uKid1.value.set(boy.P.x,boy.P.y,boy.P.z); } }
-  nightFrame(clock); devFrame(); placeWhales(); level2Frame(); renderFrame(); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
+  nightFrame(clock); devFrame(); placeWhales(); level2Frame(); placeBank(); renderFrame(); overlays(clock); drawHud(clock); updateRunSound(); if(actx){ updateFlamSound(); updateMusic(); updateFastSound(); }
   /* frame rate: shown with the ` key; on a slow device the grass thins itself */
   fpsN++; fpsT+=dt; if(fpsT>=1){ const fps=fpsN/fpsT; $('stats').textContent=fps.toFixed(0)+' fps · '+(grassAll.reduce((a,gm)=>a+gm.geometry.instanceCount,0)/1000).toFixed(0)+'k blades';
     if(fps<40) slowFrames++; else slowFrames=0; if(slowFrames>=3&&grass.geometry.instanceCount>25000){ for(const gm of grassAll) gm.geometry.instanceCount=Math.round(gm.geometry.instanceCount*0.75); slowFrames=0; }
