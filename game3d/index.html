@@ -109,7 +109,7 @@ function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, a=dx*SUNDX_G+dz*
 /* the dunes: three sizes of ridge, each a sharp crest with a gentle wind side and a steeper lee side, the crests wandering, curling
    and coming and going along their length, the three running at different angles so nothing repeats. In game units, along (al) and across (lat) the way. */
 /* the dunes' shape and paint, tunable (the Dune Test Field, dunes.js, has sliders for all of these) */
-const DUNE={size:1, height:1, round:1.1, curve:1, cross:0.3, angle:0.45, contrast:2.2, soft:0.85, crest:0.6, warm:0.85, ripple:1, ridges:0};
+const DUNE={size:1, height:1, round:1.1, curve:1, cross:0.3, angle:0.45, contrast:2.2, soft:0.85, crest:0, warm:0.85, ripple:1, ridges:0};
 const uDuneA={value:new THREE.Vector4()}, uDuneB={value:new THREE.Vector4()}, uSandP={value:new THREE.Vector4()};
 function duneUniforms(){ uDuneA.value.set(DUNE.size,DUNE.height,DUNE.round,DUNE.curve); uDuneB.value.set(DUNE.cross,DUNE.angle,DUNE.ripple,0); uSandP.value.set(DUNE.contrast,DUNE.soft,DUNE.crest,DUNE.warm); }
 duneUniforms();
