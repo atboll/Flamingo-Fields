@@ -10,6 +10,9 @@ const LEVELS={
   1:{gravity:14,   hop:5.2,  land:1},
   2:{gravity:10.5, hop:11.0, land:0.9}};
 
+/* sound levels: the fast-flight wind (was 1.8) and the music that plays when the flock is complete (was 0.7) */
+const SOUND={fastWind:0.9, music:1.4};
+
 /* flying: the height the kids cruise at, and their speed (the page raises it for full-flock flight) */
 const CRUISE=4.5, FLY_BASE=13;
 

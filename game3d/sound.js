@@ -36,7 +36,7 @@ let padEl=null, padPlayed=false;
 function updateMusic(){
   if(!actx||!master||padPlayed) return;
   if(!padEl && mates.length>=MATES_MAX-1){ padEl=new Audio('assets/pad.mp3'); padEl.preload='auto';
-    try{ const g=actx.createGain(); g.gain.value=0.7; actx.createMediaElementSource(padEl).connect(g); g.connect(master); }catch(e){ padEl.volume=0.7; } }
+    try{ const g=actx.createGain(); g.gain.value=SOUND.music; actx.createMediaElementSource(padEl).connect(g); g.connect(master); }catch(e){ padEl.volume=Math.min(1,SOUND.music); } }
   if(padEl && freeFly()){ padPlayed=true; const p=padEl.play(); if(p&&p.catch) p.catch(()=>{}); }
 }
 /* Fast flight: with a full flock the kids fly at the 2D game's full-flock speed (800 against 430, so about 1.9 times), picking it up over a few seconds.
@@ -61,7 +61,7 @@ function updateFastSound(){
     g.gain.setValueCurveAtTime(fastIn,fastNext,FAST_OVERLAP); g.gain.setValueCurveAtTime(fadeOut,fastNext+dur-FAST_OVERLAP,FAST_OVERLAP);
     src.connect(g); g.connect(fastGain); src.start(fastNext); fastNext+=dur-FAST_OVERLAP; }
   /* it swells as the kids pick up speed beyond normal flying pace and dies away as they slow (the 2D rule, in its own units) */
-  const v=(FLY_SPEED-FLY_BASE)/(FLY_TOP-FLY_BASE)*girl.P.flyW, on=(LEVEL===1&&girl.P.state==='fly'&&freeFly())?clamp((v-0.06)/0.94,0,1):0, lvl=on*1.8;   /* no wind on level 2 */   /* the wind still reaches full at the (lower) top speed */
+  const v=(FLY_SPEED-FLY_BASE)/(FLY_TOP-FLY_BASE)*girl.P.flyW, on=(LEVEL===1&&girl.P.state==='fly'&&freeFly())?clamp((v-0.06)/0.94,0,1):0, lvl=on*SOUND.fastWind;   /* no wind on level 2; the wind still reaches full at the (lower) top speed (settings.js) */
   fastGain.gain.setTargetAtTime(lvl,t,lvl>0?0.25:LEVEL===2?0.3:0.5);
 }
 /* the flock's calls: the clip loops with a short overlap while a flock is in the sky, louder the nearer it is (the 2D game's rule).
