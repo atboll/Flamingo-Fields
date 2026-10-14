@@ -39,5 +39,5 @@ let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
      #dev-flamingo  a flamingo in front of the kids, with buttons for each of its moves
      #dev-box       the kids at the edge of the fog round the box, with a full flock and the door still shut (the F key fills the next ring)
    A built test page can set window.DEVMODE ('' for plain dev, or a mode's name) instead of the address. */
-const DEV=(()=>{ const h=window.DEVMODE!==undefined ? '#dev'+(window.DEVMODE?'-'+window.DEVMODE:'') : location.hash,
+const DEV=(()=>{ const h=/^#dev/.test(location.hash) ? location.hash : window.DEVMODE!==undefined ? '#dev'+(window.DEVMODE?'-'+window.DEVMODE:'') : location.hash,   // (an address tag wins over the page's own)
   m=/^#dev(?:-(level2|dunes|flamingo|box))?$/.exec(h); return m?{on:true, mode:m[1]||''}:{on:false, mode:''}; })();
