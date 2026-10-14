@@ -1,6 +1,6 @@
 /* ---------- The puzzle at the box: the fog bank, the five rings, and the door opening ----------
-   When the journey's end is laid, the box stands in a low bank of pale fog, its door shut and dark. Out in the fog lie five rings of pale
-   stones, some in the open, some on crests, one in a dip. Land in a ring (or walk into it) and the nearest of your flamingos walks to its
+   When the journey's end is laid, the box stands with its door shut and dark (the fog bank round it is switched off for now: PUZZLE.fog 0).
+   Out in the dunes lie five rings of pale stones, each on the flattest sand near its spot, between the dune tops. Land in a ring (or walk into it) and the nearest of your flamingos walks to its
    middle and settles there; the light runs round the ring, stone by stone, and stays, breathing. Each lit ring thins the fog a fifth.
    When the fifth is lit, the last of the fog clears, the five flamingos turn to the box, and the door's light slowly comes on.
    From then on the door is the one it always was: walk into its light and you come out on the clouds of level 2.
@@ -38,7 +38,7 @@ for(const m of [...rangeMeshes,...treelines]){ const prev=m.material.onBeforeCom
 /* ---------- the rings ---------- */
 const RING_N=5, STONES=14;
 /* where they lie, in metres from the box: along the way the kids come (negative: on their side of it) and across it; and whether each looks for a crest or a dip nearby */
-const RING_AT=[[-150,-55,''],[-70,175,'crest'],[130,215,'dip'],[235,-95,'crest'],[-35,-260,'']];
+const RING_AT=[[-150,-55],[-70,175],[130,215],[235,-95],[-35,-260]];   /* each then settles on the flattest sand within about 40 m (between the dune tops) */
 const stoneGeo=new THREE.DodecahedronGeometry(1,0);
 const stoneMat=new THREE.MeshLambertMaterial({color:0xffffff});
 const stones=new THREE.InstancedMesh(stoneGeo,stoneMat,RING_N*STONES); stones.visible=false; stones.frustumCulled=false; scene.add(stones);
@@ -60,9 +60,11 @@ let ringsOn=false, solved=false, solvedAt=-1, bankK=0, doorOpen=1, ringLeftT=-9;
 function makeRings(){
   const c=boxC(), r=rng(91), M=new THREE.Matrix4(), Q=new THREE.Quaternion(), E=new THREE.Euler(), S=new THREE.Vector3(), T=new THREE.Vector3();
   const at=(al,l)=>[c[0]+SUNDX_G*al+SUNDZ_G*l, c[1]+SUNDZ_G*al-SUNDX_G*l];
-  rings.forEach((R,i)=>{ const [al,l,kind]=RING_AT[i]; let best=at(al/U,l/U);
-    if(kind){ let bh=kind==='crest'?-1e9:1e9;   /* the highest (or lowest) ground within about 40 m */
-      for(let a=-5;a<=5;a++) for(let b=-5;b<=5;b++){ const p=at((al+a*8)/U,(l+b*8)/U), h=groundAt(-p[0]*U,p[1]*U); if(kind==='crest'?h>bh:h<bh){ bh=h; best=p; } } }
+  /* how uneven the sand is under a ring: the spread of heights over the ring and just outside it */
+  const bumpy=(wx,wz)=>{ let lo=1e9, hi=-1e9; for(let k=0;k<=12;k++){ const r0=k===0?0:k<=6?PUZZLE.ringR*0.6:PUZZLE.ringR*1.4, a=k*1.047, h=groundAt(wx+Math.cos(a)*r0,wz+Math.sin(a)*r0); if(h<lo) lo=h; if(h>hi) hi=h; } return hi-lo; };
+  rings.forEach((R,i)=>{ const [al,l]=RING_AT[i]; let best=at(al/U,l/U), bs=1e9;
+    for(let a=-10;a<=10;a++) for(let b=-10;b<=10;b++){ const p=at((al+a*4)/U,(l+b*4)/U), s=bumpy(-p[0]*U,p[1]*U)+0.002*Math.hypot(a,b); if(s<bs){ bs=s; best=p; } }
+    R.flat=bs;
     R.gx=best[0]; R.gz=best[1]; R.x=-R.gx*U; R.z=R.gz*U; R.y=groundAt(R.x,R.z); R.bird=null; R.light=0; R.lit=false; R.chimed=false;
     /* the stones: pale, rounded, each its own size, half sunk in the sand */
     for(let k=0;k<STONES;k++){ const a=(k+(r()-0.5)*0.3)/STONES*Math.PI*2, rr=PUZZLE.ringR*(0.95+r()*0.1), sx=R.x+Math.cos(a)*rr, sz=R.z+Math.sin(a)*rr, s=0.32+r()*0.2;
