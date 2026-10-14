@@ -103,7 +103,9 @@ function freeMate(){ const P=girl.P, lx=-P.x/U, lz=P.z/U; let best=null, bd=1e9;
 
 /* ---------- each frame (level 1) ---------- */
 function updateRings(dt,time){
-  if(!ringsOn||LEVEL!==1){ BANK.w=0; return; }
+  /* on the clouds of level 2 none of it is there (Reset level lays it all again) */
+  const here=ringsOn&&LEVEL===1; stones.visible=here; for(const R of rings){ R.glow.visible=here; if(!here) R.beam.visible=false; }
+  if(!here){ BANK.w=0; return; }
   const P=girl.P;
   /* a kid down on the sand inside an empty ring leaves a flamingo there */
   if(!solved && (P.state==='ground'||P.state==='touch') && P.y<0.3)

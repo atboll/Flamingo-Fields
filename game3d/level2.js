@@ -9,7 +9,7 @@
    The #dev-level2 address starts straight on the clouds, for testing (dev.js). Reset level brings back level 1.
    Each frame the loop (game.js) calls updateDoor on level 1, updateClouds and updateLift on level 2, and level2Frame before drawing. */
 (function(){
-let inT=0, landed2=false, boxY=0, enteredAt=-1, sign2=false, sign1=DEV.mode!=='level2';
+let inT=0, whiteIn=0, whiteHold=0, landed2=false, boxY=0, enteredAt=-1, sign2=false, sign1=DEV.mode!=='level2';
 /* the level sign, as the 2D game shows it: LEVEL 1 when the game opens, LEVEL 2 ten seconds after stepping onto the clouds */
 function showLevelSign(text){ const el=$('levelSign'); if(!el) return; const q=clamp(Math.min(innerWidth/1100,innerHeight/560),0.55,1.2);
   el.textContent=text; el.style.fontSize=Math.round(72*q)+'px'; el.style.letterSpacing=Math.round(14*q)+'px';
@@ -101,7 +101,7 @@ function setLevelLook(on){
 }
 function enterLevel2(walking){
   if(!girl||!COAST.on) return;
-  LEVEL=2; inT=0; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
+  LEVEL=2; inT=0; whiteIn=0; whiteHold=1; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
   G=LEVELS[2].gravity; HOP=LEVELS[2].hop;   // up here gravity is lighter: the hop goes about 5.5 m high and floats (settings.js)
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true;
@@ -116,14 +116,18 @@ function enterLevel2(walking){
   /* the world's sounds fall away in the white and come back on the other side */
   if(actx&&master){ const t=actx.currentTime, on=soundOn?0.85:0; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(0,t+0.4); master.gain.linearRampToValueAtTime(on,t+3.5); }
 }
-function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; G=LEVELS[1].gravity; HOP=LEVELS[1].hop; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
+function leaveLevel2(){ whiteIn=0; whiteHold=0; if(LEVEL!==2) return; LEVEL=1; G=LEVELS[1].gravity; HOP=LEVELS[1].hop; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
 
 /* ---------- each frame ---------- */
 /* level 1: the door leads into the box, and the box is this new level. Stepping into the doorway, in the light, and through:
    no stop, no turn, the kids walk on out of the same door onto the clouds */
 function updateDoor(dt,time){
   if(!COAST.on) return;
-  if(doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly'){ enterLevel2(true); return; }
+  /* stepping into the doorway: the view goes all white, kids and all, and only then are they through (so the change is never seen) */
+  const inDoor=doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly';
+  whiteIn=clamp(whiteIn+(inDoor?dt/0.45:-dt/0.3),0,1);
+  if(whiteIn>0){ const w=whiteIn*whiteIn*(3-2*whiteIn); washU.uM.value=Math.max(washU.uM.value,w); frontU.uFade.value=Math.max(frontU.uFade.value,w); frontU.uK.value=frontU.uK.value*(1-w); }
+  if(whiteIn>=1){ enterLevel2(true); return; }
   /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
   const a=0.9+0.1*Math.sin(time*1.3), k=clamp((doorNear-0.3)/0.7,0,1); doorPane.material.color.setRGB(a,a*(1-0.1*k),a*(1-0.05*k)); }
 /* level 2: the door's white, the dawn, the sign */
@@ -137,9 +141,11 @@ function updateClouds(dt,time){
   /* the night holds until they are down on the cloud and clear of the door; then the sun starts to rise */
   if(!landed2){ dayOffset-=dt; if(P.state==='ground' && P.y<0.02 && doorNear<0.45){ landed2=true; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN-clock; } }
   const A=0.9+0.1*Math.sin(time*1.3); doorPane.material.color.setScalar(A);
-  const m=Math.min(0.9,doorNear*1.2);   // almost white at most: the kids are always faint shapes in it
-  washU.uM.value=m*A; { const W=innerWidth, H=innerHeight; washU.uR.value=Math.max(W,H)*(0.25+1.1*m); washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
-  { const k=Math.pow(m*A,0.8), s0=clamp((m*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }
+  /* coming out on the clouds the view is still all white for a moment, then it clears as they walk on */
+  whiteHold=Math.max(0,whiteHold-dt/1.6); const hold=whiteHold>0.6?1:whiteHold/0.6, hk=hold*hold*(3-2*hold);
+  const m=Math.max(Math.min(0.9,doorNear*1.2),hk);   // otherwise almost white at most at the door: the kids are faint shapes in it
+  washU.uM.value=Math.max(m*A,hk); { const W=innerWidth, H=innerHeight; washU.uR.value=Math.max(W,H)*(0.25+1.1*m); washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
+  { const k=Math.pow(m*A,0.8), s0=clamp((m*A-0.4)/0.6,0,1); frontU.uK.value=k*(1-hk); frontU.uFade.value=Math.max(0.8*s0*s0*(3-2*s0),hk); }
 }
 /* the door's light on the screen: on the clouds it shines both ways (called by placeDoorScreen, desert.js) */
 const _sd=new THREE.Vector3();
