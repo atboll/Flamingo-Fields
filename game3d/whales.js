@@ -10,7 +10,7 @@ const calm=matchMedia('(prefers-reduced-motion: reduce)').matches?0.4:1;
 let WT=0;
 const D2_POST=9.2;
 /* ================= the humpback whales of level 2 =================
-   The whale from the mockup page (mockups/whale-3d.html), carried over whole: one solid shape built from rings along a bending spine,
+   The whale from the whale page (tools/whale-3d.html), carried over whole: one solid shape built from rings along a bending spine,
    with each whale's own markings, dots, belly and tail edge worked out from its settings. Everything here is private to WHALE. */
 const WHALE=(()=>{
 const bg='day', NEAR=45; let ctx=null, HZ=0; const HC=[0,0,0];   // HZ, HC: how much haze lies over the whale being painted, and the colour of the sky behind it   // the game darkens the whole picture at night, so the whales are always painted in their day colours
@@ -463,24 +463,23 @@ function whaleSound(){
 const _f=new THREE.Vector3();
 function stopAll(){ if(!whales) return; for(const w of whales){ if(w.snd){ try{ w.snd.src.stop(); }catch(e){} w.snd=null; } for(const p of w.parts) p.mesh.visible=p.dmesh.visible=false; } }
 
-/* ---------- each frame ---------- */
-const _ud=updateDesert;
-updateDesert=function(dt,time){ _ud(dt,time); WT=clock;
-  const on=typeof level2On==='function'&&level2On();
-  if(!on){ if(whales){ stopAll(); whales=null; } return; }
+/* ---------- each frame (called by the loop, game.js) ---------- */
+function updateWhales(dt){ WT=clock;
+  if(LEVEL!==2){ if(whales){ stopAll(); whales=null; } return; }
   if(!whales){ whalesStart(); for(const w of whales){ w.look=WHALE.look(w.c); w.parts=makeParts(w.look); } }
-  whalesUpdate(dt); whalePush(dt); whaleSound(); };
-const _rf=renderFrame;
-renderFrame=function(){
-  if(whales){ skinMat.uniforms.uFar.value=scene.fog.far;
-    const far=scene.fog.far*1.3;
-    for(const w of whales){ if(w.y===null) continue; const P=whP(w), wx=-w.x*U, wz=w.z*U, d=Math.hypot(wx-cam.position.x,wz-cam.position.z), vis=d<far+w.len*U;
-      for(const p of w.parts){ p.mesh.visible=p.dmesh.visible=vis; }
-      if(!vis) continue;
-      w.skip=(w.skip||0)+1; if(d>400 && w.skip%2) continue;   // far off, every other frame
-      if(w.look.calf) w.look.calf.o[1]=-0.56+0.03*Math.sin(P.t*0.7);
-      for(const p of w.parts) place(p,P); } }
-  _rf(); };
+  whalesUpdate(dt); whalePush(dt); whaleSound(); }
+/* just before drawing: each whale's shape placed for this frame */
+function placeWhales(){
+  if(!whales) return;
+  skinMat.uniforms.uFar.value=scene.fog.far;
+  const far=scene.fog.far*1.3;
+  for(const w of whales){ if(w.y===null) continue; const P=whP(w), wx=-w.x*U, wz=w.z*U, d=Math.hypot(wx-cam.position.x,wz-cam.position.z), vis=d<far+w.len*U;
+    for(const p of w.parts){ p.mesh.visible=p.dmesh.visible=vis; }
+    if(!vis) continue;
+    w.skip=(w.skip||0)+1; if(d>400 && w.skip%2) continue;   // far off, every other frame
+    if(w.look.calf) w.look.calf.o[1]=-0.56+0.03*Math.sin(P.t*0.7);
+    for(const p of w.parts) place(p,P); } }
+window.updateWhales=updateWhales; window.placeWhales=placeWhales;
 window.whales3d=()=>whales;
 /* how near the girl is to the nearest whale, as a share of that whale's length (under 1.5: near enough to be lifted) */
 window.whaleNearness=()=>{ if(!whales||!girl) return 99; const lx=-girl.P.x/U, lz=girl.P.z/U; let best=99;

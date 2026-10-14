@@ -1,8 +1,8 @@
 /* ---------- Dunes: the far ridges on the horizon, and the Dune Test Field ----------
    The far ridges: three rings of painted dune silhouettes standing on the horizon in the desert's direction, paler the farther they are,
    like the ranges, so the desert ends in soft layered ridges in the mist. Off in the game until chosen (DUNE.ridges).
-   The Dune Test Field (window.DUNETEST, or the #dunetest address): the kids out in the desert with sliders for the dunes' shape and paint,
-   and a box showing the settings to copy back into the game. */
+   The Dune Test Field (the #dev-dunes address): the kids out in the desert with sliders for the dunes' shape and paint,
+   and a box showing the settings to copy back into settings.js. (dev.js puts the kids out there.) */
 (function(){
 /* ---------- the far ridges ---------- */
 const RIDGES=[{r:2350,h:62,col:[226,172,104],ks:[5,9,14,23],ph:[0.4,2.2,4.1,1.3]},
@@ -19,14 +19,14 @@ for(const Rg of RIDGES){ const N=500, pos=[], col=[], idx=[];
   const m=new THREE.Mesh(g,new THREE.MeshBasicMaterial({vertexColors:true, fog:false, side:THREE.DoubleSide})); m.renderOrder=-7; m.frustumCulled=false;
   m.material.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <encodings_fragment>',''); };   // the ranges' way: colours as given
   ridgeG.add(m); }
-const _ud=updateDesert;
-updateDesert=function(dt,time){ _ud(dt,time);
-  /* shown out in the desert itself, rising as the kids go deeper into it */
-  let on=false; if(DUNE.ridges && COAST.on && !(window.level2On&&level2On()) && !window.IN_ROOM){ const P=girl.P, cs=coastAlong(-P.x/U,P.z/U); on=cs>800; }
-  ridgeG.visible=on; };
+/* each frame (game.js): shown out in the desert itself, rising as the kids go deeper into it */
+function updateRidges(){
+  let on=false; if(DUNE.ridges && COAST.on && LEVEL===1){ const P=girl.P, cs=coastAlong(-P.x/U,P.z/U); on=cs>800; }
+  ridgeG.visible=on; }
+window.updateRidges=updateRidges;
 
 /* ---------- the Dune Test Field ---------- */
-if(!(window.DUNETEST || location.hash==='#dunetest')) return;
+if(DEV.mode!=='dunes') return;
 const SL=[
   ['size','Dune size',0.4,2.5,0.05,'how far apart the dunes are'],
   ['height','Dune height',0,2.5,0.05,''],
@@ -72,13 +72,4 @@ $('duneCopy').addEventListener('click',()=>{ const t=$('duneOut'); try{ navigato
 $('duneMin').addEventListener('click',()=>{ box.classList.toggle('min'); $('duneMin').textContent=box.classList.contains('min')?'Show':'Hide'; });
 out();
 { const h=$('hint'); if(h) h.hidden=true; }
-/* the kids out in the dunes, a full flock (so they can fly), facing the box about 300 m off */
-let started=false;
-const _rf=renderFrame;
-renderFrame=function(){
-  if(!started && girl && FL.ready){ started=true; for(let i=0;i<5;i++) giftMate(); goToBox(); arrived=true;
-    const c=boxC(), d=BOX_HALF+20000, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
-    [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, state:'ground', spd:0}));
-    mates.forEach(m=>{ m.x=gx; m.z=gz; m.y=0; }); placeCam(girl,0,true); }
-  _rf(); };
 })();

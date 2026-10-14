@@ -1,5 +1,5 @@
 /* Flamingo Fields 3D: the two kids.
-   Lifted from the kids test field (mockups/kids-test-field.html): their models, animations, wind in hair and skirt,
+   First built on the kids test field (since retired; their look is set with tools/kids-editor.html): their models, animations, wind in hair and skirt,
    painted faces, recolouring, the default look, and all their movement rules. Units are metres.
    The page provides: ALT_MAX (how high they may fly), scene (a THREE.Scene), keys (a Set of 'up','down','left','right'), arrowsHeld(), groundAt(x,z),
    and the globals girl, boy, rollChance. */
@@ -358,7 +358,7 @@ function mirrorClip(c,name){ const m=c.clone(); m.name=name; m.uuid=THREE.MathUt
     const v=t.values; if(prop==='quaternion') for(let i=0;i<v.length;i+=4){ v[i+1]=-v[i+1]; v[i+2]=-v[i+2]; } else if(prop==='position') for(let i=0;i<v.length;i+=3) v[i]=-v[i]; }
   return m; }
 /* ---------- a kid: body, animations, state ---------- */
-let G=14, HOP=5.2; const CRUISE=4.5, FLY_BASE=13;   // gravity and the hop: lighter up on the clouds of level 2 (level2.js)
+/* gravity G, the hop HOP, CRUISE and FLY_BASE are in settings.js */
 let FLY_SPEED=FLY_BASE;   // the page raises it for full-flock flight (the 2D game flies 800 units a second then, against 430)
 function makeKid(name,cfg){
   const o=new THREE.FBXLoader().parse(cfg.fbx,''); let mesh;

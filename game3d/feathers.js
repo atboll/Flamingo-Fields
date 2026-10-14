@@ -87,6 +87,7 @@ function pickFeathers(time){
 let flyStart=-9;
 function mayFly(K){
   if(K!==girl) return true;
+  if(LEVEL===2) return whaleNearness()<1.5;   // on the clouds: only near a whale, carried in its wake (level2.js)
   if(freeFly()){ flyStart=clock; return true; }
   if(feathers>=NEED){ feathers=0; flightLeft=FLY_TIME; flyStart=clock; chime(12); chime(19); return true; }
   return false;

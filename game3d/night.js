@@ -20,10 +20,10 @@ function updateNight(time){
   /* the moon rises out of the horizon at dusk, stands highest in the middle of the night, and sinks back by dawn */
   const mp=clamp((p-EVENING)/(DAY_LEN-EVENING),0,1); moonUp=p<EVENING?0:Math.pow(Math.sin(Math.PI*mp),0.75);
 }
-/* for testing: the N key jumps to the next part of the day (dusk, night, dawn, evening) */
+/* for testing (with #dev): the N key jumps to the next part of the day (dusk, night, dawn, evening) */
 function skipDayPart(){ if(!nightOn){ nightOn=true; dayOffset=EVENING-clock; return; }
   const p=dayPhase(clock), marks=[EVENING,EVENING+DUSK,EVENING+DUSK+NIGHT_LEN,DAY_LEN], to=marks.find(m=>m>p+1)??DAY_LEN+EVENING; dayOffset+=to-p; }
-addEventListener('keydown',e=>{ if(e.key==='n'||e.key==='N') skipDayPart(); });
+addEventListener('keydown',e=>{ if(DEV.on&&(e.key==='n'||e.key==='N')) skipDayPart(); });
 /* the same as a button, for phones: it also says which part of the day comes next */
 function dayPartNext(){ if(!nightOn) return 'Dusk'; const p=(dayPhase(clock)+1)%DAY_LEN; return p<EVENING?'Dusk':p<EVENING+DUSK?'Night':p<EVENING+DUSK+NIGHT_LEN?'Dawn':'Evening'; }
 
@@ -135,7 +135,7 @@ function nightFrame(time){
 }
 /* drawing the frame: the scene; at night its copy graded over it; then the lights, tested against the scene's depth */
 function renderFrame(){
-  if(typeof placeDoorScreen==='function') placeDoorScreen();   /* the door's light on the screen, from this frame's camera (desert.js) */
+  placeDoorScreen();   /* the door's light on the screen, from this frame's camera (desert.js; level2.js on the clouds) */
   R.render(scene,cam);
   R.autoClear=false;
   if(night>0.005){
@@ -143,7 +143,7 @@ function renderFrame(){
     if(!fbTex||fbTex.image.width!==_db.x||fbTex.image.height!==_db.y){ if(fbTex) fbTex.dispose(); fbTex=new THREE.FramebufferTexture(_db.x,_db.y,THREE.RGBAFormat); gradeU.tFrame.value=fbTex; }
     R.copyFramebufferToTexture(_zero,fbTex); R.render(gradeScene,gradeCam); }
   R.render(lightScene,cam);
-  if(typeof rayU!=='undefined' && rayU.uA.value>0.003) R.render(rayScene,washCam);   /* the door's ray by night (desert.js) */
-  if(typeof washU!=='undefined' && washU.uM.value>0.002) R.render(washScene,washCam);   /* the door's light taking the view (desert.js) */
+  if(rayU.uA.value>0.003) R.render(rayScene,washCam);   /* the door's ray by night (desert.js) */
+  if(washU.uM.value>0.002) R.render(washScene,washCam);   /* the door's light taking the view (desert.js) */
   R.autoClear=true;
 }

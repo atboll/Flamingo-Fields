@@ -6,7 +6,7 @@
    the kids come to. Its doorway is full of white light that pours out over the face, into the air and across the sand, pulsing gently.
    Nobody passes through the box. By the box the night waits. Round it, 26 flamingos are already there: standing, feeding,
    resting on one leg, and wandering slowly round on their own small errands.
-   For testing, the B key lays the journey's end just ahead of the kids. */
+   For testing (with #dev), the B key lays the journey's end just ahead of the kids. */
 
 const COAST_DIST=52000, BOX_RING=2800/Math.PI, DOOR_W=255, DOOR_H=545;
 function boxC(){ return [COAST.x+SUNDX_G*SHORE, COAST.z+SUNDZ_G*SHORE]; }
@@ -27,7 +27,7 @@ const brushed=(()=>{ const c=document.createElement('canvas'); c.width=c.height=
 const silver=new THREE.MeshStandardMaterial({color:0x6f757e, metalness:0.62, roughness:0.4, roughnessMap:brushed, map:brushed, envMap:boxEnv, envMapIntensity:1.0});
 const BW=BOX_HALF*2*U, BH=BOX_H*U;
 /* so the cube reads as a solid: each face its own tone, and its foot is a little darker where it meets the sand.
-   It takes the groves' gentler haze, so from far off it fades into the evening without washing out up close. */
+   It takes the gentler haze (SOFT_HAZE), so from far off it fades into the evening without washing out up close. */
 silver.defines={SOFT_HAZE:''}; const boxNight={value:0};
 silver.onBeforeCompile=sh=>{ sh.uniforms.uNight=boxNight;
   sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec3 vObj; varying vec3 vNo;').replace('#include <begin_vertex>','#include <begin_vertex>\nvObj=position; vNo=normal;');
@@ -129,7 +129,7 @@ const rayScene=new THREE.Scene(); { const m=new THREE.Mesh(new THREE.PlaneGeomet
       float a=1.0-(1.0-core)*(1.0-sheath); if(a<0.003) discard; gl_FragColor=vec4(1.0,1.0,250.0/255.0,a*uA); }`})); m.frustumCulled=false; rayScene.add(m); }
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
-/* the bit worth 2 means 'stands in front of the light'; the kids also set the bit worth 4 (so they write 6), so the white room can light just them */
+/* the bit worth 2 means 'stands in front of the light'; the kids also set the bit worth 4 (so they write 6) */
 function markFront(root,ref){ root.traverse(n=>{ if(n.isMesh) for(const m of [].concat(n.material)) Object.assign(m,FRONT_MARK,ref?{stencilRef:ref}:{}); }); }
 let doorNear=0, doorIn=0;
 /* ---------- laying the journey's end ---------- */
@@ -151,13 +151,14 @@ function clearCoast(){ seaPart=0; partRanges(0); rayU.uA.value=0; washU.uM.value
 /* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet) */
 function goToBox(){
   if(!girl) return;
+  leaveLevel2();   // it starts from level 1
   if(!COAST.on){ const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); }
   coastA=1; const c=boxC(), d=BOX_HALF+3100, gx=c[0]-SUNDX_G*d, gz=c[1]-SUNDZ_G*d;
   [[girl,0,0],[boy,1.0,-1.3]].forEach(([K,ox,oz])=>Object.assign(K.P,{x:-gx*U+ox, z:gz*U+oz, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, spd:0, state:'ground'}));
   events.length=0; placeCam(girl,0,true);
 }
-/* the B key, for testing: the box about 120 m ahead, the kids already out on the sand */
-addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); coastA=1;
+/* the B key, for testing (with the dev switch, on level 1): the box about 120 m ahead, the kids already out on the sand */
+addEventListener('keydown',e=>{ if((e.key!=='b'&&e.key!=='B')||!girl||!DEV.on||LEVEL!==1) return; const P=girl.P, gx=-P.x/U, gz=P.z/U, d=8000-SHORE; makeCoast(gx+SUNDX_G*d, gz+SUNDZ_G*d); coastA=1;
   P.h=-SUN_B; boy.P.h=-SUN_B; placeCam(girl,0,true); });
 
 /* ---------- each frame ---------- */
@@ -177,7 +178,7 @@ function updateDesert(dt,time){
   { const P=girl.P, al=(-P.x/U-COAST.x)*SUNDX_G+(P.z/U-COAST.z)*SUNDZ_G; seaPart=Math.max(seaPart,clamp(1+(al+2200)/(COAST_DIST-2200),0,1)); partRanges(seaPart); }
   const c=boxC(), top=groundAt(-c[0]*U,c[1]*U)/U-30+BOX_H;
   /* nobody passes through the box, and the kids keep a step clear of it */
-  for(const K of [girl,boy]){ if(window.passBox&&window.passBox(K)) continue; const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;
+  for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80;
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
@@ -265,6 +266,7 @@ function placeShore(dt){
 /* ---------- the door's light on the screen, worked out after the camera has moved this frame (called just before drawing) ---------- */
 const _sc=new THREE.Vector3(), _sd=new THREE.Vector3(), _sq=new THREE.Vector3();
 function placeDoorScreen(){
+  if(LEVEL===2) return placeDoorScreen2();   // the lone door on the clouds (level2.js)
   if(!COAST.on||!doorLight.visible) return;
   const W=innerWidth, H=innerHeight, q=H/650, focal=0.5*H/Math.tan(cam.fov*Math.PI/360);
   const dc=doorLight.localToWorld(_sd.set(0,DH*0.5,front)), toCam=_sc.copy(cam.position).sub(dc), nrm=new THREE.Vector3(Math.sin(SUN_B),0,-Math.cos(SUN_B));

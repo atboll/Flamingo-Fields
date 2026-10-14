@@ -6,19 +6,16 @@
    The floor: the 2D game's level 2, candyfloss pinks, the land a tenth lower, nothing standing on the horizon. Its cloud lumps are found
    exactly as the 2D game finds them (one per cell of a grid that coarsens with distance, in bands that belong to the camera, so they swim,
    swell and pop as you move), and drawn as real 3D lumps in flat pinks with a paler crown poking out of each.
-   The page's #l2test address (or window.L2TEST) starts straight on the clouds, for testing. Reset level brings back level 1. */
+   The #dev-level2 address starts straight on the clouds, for testing (dev.js). Reset level brings back level 1.
+   Each frame the loop (game.js) calls updateDoor on level 1, updateClouds and updateLift on level 2, and level2Frame before drawing. */
 (function(){
-let LEVEL=1, inT=0, landed2=false, boxY=0, enteredAt=-1, sign2=false, sign1=!(window.L2TEST||location.hash==='#l2test');
+let inT=0, landed2=false, boxY=0, enteredAt=-1, sign2=false, sign1=DEV.mode!=='level2';
 /* the level sign, as the 2D game shows it: LEVEL 1 when the game opens, LEVEL 2 ten seconds after stepping onto the clouds */
 function showLevelSign(text){ const el=$('levelSign'); if(!el) return; const q=clamp(Math.min(innerWidth/1100,innerHeight/560),0.55,1.2);
   el.textContent=text; el.style.fontSize=Math.round(72*q)+'px'; el.style.letterSpacing=Math.round(14*q)+'px';
   /* wait for the font (at most 2.5 s), so the sign never starts while its letters are still invisible */
   let go=false; const start=()=>{ if(go) return; go=true; el.classList.remove('show'); void el.offsetWidth; el.classList.add('show'); };
   try{ document.fonts.load('600 72px "Klee One"').then(start,start); }catch(e){ start(); } setTimeout(start,2500); }
-window.level2On=()=>LEVEL===2;
-
-/* the land: a tenth lower on the clouds */
-const _ground=groundAt; groundAt=function(x,z){ return LEVEL===2?_ground(x,z)*0.9:_ground(x,z); };
 
 /* the 2D game's level 2 colours */
 const GSTOPS2=[[0,[250,234,238]],[0.1,[246,212,226]],[0.45,[234,182,210]],[1,[208,152,198]]], HAZE2=[250,232,238], DEEP2=[196,140,190];
@@ -97,7 +94,7 @@ function setLevelLook(on){
   const hz=on?HAZE2:HAZE; mistBand.material.uniforms.uC.value.set(hz[0]/255,hz[1]/255,hz[2]/255); scene.fog.color.setRGB(hz[0]/255,hz[1]/255,hz[2]/255).convertSRGBToLinear();
   lumps.visible=crowns.visible=on; if(!on) lumps.count=crowns.count=0;
   boxMesh.visible=!on; frame.visible=on; doorGlow.visible=!on; fan.visible=!on;
-  doorPane.visible=on;   // on the clouds the lone door is filled with light; on level 1 the doorway is open onto the white room (room.js)
+  doorPane.visible=on;   // on the clouds the lone door is filled with light
   doorPane.material.side=on?THREE.DoubleSide:THREE.FrontSide; doorPane.position.z=on?front:front-0.2;
   if(on){ shore.length=0; for(const b of SB) b.o.visible=false; for(const q of POOL){ q.card.visible=q.glow.visible=q.nglow.visible=false; } if(POOL.halo) POOL.halo.visible=POOL.rays.visible=false; }
   const p1=$('plus1'); if(p1) p1.disabled=on||mates.length>=MATES_MAX;   // the 2D game's test buttons do nothing on the clouds
@@ -105,7 +102,7 @@ function setLevelLook(on){
 function enterLevel2(walking){
   if(!girl||!COAST.on) return;
   LEVEL=2; inT=0; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
-  G=10.5; HOP=11.0;   // up here gravity is lighter: the hop goes about 5.5 m high (over five times the field) and floats
+  G=LEVELS[2].gravity; HOP=LEVELS[2].hop;   // up here gravity is lighter: the hop goes about 5.5 m high and floats (settings.js)
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true; rayU.uA.value=0;
   /* the door stands where it stood, on the cloud */
@@ -117,21 +114,20 @@ function enterLevel2(walking){
     else Object.assign(P,{x:-nx*U, z:nz*U, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, state:'ground'}); }
   events.length=0; doorNear=1; doorIn=0; if(!walking) placeCam(girl,0,true);
   /* the world's sounds fall away in the white and come back on the other side */
-  if(typeof actx!=='undefined'&&actx&&master){ const t=actx.currentTime, on=soundOn?0.85:0; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(0,t+0.4); master.gain.linearRampToValueAtTime(on,t+3.5); }
+  if(actx&&master){ const t=actx.currentTime, on=soundOn?0.85:0; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(0,t+0.4); master.gain.linearRampToValueAtTime(on,t+3.5); }
 }
-function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; G=14; HOP=5.2; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
-window.enterLevel2=enterLevel2; window.leaveLevel2=leaveLevel2;
+function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; G=LEVELS[1].gravity; HOP=LEVELS[1].hop; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
 
 /* ---------- each frame ---------- */
-const _ud=updateDesert;
-updateDesert=function(dt,time){
-  if(LEVEL!==2){ _ud(dt,time);
-    /* level 1: the door leads into the box, and the box is this new level. Stepping into the doorway, in the light, and through:
-       no stop, no turn, the kids walk on out of the same door onto the clouds */
-    if(COAST.on && doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly') enterLevel2(true);
-    /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
-    if(COAST.on){ const a=0.9+0.1*Math.sin(time*1.3), k=clamp((doorNear-0.3)/0.7,0,1); doorPane.material.color.setRGB(a,a*(1-0.1*k),a*(1-0.05*k)); }
-    return; }
+/* level 1: the door leads into the box, and the box is this new level. Stepping into the doorway, in the light, and through:
+   no stop, no turn, the kids walk on out of the same door onto the clouds */
+function updateDoor(dt,time){
+  if(!COAST.on) return;
+  if(doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly'){ enterLevel2(true); return; }
+  /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
+  const a=0.9+0.1*Math.sin(time*1.3), k=clamp((doorNear-0.3)/0.7,0,1); doorPane.material.color.setRGB(a,a*(1-0.1*k),a*(1-0.05*k)); }
+/* level 2: the door's white, the dawn, the sign */
+function updateClouds(dt,time){
   coastA=1;
   if(!sign2 && clock-enteredAt>=10){ sign2=true; showLevelSign('LEVEL 2'); }
   const c=boxC(), P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7;
@@ -141,76 +137,38 @@ updateDesert=function(dt,time){
   /* the night holds until they are down on the cloud and clear of the door; then the sun starts to rise */
   if(!landed2){ dayOffset-=dt; if(P.state==='ground' && P.y<0.02 && doorNear<0.45){ landed2=true; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN-clock; } }
   const A=0.9+0.1*Math.sin(time*1.3); doorPane.material.color.setScalar(A);
-  const m=Math.min(0.9,doorNear*1.2);   // almost white at most: the kids are always faint shapes in it   // on the clouds the light takes the view a fifth more strongly
+  const m=Math.min(0.9,doorNear*1.2);   // almost white at most: the kids are always faint shapes in it
   washU.uM.value=m*A; { const W=innerWidth, H=innerHeight; washU.uR.value=Math.max(W,H)*(0.25+1.1*m); washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const k=Math.pow(m*A,0.8), s0=clamp((m*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }
-};
-/* the door's light on the screen: on the clouds it shines both ways, and there is no ray */
-const _pds=placeDoorScreen, _sd=new THREE.Vector3();
-placeDoorScreen=function(){
-  if(LEVEL!==2) return _pds();
+}
+/* the door's light on the screen: on the clouds it shines both ways, and there is no ray (called by placeDoorScreen, desert.js) */
+const _sd=new THREE.Vector3();
+function placeDoorScreen2(){
   const W=innerWidth, H=innerHeight, focal=0.5*H/Math.tan(cam.fov*Math.PI/360), dc=doorLight.localToWorld(_sd.set(0,DH*0.5,front)), dist=cam.position.distanceTo(dc), pxPerM=focal/Math.max(1,dist);
   const p=dc.clone().project(cam), cx=(p.x+1)/2*W, cy=(1-p.y)/2*H, ahead=p.z<1, A=0.9+0.1*Math.sin(clock*1.3);
   const bp=Math.max(40,DH*pxPerM*1.4), far=clamp((dist-30)/60,0,1); doorBeacon.scale.set(bp/pxPerM,bp/pxPerM,1); doorBeacon.material.opacity=A*far; doorBeacon.visible=ahead&&far>0;
   rayU.uA.value=0; washU.uC.value.set(cx,ahead?cy:H*0.45);
-};
-/* no wild flocks, feathers or feather road on the clouds */
-const _uf=updateFlock; updateFlock=function(K,dt,time){ if(LEVEL===2){ flock=null; return; } return _uf(K,dt,time); };
-const _pf=placeFeathers; placeFeathers=function(K,time){ if(LEVEL===2) return; return _pf(K,time); };
-const _pk=pickFeathers; pickFeathers=function(time){ if(LEVEL===2) return; return _pk(time); };
-const _up=updatePath; updatePath=function(K,dt,time){ if(LEVEL===2){ pathA=0; pathOn=false; return; } return _up(K,dt,time); };
-/* Reset level and To the box start from level 1 */
-const _rl=resetLevel; resetLevel=function(){ leaveLevel2(); return _rl(); };
-const _gb=goToBox; goToBox=function(){ leaveLevel2(); return _gb(); };
-/* drawing: the lumps placed from this frame's camera, and no moon over the clouds */
-const _rf=renderFrame; let testStart=!!(window.L2TEST||location.hash==='#l2test');
-renderFrame=function(){
+}
+/* just before drawing: the LEVEL 1 sign when the game opens; on the clouds the lumps placed from this frame's camera, and no moon */
+function level2Frame(){
   if(sign1 && girl){ sign1=false; showLevelSign('LEVEL 1'); }
-  if(testStart && girl && FL.ready){ testStart=false; goToBox(); enterLevel2(); }
   if(LEVEL===2){ moon.visible=moonHaze.visible=moonBloom.visible=false; gradeU.uMa.value=0; placeLumps(clock); }   // no moon, and none of its glow
-  _rf();
-};
+}
 
 /* ---------- the clouds' own feel ---------- */
 /* flying: only near a whale, carried in its wake. The second hop lifts the kids only within about one and a half of a whale's
-   lengths of it; drifting away from the whales (beyond twice that) they glide gently back down onto the cloud. */
-const _mf=mayFly; mayFly=function(K){ if(LEVEL===2) return K!==girl || (typeof whaleNearness==='function' && whaleNearness()<1.5); return _mf(K); };
+   lengths of it (mayFly, feathers.js); drifting away from the whales (beyond twice that) they glide gently back down onto the cloud. */
 let hintEl=null;
-function liftHint(on){ if(!hintEl){ hintEl=document.createElement('div'); hintEl.setAttribute('aria-live','polite');
+function liftHint(on){ if(!hintEl){ if(!on) return; hintEl=document.createElement('div'); hintEl.setAttribute('aria-live','polite');
     Object.assign(hintEl.style,{position:'fixed',left:'50%',bottom:'calc(max(18px,env(safe-area-inset-bottom)) + 8px)',transform:'translateX(-50%)',zIndex:5,pointerEvents:'none',
       padding:'7px 14px',borderRadius:'999px',background:'rgba(60,40,70,.45)',color:'#fff6f0',font:'600 14px/1.2 "Klee One","Trebuchet MS",sans-serif',letterSpacing:'.04em',transition:'opacity .8s',opacity:0});
     hintEl.textContent='A whale is near: jump twice to fly'; document.body.appendChild(hintEl); }
   hintEl.style.opacity=on?'1':'0'; }
-const _ud2=updateDesert;
-updateDesert=function(dt,time){ _ud2(dt,time);
-  if(LEVEL!==2){ if(hintEl) liftHint(false); return; }
-  const near=typeof whaleNearness==='function'?whaleNearness():99, P=girl.P;
+function updateLift(dt){
+  if(LEVEL!==2){ liftHint(false); return; }
+  const near=whaleNearness(), P=girl.P;
   liftHint(P.state!=='fly' && P.state!=='land' && near<1.5);
   if(P.state==='fly' && near>2){ P.alt=Math.max(0.5,P.alt-3.5*dt); if(P.alt<=1.5 && P.y<2.2) jumpKid(girl); }   // out of the whales' wake: down onto the cloud
-};
-/* sound up here: no wind, and the kids' steps are soft puffs on the cloud instead of grass */
-const _urs=updateRunSound;
-updateRunSound=function(){ _urs();
-  if(LEVEL!==2||!actx) return; const t=actx.currentTime;
-  if(runGain){ runGain.gain.setTargetAtTime(0,t,0.03); palGain.gain.setTargetAtTime(0,t,0.03); }
-  if(fieldGain) fieldGain.gain.setTargetAtTime(0,t,0.3);
-  if(typeof fastGain!=='undefined'&&fastGain) fastGain.gain.setTargetAtTime(0,t,0.3);
-  };   // (no footsteps up here for now: the puffs were taken out)
-const _ufs=updateFastSound; updateFastSound=function(){ _ufs(); if(LEVEL===2&&fastGain&&actx) fastGain.gain.setTargetAtTime(0,actx.currentTime,0.3); };   // its own update runs after the steps
-let puffBuf=null;
-function cloudStep(K){ const on=stepsFor(K), A=K.A.run; if(!A) return;
-  const d=A.getClip().duration, half=(A.time%d)/d<0.5?0:1;
-  if(K._half===undefined) K._half=half;
-  if(half!==K._half){ K._half=half; if(on>0.05 && master) puff(on*(K===girl?1:0.8),K===girl?1:1.12); } }   // a footfall twice in each stride
-function puff(vol,rate){
-  if(!puffBuf){ const n=Math.floor(actx.sampleRate*0.3); puffBuf=actx.createBuffer(1,n,actx.sampleRate); const d=puffBuf.getChannelData(0); let b=0;
-    for(let i=0;i<n;i++){ b=0.86*b+0.14*(Math.random()*2-1); d[i]=b*3; } }   // soft, deep noise
-  const t=actx.currentTime, src=actx.createBufferSource(), lp=actx.createBiquadFilter(), g=actx.createGain();
-  src.buffer=puffBuf; src.playbackRate.value=rate*(0.9+Math.random()*0.2);
-  lp.type='lowpass'; lp.frequency.setValueAtTime(900,t); lp.frequency.exponentialRampToValueAtTime(260,t+0.18);
-  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.55*vol,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+0.24);
-  src.connect(lp); lp.connect(g); g.connect(master); src.start(t); src.stop(t+0.3);
-  const o=actx.createOscillator(), og=actx.createGain(); o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(55,t+0.12);   // and a soft low thump under it
-  og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(0.18*vol,t+0.01); og.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.connect(og); og.connect(master); o.start(t); o.stop(t+0.16); }
-
+}
+Object.assign(window,{enterLevel2, leaveLevel2, updateDoor, updateClouds, updateLift, placeDoorScreen2, level2Frame});
 })();

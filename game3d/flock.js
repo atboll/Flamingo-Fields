@@ -51,7 +51,7 @@ async function loadFlamingo(base){
   for(let i=0;i<MATES_MAX;i++){ const o=THREE.SkeletonUtils.clone(proto); o.visible=false; scene.add(o); const mixer=new THREE.AnimationMixer(o), A={};
     for(const k of ['fly_A1','walk_A1','idle_A1','foraging_A1','idle_B1']){ A[k]=mixer.clipAction(FL.clips[k]); A[k].play(); if(k==='fly_A1') A[k].timeScale=FLAP; A[k].setEffectiveWeight(0); A[k].time=h2(i,k.length)*FL.clips[k].duration; }
     FL.mateBirds.push({o,mixer,A,w:{fly_A1:0,walk_A1:0,idle_A1:1,foraging_A1:0,idle_B1:0}}); }
-  FL.ready=true;
+  FL.proto=proto; FL.ready=true;   // (the prototype is kept for the #dev-flamingo page, dev.js)
 }
 
 /* ---------- the 2D game's flock, unchanged ---------- */
@@ -165,7 +165,7 @@ function placeMates(dt){
     /* the model flies with its body low and its legs trailing below where its feet stand: while in the flying pose it is held up by half a metre,
        so it comes down onto its feet instead of into the ground, and settles as the pose turns to walking */
     /* in the air they ride the kids' gentler flying ground (about 30% of the dunes), easing back to the real ground as they come down */
-    const x=-m.x*U, z=m.z*U, g=groundAt(x,z), wa=typeof airGround==='function'?clamp(m.y/60,0,1):0, base=wa>0?g+(airGround(x,z)-g)*wa:g;
+    const x=-m.x*U, z=m.z*U, g=groundAt(x,z), wa=clamp(m.y/60,0,1), base=wa>0?g+(airGround(x,z)-g)*wa:g;
     b.o.visible=true; b.o.position.set(x,Math.max(base+m.y*U,g+Math.min(m.y*U,1.2))+b.w.fly_A1*0.5,z);
     /* banking into its turns, as in the 2D game: up to about 25 degrees, and only with its wings open */
     b.o.rotation.order='YXZ'; b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),clamp((m.turn||0)*0.36,-0.44,0.44)*m.open);
