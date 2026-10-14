@@ -109,13 +109,15 @@ function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, a=dx*SUNDX_G+dz*
 /* the dunes: three sizes of ridge, each a sharp crest with a gentle wind side and a steeper lee side, the crests wandering, curling
    and coming and going along their length, the three running at different angles so nothing repeats. In game units, along (al) and across (lat) the way. */
 function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e);
-  const w1=1.6*S(lat*0.0008)+0.9*S(lat*0.0021+al*0.0006+1.3)+0.45*S(al*0.0017-lat*0.0013+4.0), p1=al*0.00052+lat*0.0001+w1, q1=p1+0.38*S(2*p1);
-  const m1=0.7+0.3*S(lat*0.00047+al*0.00031+2.0), hA=P(1-Math.abs(S(q1)),1.6);
-  const a2=al*0.82+lat*0.57, b2=lat*0.82-al*0.57, w2=1.3*S(b2*0.0019+0.7)+0.6*S(b2*0.0043+a2*0.0011+2.2), p2=a2*0.0011+w2, q2=p2+0.36*S(2*p2);
-  const m2=0.5+0.5*S(b2*0.0013+a2*0.0007+1.1)*S(a2*0.0009-0.4), hB=P(1-Math.abs(S(q2)),1.5);
-  const a3=al*0.93-lat*0.36, b3=lat*0.93+al*0.36, w3=1.1*S(b3*0.0047+1.9)+0.5*S(a3*0.0023+b3*0.0031), p3=a3*0.0026+w3;
-  const m3=0.55+0.45*S(a3*0.0019+b3*0.0012+3.1), hC=P(1-Math.abs(S(p3+0.3*S(2*p3))),1.4);
-  return 340*m1*hA+55*m2*hB+10*m3*hC-100; }
+  /* broad dunes, about 130 m apart and up to 6 m tall: each a sharp crest with a long gentle wind side and a steeper lee side.
+     Their crests bend only in long, slow curves, swell and fade along their length, and a second, lower set running at an angle
+     joins them (the higher of the two wins, softly), so ridges fork and merge as real dunes do, without a criss-cross maze. */
+  const w1=1.5*S(lat*0.0003+0.8)+0.45*S(lat*0.0007+al*0.00015+2.4), p1=al*0.00034+w1, q1=p1+0.36*S(2*p1);
+  const hA=(0.62+0.38*S(lat*0.00031+al*0.00012+1.7))*P(1-Math.abs(S(q1)),1.7);
+  const a2=al*0.9+lat*0.44, b2=lat*0.9-al*0.44, w2=1.4*S(b2*0.00035+2.9)+0.4*S(b2*0.0008-a2*0.00015), p2=a2*0.0005+w2, q2=p2+0.32*S(2*p2);
+  const hB=(0.35+0.25*S(b2*0.00037+0.6))*P(1-Math.abs(S(q2)),1.6);
+  const k=0.12, m=Math.max(hA,hB)+k*P(1-Math.abs(hA-hB)/k,2)*0.25;   // a soft maximum: where two ridges meet they join smoothly
+  return 420*m-110; }
 function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
   if(COAST.on){ const cs=coastAlong(gx,gz); if(cs>0){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, r=clamp(cs/4200,0,1),
       f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0), d1=al*0.0012+Math.sin(lat*0.0008)*1.6, d2=lat*0.0009+al*0.0004+1.7;
@@ -136,13 +138,12 @@ float edgeWander(float a, float lat){ float q=sin(a*0.0031+2.0*sin(lat*0.0023))*
 float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float a=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x;
   return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(a+edgeWander(a,lat)-(${DES_A0.toFixed(1)})-shoreCurve(lat)*3.0)*0.5) : -1.0; }
 float duneH(float al, float lat){
-  float w1=1.6*sin(lat*0.0008)+0.9*sin(lat*0.0021+al*0.0006+1.3)+0.45*sin(al*0.0017-lat*0.0013+4.0), p1=al*0.00052+lat*0.0001+w1, q1=p1+0.38*sin(2.0*p1);
-  float m1=0.7+0.3*sin(lat*0.00047+al*0.00031+2.0), hA=pow(max(0.0,1.0-abs(sin(q1))),1.6);
-  float a2=al*0.82+lat*0.57, b2=lat*0.82-al*0.57, w2=1.3*sin(b2*0.0019+0.7)+0.6*sin(b2*0.0043+a2*0.0011+2.2), p2=a2*0.0011+w2, q2=p2+0.36*sin(2.0*p2);
-  float m2=0.5+0.5*sin(b2*0.0013+a2*0.0007+1.1)*sin(a2*0.0009-0.4), hB=pow(max(0.0,1.0-abs(sin(q2))),1.5);
-  float a3=al*0.93-lat*0.36, b3=lat*0.93+al*0.36, w3=1.1*sin(b3*0.0047+1.9)+0.5*sin(a3*0.0023+b3*0.0031), p3=a3*0.0026+w3;
-  float m3=0.55+0.45*sin(a3*0.0019+b3*0.0012+3.1), hC=pow(max(0.0,1.0-abs(sin(p3+0.3*sin(2.0*p3)))),1.4);
-  return 340.0*m1*hA+55.0*m2*hB+10.0*m3*hC-100.0; }
+  float w1=1.5*sin(lat*0.0003+0.8)+0.45*sin(lat*0.0007+al*0.00015+2.4), p1=al*0.00034+w1, q1=p1+0.36*sin(2.0*p1);
+  float hA=(0.62+0.38*sin(lat*0.00031+al*0.00012+1.7))*pow(max(0.0,1.0-abs(sin(q1))),1.7);
+  float a2=al*0.9+lat*0.44, b2=lat*0.9-al*0.44, w2=1.4*sin(b2*0.00035+2.9)+0.4*sin(b2*0.0008-a2*0.00015), p2=a2*0.0005+w2, q2=p2+0.32*sin(2.0*p2);
+  float hB=(0.35+0.25*sin(b2*0.00037+0.6))*pow(max(0.0,1.0-abs(sin(q2))),1.6);
+  float k=0.12, m=max(hA,hB)+k*pow(max(0.0,1.0-abs(hA-hB)/k),2.0)*0.25;
+  return 420.0*m-110.0; }
 float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
   float g=90.0*sin(a)*sin(b)+30.0*sin(c);
