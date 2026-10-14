@@ -11,17 +11,19 @@
 const ROAD_STEP=130, ROAD_HALF=600, ROAD_END=70000;
 let pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas=false, hintT=-99;
 const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);   /* toward the sun and the moon, in the game's ground coordinates */
+let RDX=SUNDX, RDZ=SUNDZ;                                /* the road's own way: from where it forms, straight to the crater's box */
 const roadNear=[];                                       /* this frame's near road feathers, for feathers.js: {x,y,z (metres), ph, a} */
 
 function updatePath(K,dt,time){
   const P=K.P, lx=-P.x/U, lz=P.z/U, hx=-Math.sin(P.h), hz=Math.cos(P.h);
-  const lat=(lx-pathPx)*SUNDZ-(lz-pathPz)*SUNDX;
+  const lat=(lx-pathPx)*RDZ-(lz-pathPz)*RDX;
   const ok=night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
-  if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lx+SUNDZ*sd*700; pathPz=lz-SUNDX*sd*700; }
+  if(ok && pathA===0 && COAST.on){ const c=boxC(), dx=c[0]-lx, dz=c[1]-lz, dl=Math.hypot(dx,dz)||1; RDX=dx/dl; RDZ=dz/dl; }   // it points at the crater
+  if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lx+RDZ*sd*700; pathPz=lz-RDX*sd*700; }
   pathA=clamp(pathA+(ok?dt/21:-dt/3),0,1);                                    // the gathering is slow
   // the road answers when the kids travel along it toward the moon
   const air=P.state==='fly'||P.state==='land', v=(air?FLY_SPEED*P.flyW+P.spd*(1-P.flyW):P.spd)/U;
-  const on=pathOn=pathA>0.3 && Math.abs(lat)<ROAD_HALF+350 && v>60 && (hx*SUNDX+hz*SUNDZ)>0.92;
+  const on=pathOn=pathA>0.3 && Math.abs(lat)<ROAD_HALF+350 && v>60 && (hx*RDX+hz*RDZ)>0.92;
   pathAlign+=((on?1:0)-pathAlign)*(1-Math.exp(-dt*(on?0.9:1.6)));
   if(actx && master){
     if(!hintEl && pathA>0){ hintEl=new Audio('assets/path.mp3'); hintEl.preload='auto';
@@ -37,11 +39,11 @@ function trailFeather(j,al,lead,time){
   let a=clamp(pathA*3,0,1)*Math.pow(clamp(1-ahead/ROAD_END,0,1),1.8)*clamp((ahead+1100)/300,0,1);
   // and thinning as it goes, so the far end never piles up into a bright streak
   if(j&1) a*=clamp((4500-ahead)/800,0,1); else if(j&2) a*=clamp((9500-ahead)/1500,0,1); else if(j&4) a*=clamp((19000-ahead)/3000,0,1); else if(j&8) a*=clamp((36000-ahead)/6000,0,1);
-  if(COAST.on){ const rx=pathPx+SUNDX*t-COAST.x, rz=pathPz+SUNDZ*t-COAST.z; a*=clamp((SHORE-2800-(rx*SUNDX+rz*SUNDZ))/1400,0,1); }   // the road ends before the box
+  if(COAST.on){ const c=boxC(), rx=pathPx+RDX*t-c[0], rz=pathPz+RDZ*t-c[1]; a*=clamp((-3450-(rx*RDX+rz*RDZ))/1400,0,1); }   // the road ends just before the box
   if(a<=0.01 || h2(j,31)<0.16) return null;                                                                        // gaps and clumps
   const e0=clamp(pathA*1.7-clamp(ahead/30000,0,1)*0.7,0,1), e=e0*e0*(3-2*e0);                                     // nearest feathers fall into place first
   const side=h2(j,5)<0.5?-1:1, far=(h2(j,37)-0.5)*2, wob=side*(ROAD_HALF+Math.sin(t*0.0013+side)*70)+(h2(j,17)-0.5)*200+Math.sin(time*0.6+j*1.7)*14*e+far*2200*(1-e);
-  let x=pathPx+SUNDX*t+SUNDZ*wob, z=pathPz+SUNDZ*t-SUNDX*wob, h=(h2(j,23)*70)*e;
+  let x=pathPx+RDX*t+RDZ*wob, z=pathPz+RDZ*t-RDX*wob, h=(h2(j,23)*70)*e;
   const dx=x-lead.x, dz=z-lead.z, dy=(62+h)-(lead.y+40), d=Math.hypot(dx,dz,dy);
   if(d<150 && d>1){ const p=(1-d/150)*95/d; x+=dx*p; z+=dz*p; h=Math.max(0,h+dy*p); }                             // scatter around the kids as they pass
   return {x,z,h,ph:h2(j,3),a:a*(0.55+0.45*e)};
@@ -62,7 +64,7 @@ const _rv=new THREE.Vector3(), _rf=new THREE.Vector3();
 function placeRoad(K,time){
   roadNear.length=0; let nd=0;
   if(pathA>0.01){
-    const P=K.P, lead={x:-P.x/U, z:P.z/U, y:P.y/U}, al=(lead.x-pathPx)*SUNDX+(lead.z-pathPz)*SUNDZ;
+    const P=K.P, lead={x:-P.x/U, z:P.z/U, y:P.y/U}, al=(lead.x-pathPx)*RDX+(lead.z-pathPz)*RDZ;
     const focal=0.5*innerHeight/Math.tan(cam.fov*Math.PI/360); cam.getWorldDirection(_rf);
     for(let j=Math.floor((al-1100)/ROAD_STEP), j1=Math.floor((al+ROAD_END)/ROAD_STEP); j<=j1; j++){ const q=trailFeather(j,al,lead,time); if(!q) continue;
       const x=-q.x*U, z=q.z*U, y=groundAt(x,z)+(62+q.h)*U; _rv.set(x,y,z).sub(cam.position); const dz=_rv.dot(_rf); if(dz<60*U) continue;

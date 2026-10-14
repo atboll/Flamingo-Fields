@@ -26,6 +26,11 @@ const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now
   lightTime:1.5,                                 // seconds for a ring to brighten, all at once, once its flamingo stands in it
   beamH:260, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
 
+/* the crater: the box stands in the middle of a round desert crater, there from the start, this far (m) from where the kids begin,
+   toward the moon. Its rim (radius, m) stands this high (m) so the box can't be seen from the field; the inside wall and the outside wall
+   are this wide (m); the field's grass climbs half way up the outside wall. */
+const CRATER={dist:1500, radius:400, rim:45, inner:150, outer:250};
+
 /* going through the door: the kids walk in through the doorway, and this many metres past its face (about 5 steps) the view is all white and they are through */
 const DOOR={walkIn:3.5};
 

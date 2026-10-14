@@ -31,6 +31,7 @@ function frame(now){
 }
 function size(){ const w=innerWidth,h=innerHeight; R.setSize(w,h); cam.aspect=w/h; cam.updateProjectionMatrix(); }
 addEventListener('resize',size); size();
+layCrater();   /* the crater and its box are there from the start (desert.js) */
 followGround(0,0);
 (async()=>{
   try{ await loadKids('assets/');

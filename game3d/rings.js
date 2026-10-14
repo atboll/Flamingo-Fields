@@ -38,7 +38,7 @@ for(const m of [...rangeMeshes,...treelines]){ const prev=m.material.onBeforeCom
 /* ---------- the rings ---------- */
 const RING_N=5, STONES=14;
 /* where they lie, in metres from the box: along the way the kids come (negative: on their side of it) and across it; and whether each looks for a crest or a dip nearby */
-const RING_AT=[[-150,-55],[-70,175],[130,215],[235,-95],[-35,-260]];   /* each then settles on the flattest sand within about 40 m (between the dune tops) */
+const RING_AT=[[-120,-45],[-55,140],[105,170],[185,-75],[-30,-205]];   /* all on the crater floor */   /* each then settles on the flattest sand within about 40 m (between the dune tops) */
 const stoneGeo=new THREE.DodecahedronGeometry(1,0);
 const stoneMat=new THREE.MeshLambertMaterial({color:0xffffff});
 const stones=new THREE.InstancedMesh(stoneGeo,stoneMat,RING_N*STONES); stones.visible=false; stones.frustumCulled=false; scene.add(stones);

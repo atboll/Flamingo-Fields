@@ -137,6 +137,8 @@ function makeCoast(gx,gz){
     shore.push(shoreBird(p[0],p[1],Math.sin(a),Math.cos(a),lat,cs,100+i)); }
   makeShoreBirds();
 }
+/* the crater is there from the start: its box CRATER.dist from where the kids begin, toward the moon (settings.js) */
+function layCrater(){ const d=CRATER.dist/U-SHORE; makeCoast(SUNDX_G*d, SUNDZ_G*d); }
 function clearCoast(){ clearRings(); seaPart=0; partRanges(0); washU.uM.value=0; COAST.on=false; uCoast.value.set(0,0,0,0); boxGroup.visible=doorLight.visible=false; shore.length=0; for(const b of SB) b.o.visible=false; groundNear.userData.cx=groundFar.userData.cx=NaN; }
 /* the "To the box" button, for testing: the kids on the ground about 45 m in front of the door, facing it (the box is laid first if it is not there yet),
    with the rings already lit and the door open */

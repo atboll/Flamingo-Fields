@@ -28,7 +28,14 @@ function shoreCurve(lat){ return 230*Math.sin(lat*0.0019+0.7)+105*Math.sin(lat*0
 function edgeWander(a,lat){ const S=Math.sin, q=S(a*0.0031+2*S(lat*0.0023))*S(lat*0.0027-a*0.0011+1);
   return 9000*S(lat*0.00021+1.2)+5000*S(lat*0.00053+a*0.00008+0.4)+2500*S(lat*0.0013-a*0.0002+2)+6000*Math.pow(Math.max(0,S(lat*0.0017+0.6*S(a*0.0003))),6)
         +4000*Math.pow(Math.max(0,q),2)-3000*Math.pow(Math.max(0,-q),2); }
-function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, a=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G; return Math.min(SHORE-700,(a+edgeWander(a,lat)-DES_A0-shoreCurve(lat)*3)*0.5); }
+/* the crater (CRATER, settings.js), in game units: the sand is everything inside a slightly wandering circle half way down the outside wall;
+   the ground rises from the field up the outside wall to the rim, and falls more steeply inside to the crater floor */
+const CR_R=CRATER.radius/U, CR_H=CRATER.rim/U, CR_WI=CRATER.inner/U, CR_WO=CRATER.outer/U, CR_SAND=CR_R+CR_WO*0.5;
+const crWander=th=>1200*Math.sin(3*th+1)+700*Math.sin(7*th+2)+400*Math.sin(13*th+0.5);
+function craterH(d){ if(d<CR_R){ const t=clamp((d-(CR_R-CR_WI))/CR_WI,0,1); return CR_H*t*t*(3-2*t); } const t=clamp((d-CR_R)/CR_WO,0,1); return CR_H*(1-t*t*(3-2*t)); }
+/* how far inside the sand a point is (positive: sand), as the old coast measure was, so everything that asks still works */
+function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G-SHORE, lat=dx*SUNDZ_G-dz*SUNDX_G;
+  return Math.min(SHORE-700,(CR_SAND+crWander(Math.atan2(lat,al))-Math.hypot(al,lat))*0.5); }
 /* the dunes: three sizes of ridge, each a sharp crest with a gentle wind side and a steeper lee side, the crests wandering, curling
    and coming and going along their length, the three running at different angles so nothing repeats. In game units, along (al) and across (lat) the way. */
 /* the dunes' shape and paint come from DUNE (settings.js) */
@@ -45,9 +52,10 @@ function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e), D=
   const k=0.12, m=Math.max(hA,hB)+k*P(1-Math.abs(hA-hB)/k,2)*0.25;
   return (420*m-110)*D.height; }
 function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
-  if(COAST.on){ const cs=coastAlong(gx,gz); if(cs>0){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, r=clamp(cs/4200,0,1),
-      f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0);
-      g=g*(1-0.65*r)+A*duneH(al,lat); } }
+  if(COAST.on){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, db=Math.hypot(al-SHORE,lat), cs=coastAlong(gx,gz);
+    if(cs>0){ const r=clamp(cs/4200,0,1), f0=clamp((db-BOX_HALF-900)/3200,0,1), dk=clamp((CR_R-CR_WI*0.4-db)/(CR_WI*0.4),0,1), A=r*f0*f0*(3-2*f0)*dk;   /* dunes on the crater floor, none up its walls */
+      g=g*(1-0.65*r)+A*duneH(al,lat); }
+    g+=craterH(db); }
   return g*U*LEVELS[LEVEL].land; }   // (level 2's land lies a tenth lower)
 /* flying, heights are measured from a gentler ground: 30% of the real hills and dunes, 70% their average over a disc about 46 m across
    (wide enough to cancel the dune ridges). The kids, the camera and your flock all use it in the air; on foot it is the real ground. */
@@ -63,8 +71,11 @@ float shoreCurve(float lat){ return 230.0*sin(lat*0.0019+0.7)+105.0*sin(lat*0.00
 float edgeWander(float a, float lat){ float q=sin(a*0.0031+2.0*sin(lat*0.0023))*sin(lat*0.0027-a*0.0011+1.0);
   return 9000.0*sin(lat*0.00021+1.2)+5000.0*sin(lat*0.00053+a*0.00008+0.4)+2500.0*sin(lat*0.0013-a*0.0002+2.0)+6000.0*pow(max(0.0,sin(lat*0.0017+0.6*sin(a*0.0003))),6.0)
         +4000.0*pow(max(0.0,q),2.0)-3000.0*pow(max(0.0,-q),2.0); }
-float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float a=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x;
-  return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(a+edgeWander(a,lat)-(${DES_A0.toFixed(1)})-shoreCurve(lat)*3.0)*0.5) : -1.0; }
+float crWander(float th){ return 1200.0*sin(3.0*th+1.0)+700.0*sin(7.0*th+2.0)+400.0*sin(13.0*th+0.5); }
+float craterH(float d){ if(d<${CR_R.toFixed(1)}){ float t=clamp((d-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0); return ${CR_H.toFixed(1)}*t*t*(3.0-2.0*t); }
+  float t=clamp((d-${CR_R.toFixed(1)})/${CR_WO.toFixed(1)},0.0,1.0); return ${CR_H.toFixed(1)}*(1.0-t*t*(3.0-2.0*t)); }
+float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float al=dot(d,SUNDG)-${SHORE.toFixed(1)}, lat=d.x*SUNDG.y-d.y*SUNDG.x;
+  return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(${CR_SAND.toFixed(1)}+crWander(atan(lat,al))-length(vec2(al,lat)))*0.5) : -1.0; }
 uniform vec4 uDuneA; uniform vec4 uDuneB;   /* size, height, roundness, curves; cross dunes, their angle */
 float duneH(float al, float lat){ float z=1.0/uDuneA.x, ca=cos(uDuneB.y), sa=sin(uDuneB.y);
   float w1=uDuneA.w*(1.5*sin(lat*0.0003*z+0.8)+0.45*sin(lat*0.0007*z+al*0.00015*z+2.4)), p1=al*0.00034*z+w1, q1=p1+0.36*sin(2.0*p1);
@@ -76,8 +87,8 @@ float duneH(float al, float lat){ float z=1.0/uDuneA.x, ca=cos(uDuneB.y), sa=sin
 float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
   float g=90.0*sin(a)*sin(b)+30.0*sin(c);
-  float cs=coastAlong(p);
-  if(cs>0.0){ vec2 d=vec2(gx,gz)-uCoast.xy; float al=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x, r=clamp(cs/4200.0,0.0,1.0);
-    float f0=clamp((length(vec2(al-${SHORE.toFixed(1)},lat))-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), A=r*f0*f0*(3.0-2.0*f0);
-    g=g*(1.0-0.65*r)+A*duneH(al,lat); }
+  if(uCoast.z>0.5){ vec2 d=vec2(gx,gz)-uCoast.xy; float al=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x, db=length(vec2(al-${SHORE.toFixed(1)},lat)), cs=coastAlong(p);
+    if(cs>0.0){ float r=clamp(cs/4200.0,0.0,1.0), f0=clamp((db-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), dk=clamp((${(CR_R-CR_WI*0.4).toFixed(1)}-db)/${(CR_WI*0.4).toFixed(1)},0.0,1.0), A=r*f0*f0*(3.0-2.0*f0)*dk;
+      g=g*(1.0-0.65*r)+A*duneH(al,lat); }
+    g+=craterH(db); }
   return g*${U.toFixed(8)}; }`;

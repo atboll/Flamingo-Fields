@@ -86,7 +86,7 @@ The editors and the whale page that made the game's looks are in `../tools/` (se
 - [x] The night grade (violet dusk, moonlit blue, the moon's glow and its pool of light on the field; the feathers glow)
 - [x] The feather road to the moon (`road.js`: gathers on a full-flock night, scatters round the kids, answers with `path.mp3`)
 - [x] The mountains part as you near the box (the 2D game's rule; the treelines slide apart with them; the cloud banks behind the peaks are still to come)
-- [x] The desert dunes (`desert.js`, with the dunes in `groundAt` on both the processor and the graphics card; laid when the road is first flown; with `#dev` the B key jumps there)
+- [x] The desert crater (`ground.js`): a round crater 1.5 km from the start toward the moon, there from the beginning; a 45 m rim hides the box from the field, grass climbs half way up its outside wall, dunes on its floor, the box in the middle; the feather road points at it (`CRATER` in `settings.js`; with `#dev` the B key moves it just ahead)
 - [ ] The beach: waves, boulders, bushes, flamingos feeding
 - [x] The silver box and its door (built in code: brushed silver, a tone per face; a frameless doorway full of white light that pours out over the face, into the air and across the sand; by the box the night waits)
 - [x] The puzzle at the box (`rings.js`): the box stands with its door shut (a fog bank round it is built but switched off, `PUZZLE.fog`); land in each of five stone rings and a flamingo stays there and the ring lights; five, and the fog lifts and the door opens
