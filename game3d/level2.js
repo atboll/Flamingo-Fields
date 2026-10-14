@@ -27,7 +27,7 @@ const mixc=(a,b,t)=>[a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t, a[2]+(b[2]-a[2])*t]
 
 /* the bare floor between the lumps: the 2D game's pink ground, pale at the horizon and deeper under the eye, lighter on slopes facing the light */
 const st=GSTOPS2.map(s=>`vec4(${(s[1][0]/255).toFixed(4)},${(s[1][1]/255).toFixed(4)},${(s[1][2]/255).toFixed(4)},${s[0].toFixed(2)})`);
-function floorMat(far){ return new THREE.ShaderMaterial({ uniforms:{uNearC, uCoast, uSunXZ:{value:SUNXZ}},
+function floorMat(far){ return new THREE.ShaderMaterial({ uniforms:{uNearC, uCoast, uDuneA, uDuneB, uSunXZ:{value:SUNXZ}},
   vertexShader:`uniform vec2 uNearC; varying vec3 vW;
     void main(){ vec3 p=position; ${far?'{ vec2 q=abs(position.xz-uNearC); p.y-=0.3+6.0*(1.0-smoothstep(118.0,128.0,max(q.x,q.y))); }':''}
       vec4 w=modelMatrix*vec4(p,1.0); vW=w.xyz; gl_Position=projectionMatrix*viewMatrix*w; }`,

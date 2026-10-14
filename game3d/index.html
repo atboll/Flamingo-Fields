@@ -108,16 +108,20 @@ function edgeWander(a,lat){ const S=Math.sin, q=S(a*0.0031+2*S(lat*0.0023))*S(la
 function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, a=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G; return Math.min(SHORE-700,(a+edgeWander(a,lat)-DES_A0-shoreCurve(lat)*3)*0.5); }
 /* the dunes: three sizes of ridge, each a sharp crest with a gentle wind side and a steeper lee side, the crests wandering, curling
    and coming and going along their length, the three running at different angles so nothing repeats. In game units, along (al) and across (lat) the way. */
-function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e);
-  /* broad dunes, about 130 m apart and up to 6 m tall: each a sharp crest with a long gentle wind side and a steeper lee side.
-     Their crests bend only in long, slow curves, swell and fade along their length, and a second, lower set running at an angle
-     joins them (the higher of the two wins, softly), so ridges fork and merge as real dunes do, without a criss-cross maze. */
-  const w1=1.5*S(lat*0.0003+0.8)+0.45*S(lat*0.0007+al*0.00015+2.4), p1=al*0.00034+w1, q1=p1+0.36*S(2*p1);
-  const hA=(0.62+0.38*S(lat*0.00031+al*0.00012+1.7))*P(1-Math.abs(S(q1)),1.7);
-  const a2=al*0.9+lat*0.44, b2=lat*0.9-al*0.44, w2=1.4*S(b2*0.00035+2.9)+0.4*S(b2*0.0008-a2*0.00015), p2=a2*0.0005+w2, q2=p2+0.32*S(2*p2);
-  const hB=(0.35+0.25*S(b2*0.00037+0.6))*P(1-Math.abs(S(q2)),1.6);
-  const k=0.12, m=Math.max(hA,hB)+k*P(1-Math.abs(hA-hB)/k,2)*0.25;   // a soft maximum: where two ridges meet they join smoothly
-  return 420*m-110; }
+/* the dunes' shape and paint, tunable (the Dune Test Field, dunes.js, has sliders for all of these) */
+const DUNE={size:1, height:1, round:1.1, curve:1, cross:0.3, angle:0.45, contrast:2.2, soft:0.85, crest:0.6, warm:0.85, ripple:1, ridges:0};
+const uDuneA={value:new THREE.Vector4()}, uDuneB={value:new THREE.Vector4()}, uSandP={value:new THREE.Vector4()};
+function duneUniforms(){ uDuneA.value.set(DUNE.size,DUNE.height,DUNE.round,DUNE.curve); uDuneB.value.set(DUNE.cross,DUNE.angle,DUNE.ripple,0); uSandP.value.set(DUNE.contrast,DUNE.soft,DUNE.crest,DUNE.warm); }
+duneUniforms();
+function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e), D=DUNE, z=1/D.size, ca=Math.cos(D.angle), sa=Math.sin(D.angle);
+  /* broad dunes about 130 m apart, in rows mostly facing one way: round bodies with one crisp crest edge (q is skewed, so one side is steeper),
+     crests bending in long slow curves and swelling and fading along their length; a second, lower set at an angle joins them softly */
+  const w1=D.curve*(1.5*S(lat*0.0003*z+0.8)+0.45*S(lat*0.0007*z+al*0.00015*z+2.4)), p1=al*0.00034*z+w1, q1=p1+0.36*S(2*p1);
+  const hA=(0.62+0.38*S(lat*0.00031*z+al*0.00012*z+1.7))*P(1-Math.abs(S(q1)),D.round);
+  const a2=al*ca+lat*sa, b2=lat*ca-al*sa, w2=D.curve*(1.4*S(b2*0.00035*z+2.9)+0.4*S(b2*0.0008*z-a2*0.00015*z)), p2=a2*0.0005*z+w2, q2=p2+0.32*S(2*p2);
+  const hB=D.cross*(1+0.7*S(b2*0.00037*z+0.6))*P(1-Math.abs(S(q2)),D.round);
+  const k=0.12, m=Math.max(hA,hB)+k*P(1-Math.abs(hA-hB)/k,2)*0.25;
+  return (420*m-110)*D.height; }
 function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
   if(COAST.on){ const cs=coastAlong(gx,gz); if(cs>0){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, r=clamp(cs/4200,0,1),
       f0=clamp((Math.hypot(al-SHORE,lat)-BOX_HALF-900)/3200,0,1), A=r*f0*f0*(3-2*f0), d1=al*0.0012+Math.sin(lat*0.0008)*1.6, d2=lat*0.0009+al*0.0004+1.7;
@@ -137,13 +141,14 @@ float edgeWander(float a, float lat){ float q=sin(a*0.0031+2.0*sin(lat*0.0023))*
         +4000.0*pow(max(0.0,q),2.0)-3000.0*pow(max(0.0,-q),2.0); }
 float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float a=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x;
   return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(a+edgeWander(a,lat)-(${DES_A0.toFixed(1)})-shoreCurve(lat)*3.0)*0.5) : -1.0; }
-float duneH(float al, float lat){
-  float w1=1.5*sin(lat*0.0003+0.8)+0.45*sin(lat*0.0007+al*0.00015+2.4), p1=al*0.00034+w1, q1=p1+0.36*sin(2.0*p1);
-  float hA=(0.62+0.38*sin(lat*0.00031+al*0.00012+1.7))*pow(max(0.0,1.0-abs(sin(q1))),1.7);
-  float a2=al*0.9+lat*0.44, b2=lat*0.9-al*0.44, w2=1.4*sin(b2*0.00035+2.9)+0.4*sin(b2*0.0008-a2*0.00015), p2=a2*0.0005+w2, q2=p2+0.32*sin(2.0*p2);
-  float hB=(0.35+0.25*sin(b2*0.00037+0.6))*pow(max(0.0,1.0-abs(sin(q2))),1.6);
+uniform vec4 uDuneA; uniform vec4 uDuneB;   /* size, height, roundness, curves; cross dunes, their angle */
+float duneH(float al, float lat){ float z=1.0/uDuneA.x, ca=cos(uDuneB.y), sa=sin(uDuneB.y);
+  float w1=uDuneA.w*(1.5*sin(lat*0.0003*z+0.8)+0.45*sin(lat*0.0007*z+al*0.00015*z+2.4)), p1=al*0.00034*z+w1, q1=p1+0.36*sin(2.0*p1);
+  float hA=(0.62+0.38*sin(lat*0.00031*z+al*0.00012*z+1.7))*pow(max(0.0,1.0-abs(sin(q1))),uDuneA.z);
+  float a2=al*ca+lat*sa, b2=lat*ca-al*sa, w2=uDuneA.w*(1.4*sin(b2*0.00035*z+2.9)+0.4*sin(b2*0.0008*z-a2*0.00015*z)), p2=a2*0.0005*z+w2, q2=p2+0.32*sin(2.0*p2);
+  float hB=uDuneB.x*(1.0+0.7*sin(b2*0.00037*z+0.6))*pow(max(0.0,1.0-abs(sin(q2))),uDuneA.z);
   float k=0.12, m=max(hA,hB)+k*pow(max(0.0,1.0-abs(hA-hB)/k),2.0)*0.25;
-  return 420.0*m-110.0; }
+  return (420.0*m-110.0)*uDuneA.y; }
 float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
   float g=90.0*sin(a)*sin(b)+30.0*sin(c);
@@ -262,9 +267,9 @@ function makeGround(size,seg,shadows){
   const g=new THREE.PlaneGeometry(size,size,seg,seg); g.rotateX(-Math.PI/2);
   g.setAttribute('color',new THREE.Float32BufferAttribute(new Float32Array(g.attributes.position.count*3),3));
   const mat=new THREE.MeshLambertMaterial({vertexColors:true, map:STROKES});
-  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uRoll=groundRoll; sh.uniforms.uRollW=groundRollW; sh.uniforms.uCoast=uCoast; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
+  mat.onBeforeCompile=sh=>{ sh.uniforms.uTime=groundTime; sh.uniforms.uAir=groundAir; sh.uniforms.uRoll=groundRoll; sh.uniforms.uRollW=groundRollW; sh.uniforms.uCoast=uCoast; sh.uniforms.uDuneA=uDuneA; sh.uniforms.uDuneB=uDuneB; sh.uniforms.uSandP=uSandP; sh.uniforms.uSunXZ={value:SUNXZ}; BLADE.forEach((c,i)=>sh.uniforms['uC'+i]={value:rgb(c).convertSRGBToLinear()});
     sh.vertexShader=sh.vertexShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ;').replace('#include <begin_vertex>','#include <begin_vertex>\nvWXZ=(modelMatrix*vec4(transformed,1.0)).xz;');
-    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; uniform vec2 uRoll; uniform float uRollW; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
+    sh.fragmentShader=sh.fragmentShader.replace('#include <common>','#include <common>\nvarying vec2 vWXZ; uniform vec4 uSandP; uniform float uTime; uniform vec2 uSunXZ; uniform vec3 uC0; uniform vec3 uC1; uniform vec3 uC2; uniform vec3 uC3; uniform vec3 uC4;\n'+LIGHT_GLSL+'\nuniform float uAir; uniform vec2 uRoll; uniform float uRollW; float hash2(vec2 q){ return fract(sin(dot(q,vec2(127.1,311.7)))*43758.5453); }\nfloat vnoise2(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.0-2.0*f); return mix(mix(hash2(i),hash2(i+vec2(1,0)),f.x),mix(hash2(i+vec2(0,1)),hash2(i+vec2(1,1)),f.x),f.y); }')
       .replace('#include <map_fragment>',`{ /* the ground's own paint: the same five golds by the same rule as the strokes, but in soft painted patches, not cells.
              From the air the far ground loses its hill shading (the 2D game does the same), keeps out of the darkest brown,
              and blends its patches softly where they would be smaller than a few pixels, so it never shimmers. */
@@ -285,11 +290,16 @@ function makeGround(size,seg,shadows){
             float v=clamp((cameraPosition.y-groundAt(vWXZ))/max(d,1.0)*1.64,0.0,1.0);
             vec3 sFar=vec3(252.,232.,160.)/255., sNear=vec3(240.,200.,104.)/255.; vec3 c0=mix(sFar,sNear,v);
             float rw=uRollW*smoothstep(8.0,40.0,d), L=mix(litAt(vWXZ,uSunXZ),litAt(vWXZ+uRoll,uSunXZ),rw), ck=mix(1.0,0.55,smoothstep(80.0,900.0,d)), sw=clamp(fwidth(L)*3.6*ck*1.5,0.0,0.5);
-            float t0=clamp(0.5+L*3.6*ck,0.0,1.0), t=mix(t0*t0*(3.0-2.0*t0),t0,sw*2.0);   /* where a slope is only a pixel or two, it blends instead of flickering */
-            vec3 sand=mix(c0*vec3(0.56,0.52,0.64),min(c0*1.05,vec3(1.0)),t)*(0.95+0.08*st.r*(1.0-smoothstep(40.0,160.0,d)));
+            float t0=clamp(0.5+L*uSandP.x*ck,0.0,1.0), th=t0*t0*(3.0-2.0*t0), t=mix(mix(th,t0,uSandP.y),t0,sw*2.0);   /* soft: a gradient; hard: two tones */
+            /* from the shade side through gold to the lit side; warm turns the shadows from cool grey to a rich orange-rust */
+            vec3 shC=c0*mix(vec3(0.56,0.52,0.64),vec3(0.80,0.50,0.32),uSandP.w), midC=c0*mix(vec3(0.80,0.76,0.80),vec3(0.97,0.80,0.58),uSandP.w), liC=min(c0*1.05,vec3(1.0));
+            vec3 sand=(t<0.5?mix(shC,midC,t*2.0):mix(midC,liC,(t-0.5)*2.0))*(0.95+0.08*st.r*(1.0-smoothstep(40.0,160.0,d)));
+            /* the crest line: where the ground folds over sharply, a thin bright edge */
+            { float e=0.9, g0=groundAt(vWXZ), lap=groundAt(vWXZ+vec2(e,0.0))+groundAt(vWXZ-vec2(e,0.0))+groundAt(vWXZ+vec2(0.0,e))+groundAt(vWXZ-vec2(0.0,e))-4.0*g0;
+              float cr=smoothstep(0.04,0.22,-lap)*(1.0-smoothstep(120.0,700.0,d))*uSandP.z; sand=mix(sand,min(c0*1.14,vec3(1.0)),cr); }
             /* fine wind ripples on the sand close by, wavering, a little stronger on the lit wind sides; gone where they would be smaller than a pixel */
             { float rp=dot(vWXZ,vec2(0.62,0.78))*7.0+2.6*sin(vWXZ.x*0.11+vWXZ.y*0.05)+1.8*sin(vWXZ.y*0.17-vWXZ.x*0.07), aa=1.0-smoothstep(0.6,1.6,fwidth(rp));
-              float rip=smoothstep(0.55,1.0,sin(rp))*(1.0-smoothstep(18.0,70.0,d))*aa*(0.45+0.55*t); sand*=1.0-0.07*rip; }
+              float rip=smoothstep(0.55,1.0,sin(rp))*(1.0-smoothstep(18.0,70.0,d))*aa*(0.45+0.55*t); sand*=1.0-0.07*rip*uDuneB.z; }
             diffuseColor.rgb=mix(diffuseColor.rgb,pow(sand,vec3(2.2)),sa); sandA=sa; sandLin=pow(sand,vec3(2.2)); } }`)
       /* the sand is the 2D game's flat paint: its colours go straight to the screen (no evening light over them), with only the shadows the kids and the box throw */
       .replace('#include <output_fragment>',`if(sandA>0.0){ float shK=1.0;
@@ -414,7 +424,7 @@ function makeGrass(count,L){
         #include <encodings_fragment>
         #include <fog_fragment>
       }`});
-  mat.uniforms.uCoast=uCoast;   /* shared, so the desert reaches the grass */
+  mat.uniforms.uCoast=uCoast; mat.uniforms.uDuneA=uDuneA; mat.uniforms.uDuneB=uDuneB;   /* shared, so the desert reaches the grass */
   const mesh=new THREE.Mesh(g,mat); mesh.frustumCulled=false; scene.add(mesh); return mesh; }
 const isPhone=matchMedia('(pointer: coarse)').matches;
 /* three layers: long grass packed thick round the kids and the camera, the field's own strokes out to 24 m, and broad far strokes beyond.
@@ -781,5 +791,6 @@ followGround(0,0); buildGroves(0,0);
 <script src="feathers.js"></script>   <!-- after the page: it uses the page's scene, units and kids -->
 <script src="level2.js"></script>   <!-- level 2: through the door onto the clouds (#l2test starts there) -->
 <script src="room.js"></script>   <!-- the white room inside the box: the door leads here now -->
+<script src="dunes.js"></script>   <!-- the far dune ridges, and the Dune Test Field (#dunetest) -->
 </body>
 </html>
