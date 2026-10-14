@@ -482,4 +482,7 @@ renderFrame=function(){
       for(const p of w.parts) place(p,P); } }
   _rf(); };
 window.whales3d=()=>whales;
+/* how near the girl is to the nearest whale, as a share of that whale's length (under 1.5: near enough to be lifted) */
+window.whaleNearness=()=>{ if(!whales||!girl) return 99; const lx=-girl.P.x/U, lz=girl.P.z/U; let best=99;
+  for(const w of whales){ if(w.y===null) continue; const d=Math.hypot(lx-w.x,lz-w.z)/w.len; if(d<best) best=d; } return best; };
 })();

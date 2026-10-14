@@ -104,7 +104,8 @@ function setLevelLook(on){
 }
 function enterLevel2(walking){
   if(!girl||!COAST.on) return;
-  LEVEL=2; inT=0; landed2=false; enteredAt=clock; sign2=false;
+  LEVEL=2; inT=0; landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
+  G=10.5; HOP=7.8;   // up here gravity is lighter: the hop goes three times as high and lasts about twice as long
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true; rayU.uA.value=0;
   /* the door stands where it stood, on the cloud */
@@ -118,7 +119,7 @@ function enterLevel2(walking){
   /* the world's sounds fall away in the white and come back on the other side */
   if(typeof actx!=='undefined'&&actx&&master){ const t=actx.currentTime, on=soundOn?0.85:0; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(0,t+0.4); master.gain.linearRampToValueAtTime(on,t+3.5); }
 }
-function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
+function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; G=14; HOP=5.2; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
 window.enterLevel2=enterLevel2; window.leaveLevel2=leaveLevel2;
 
 /* ---------- each frame ---------- */
@@ -169,4 +170,47 @@ renderFrame=function(){
   if(LEVEL===2){ moon.visible=moonHaze.visible=moonBloom.visible=false; gradeU.uMa.value=0; placeLumps(clock); }   // no moon, and none of its glow
   _rf();
 };
+
+/* ---------- the clouds' own feel ---------- */
+/* flying: only near a whale, carried in its wake. The second hop lifts the kids only within about one and a half of a whale's
+   lengths of it; drifting away from the whales (beyond twice that) they glide gently back down onto the cloud. */
+const _mf=mayFly; mayFly=function(K){ if(LEVEL===2) return K!==girl || (typeof whaleNearness==='function' && whaleNearness()<1.5); return _mf(K); };
+let hintEl=null;
+function liftHint(on){ if(!hintEl){ hintEl=document.createElement('div'); hintEl.setAttribute('aria-live','polite');
+    Object.assign(hintEl.style,{position:'fixed',left:'50%',bottom:'calc(max(18px,env(safe-area-inset-bottom)) + 8px)',transform:'translateX(-50%)',zIndex:5,pointerEvents:'none',
+      padding:'7px 14px',borderRadius:'999px',background:'rgba(60,40,70,.45)',color:'#fff6f0',font:'600 14px/1.2 "Klee One","Trebuchet MS",sans-serif',letterSpacing:'.04em',transition:'opacity .8s',opacity:0});
+    hintEl.textContent='A whale is near: jump twice to fly'; document.body.appendChild(hintEl); }
+  hintEl.style.opacity=on?'1':'0'; }
+const _ud2=updateDesert;
+updateDesert=function(dt,time){ _ud2(dt,time);
+  if(LEVEL!==2){ if(hintEl) liftHint(false); return; }
+  const near=typeof whaleNearness==='function'?whaleNearness():99, P=girl.P;
+  liftHint(P.state!=='fly' && P.state!=='land' && near<1.5);
+  if(P.state==='fly' && near>2){ P.alt=Math.max(0.5,P.alt-3.5*dt); if(P.alt<=1.5 && P.y<2.2) jumpKid(girl); }   // out of the whales' wake: down onto the cloud
+};
+/* sound up here: no wind, and the kids' steps are soft puffs on the cloud instead of grass */
+const _urs=updateRunSound;
+updateRunSound=function(){ _urs();
+  if(LEVEL!==2||!actx) return; const t=actx.currentTime;
+  if(runGain){ runGain.gain.setTargetAtTime(0,t,0.03); palGain.gain.setTargetAtTime(0,t,0.03); }
+  if(fieldGain) fieldGain.gain.setTargetAtTime(0,t,0.3);
+  if(typeof fastGain!=='undefined'&&fastGain) fastGain.gain.setTargetAtTime(0,t,0.3);
+  for(const K of [girl,boy]) cloudStep(K); };
+const _ufs=updateFastSound; updateFastSound=function(){ _ufs(); if(LEVEL===2&&fastGain&&actx) fastGain.gain.setTargetAtTime(0,actx.currentTime,0.3); };   // its own update runs after the steps
+let puffBuf=null;
+function cloudStep(K){ const on=stepsFor(K), A=K.A.run; if(!A) return;
+  const d=A.getClip().duration, half=(A.time%d)/d<0.5?0:1;
+  if(K._half===undefined) K._half=half;
+  if(half!==K._half){ K._half=half; if(on>0.05 && master) puff(on*(K===girl?1:0.8),K===girl?1:1.12); } }   // a footfall twice in each stride
+function puff(vol,rate){
+  if(!puffBuf){ const n=Math.floor(actx.sampleRate*0.3); puffBuf=actx.createBuffer(1,n,actx.sampleRate); const d=puffBuf.getChannelData(0); let b=0;
+    for(let i=0;i<n;i++){ b=0.86*b+0.14*(Math.random()*2-1); d[i]=b*3; } }   // soft, deep noise
+  const t=actx.currentTime, src=actx.createBufferSource(), lp=actx.createBiquadFilter(), g=actx.createGain();
+  src.buffer=puffBuf; src.playbackRate.value=rate*(0.9+Math.random()*0.2);
+  lp.type='lowpass'; lp.frequency.setValueAtTime(900,t); lp.frequency.exponentialRampToValueAtTime(260,t+0.18);
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(0.55*vol,t+0.02); g.gain.exponentialRampToValueAtTime(0.001,t+0.24);
+  src.connect(lp); lp.connect(g); g.connect(master); src.start(t); src.stop(t+0.3);
+  const o=actx.createOscillator(), og=actx.createGain(); o.frequency.setValueAtTime(110,t); o.frequency.exponentialRampToValueAtTime(55,t+0.12);   // and a soft low thump under it
+  og.gain.setValueAtTime(0,t); og.gain.linearRampToValueAtTime(0.18*vol,t+0.01); og.gain.exponentialRampToValueAtTime(0.001,t+0.15); o.connect(og); og.connect(master); o.start(t); o.stop(t+0.16); }
+
 })();
