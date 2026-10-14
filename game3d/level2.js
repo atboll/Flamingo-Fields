@@ -195,7 +195,7 @@ updateRunSound=function(){ _urs();
   if(runGain){ runGain.gain.setTargetAtTime(0,t,0.03); palGain.gain.setTargetAtTime(0,t,0.03); }
   if(fieldGain) fieldGain.gain.setTargetAtTime(0,t,0.3);
   if(typeof fastGain!=='undefined'&&fastGain) fastGain.gain.setTargetAtTime(0,t,0.3);
-  for(const K of [girl,boy]) cloudStep(K); };
+  };   // (no footsteps up here for now: the puffs were taken out)
 const _ufs=updateFastSound; updateFastSound=function(){ _ufs(); if(LEVEL===2&&fastGain&&actx) fastGain.gain.setTargetAtTime(0,actx.currentTime,0.3); };   // its own update runs after the steps
 let puffBuf=null;
 function cloudStep(K){ const on=stepsFor(K), A=K.A.run; if(!A) return;
