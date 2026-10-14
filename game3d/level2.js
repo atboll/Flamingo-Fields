@@ -102,7 +102,7 @@ function setLevelLook(on){
   if(on){ shore.length=0; for(const b of SB) b.o.visible=false; for(const q of POOL){ q.card.visible=q.glow.visible=q.nglow.visible=false; } if(POOL.halo) POOL.halo.visible=POOL.rays.visible=false; }
   const p1=$('plus1'); if(p1) p1.disabled=on||mates.length>=MATES_MAX;   // the 2D game's test buttons do nothing on the clouds
 }
-function enterLevel2(){
+function enterLevel2(walking){
   if(!girl||!COAST.on) return;
   LEVEL=2; inT=0; landed2=false; enteredAt=clock; sign2=false;
   setLevelLook(true);
@@ -111,8 +111,12 @@ function enterLevel2(){
   const c=boxC(); { const dx=-(c[0]-SUNDX_G*BOX_HALF)*U, dz=(c[1]-SUNDZ_G*BOX_HALF)*U, base=groundAt(dx,dz)-8*U; boxY=boxGroup.position.y; boxGroup.position.y=doorLight.position.y=base; }
   /* the kids just past it, on the cloud, walking on toward the sun */
   for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=clamp(dx*SUNDZ_G-dz*SUNDX_G,-DOOR_W*0.4,DOOR_W*0.4), v=-BOX_HALF+120;
-    const nx=c[0]+SUNDZ_G*u+SUNDX_G*v, nz=c[1]-SUNDX_G*u+SUNDZ_G*v; Object.assign(P,{x:-nx*U, z:nz*U, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, state:'ground'}); }
-  events.length=0; doorNear=1; doorIn=0; placeCam(girl,0,true);
+    const nx=c[0]+SUNDZ_G*u+SUNDX_G*v, nz=c[1]-SUNDX_G*u+SUNDZ_G*v;
+    if(walking){ const dx2=-nx*U-P.x, dz2=nz*U-P.z; P.x+=dx2; P.z+=dz2; P.y=0; P.vy=0; if(K===girl){ cam.position.x+=dx2; cam.position.z+=dz2; } }   // walking on: same pace, same way, the camera carried with them
+    else Object.assign(P,{x:-nx*U, z:nz*U, y:0, vy:0, h:-SUN_B, turn:0, bank:0, pitch:0, state:'ground'}); }
+  events.length=0; doorNear=1; doorIn=0; if(!walking) placeCam(girl,0,true);
+  /* the world's sounds fall away in the white and come back on the other side */
+  if(typeof actx!=='undefined'&&actx&&master){ const t=actx.currentTime, on=soundOn?0.85:0; master.gain.cancelScheduledValues(t); master.gain.setValueAtTime(master.gain.value,t); master.gain.linearRampToValueAtTime(0,t+0.4); master.gain.linearRampToValueAtTime(on,t+3.5); }
 }
 function leaveLevel2(){ if(LEVEL!==2) return; LEVEL=1; setLevelLook(false); boxGroup.position.y=doorLight.position.y=boxY; }
 window.enterLevel2=enterLevel2; window.leaveLevel2=leaveLevel2;
@@ -121,18 +125,22 @@ window.enterLevel2=enterLevel2; window.leaveLevel2=leaveLevel2;
 const _ud=updateDesert;
 updateDesert=function(dt,time){
   if(LEVEL!==2){ _ud(dt,time);
-    /* (the door now leads into the white room, room.js; level 2 waits for its puzzle) */
+    /* level 1: the door leads into the box, and the box is this new level. Stepping into the doorway, in the light, and through:
+       no stop, no turn, the kids walk on out of the same door onto the clouds */
+    if(COAST.on && doorIn>0.55 && doorNear>0.85 && girl.P.state!=='fly') enterLevel2(true);
+    /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
+    if(COAST.on){ const a=0.9+0.1*Math.sin(time*1.3), k=clamp((doorNear-0.3)/0.7,0,1); doorPane.material.color.setRGB(a,a*(1-0.1*k),a*(1-0.05*k)); }
     return; }
   coastA=1;
   if(!sign2 && clock-enteredAt>=10){ sign2=true; showLevelSign('LEVEL 2'); }
   const c=boxC(), P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7;
   /* the white: strong on first coming through, fading as they walk away; after that only right at the door (the 2D game's rule) */
-  let tg=0; if(P.y/U<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/(landed2?520:1700),0,1);
+  let tg=0; if(P.y/U<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/(landed2?520:650),0,1);   // the white clears over their first ten steps
   doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0;
   /* the night holds until they are down on the cloud and clear of the door; then the sun starts to rise */
   if(!landed2){ dayOffset-=dt; if(P.state==='ground' && P.y<0.02 && doorNear<0.45){ landed2=true; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN-clock; } }
   const A=0.9+0.1*Math.sin(time*1.3); doorPane.material.color.setScalar(A);
-  const m=Math.min(1,doorNear*1.2);   // on the clouds the light takes the view a fifth more strongly
+  const m=Math.min(0.9,doorNear*1.2);   // almost white at most: the kids are always faint shapes in it   // on the clouds the light takes the view a fifth more strongly
   washU.uM.value=m*A; { const W=innerWidth, H=innerHeight; washU.uR.value=Math.max(W,H)*(0.25+1.1*m); washU.uSize.value.set(W,H); washU.uDpr.value=R.getPixelRatio(); }
   { const k=Math.pow(m*A,0.8), s0=clamp((m*A-0.4)/0.6,0,1); frontU.uK.value=k; frontU.uFade.value=0.8*s0*s0*(3-2*s0); }
 };
