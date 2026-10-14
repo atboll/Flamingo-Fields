@@ -48,12 +48,23 @@ const STONE_PALE=new THREE.Color('#e9e2d0').convertSRGBToLinear(), STONE_LIT=new
 const GA=48, GR=10, GLOW_R=7;
 const glowMat=new THREE.MeshBasicMaterial({vertexColors:true, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, fog:false, toneMapped:false, polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-4});
 const rings=[];
+const beamGeo=new THREE.CylinderGeometry(1,1,1,40,1,true); beamGeo.translate(0,0.5,0);   /* scaled to the ring's width and the column's height */
 for(let i=0;i<RING_N;i++){
   const g=new THREE.BufferGeometry(), pos=new Float32Array((GA+1)*(GR+1)*3), col=new Float32Array((GA+1)*(GR+1)*3), idx=[];
   for(let a=0;a<GA;a++) for(let r=0;r<GR;r++){ const p=a*(GR+1)+r, q=p+GR+1; idx.push(p,q,p+1, p+1,q,q+1); }
   g.setAttribute('position',new THREE.BufferAttribute(pos,3)); g.setAttribute('color',new THREE.BufferAttribute(col,3).setUsage(THREE.DynamicDrawUsage)); g.setIndex(idx);
   const m=new THREE.Mesh(g,glowMat); m.frustumCulled=false; m.visible=false; m.renderOrder=5; lightScene.add(m);
-  rings.push({glow:m, gx:0, gz:0, x:0, y:0, z:0, bird:null, light:0, lit:false, chimed:false}); }
+  /* and its column of light: a round shaft as wide as the ring, straight up into the sky, brightest through its middle and soft at its sides,
+     fading away at the top. Drawn with the door's light, so it is bright by night; what stands in it (marked as standing in front of the light) is left dark against it. */
+  const bm=new THREE.Mesh(beamGeo,new THREE.ShaderMaterial({uniforms:{uRise:{value:0}, uA:{value:0}, uH:{value:1}}, transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide, ...NOT_FRONT,
+    vertexShader:`varying float vY; varying float vFace; void main(){ vY=position.y; vec4 w=modelMatrix*vec4(position,1.0); vec3 n=normalize(mat3(modelMatrix)*normal), v=normalize(cameraPosition-w.xyz);
+      vFace=abs(dot(normalize(n.xz),normalize(v.xz))); gl_Position=projectionMatrix*viewMatrix*w; }`,
+    fragmentShader:`uniform float uRise, uA, uH; varying float vY; varying float vFace;
+      void main(){ float t=vY/uH; if(t>uRise) discard; float top=1.0-smoothstep(uRise-0.12,uRise,t)*step(uRise,0.999);
+        float a=uA*pow(vFace,2.4)*pow(1.0-t,2.4)*(0.6+0.4*exp(-vY/6.0))*top; a=a/(1.0+0.35*a);   /* soft at its sides, fading higher up, never a hard white bar */   /* through its middle, fading upward, a little brighter at the foot */
+        if(a<0.002) discard; gl_FragColor=vec4(vec3(1.0,0.96,0.86)*a,1.0); }`}));
+  bm.frustumCulled=false; bm.visible=false; bm.renderOrder=6; lightScene.add(bm);
+  rings.push({glow:m, beam:bm, rise:0, gx:0, gz:0, x:0, y:0, z:0, bird:null, light:0, lit:false, chimed:false}); }
 let ringsOn=false, solved=false, solvedAt=-1, bankK=0, doorOpen=1, ringLeftT=-9;
 
 /* laid with the journey's end (desert.js): the rings in place on the dunes, the fog thick, the door shut */
@@ -73,15 +84,16 @@ function makeRings(){
     const P=R.glow.geometry.attributes.position.array;
     for(let a=0;a<=GA;a++) for(let q=0;q<=GR;q++){ const th=a/GA*Math.PI*2, rq=q/GR*GLOW_R, x=R.x+Math.cos(th)*rq, z=R.z+Math.sin(th)*rq, n=(a*(GR+1)+q)*3;
       P[n]=x; P[n+1]=groundAt(x,z)+0.05; P[n+2]=z; }
-    R.glow.geometry.attributes.position.needsUpdate=true; R.glow.visible=true; });
+    R.glow.geometry.attributes.position.needsUpdate=true; R.glow.visible=true;
+    R.rise=0; R.beam.visible=false; R.beam.position.set(R.x,R.y-0.5,R.z); R.beam.scale.set(PUZZLE.ringR,PUZZLE.beamH,PUZZLE.ringR); R.beam.material.uniforms.uH.value=PUZZLE.beamH; });
   stones.instanceMatrix.needsUpdate=true; stones.instanceColor.needsUpdate=true; stones.visible=true;
   ringsOn=true; solved=false; solvedAt=-1; bankK=1; doorOpen=0;
 }
 /* the journey's end cleared (Reset level): no rings, no fog */
-function clearRings(){ ringsOn=false; stones.visible=false; for(const R of rings) R.glow.visible=false; BANK.w=0; bankK=0; doorOpen=1; solved=false; }
+function clearRings(){ ringsOn=false; stones.visible=false; for(const R of rings){ R.glow.visible=false; R.beam.visible=false; R.rise=0; } shadeBack(); BANK.w=0; bankK=0; doorOpen=1; solved=false; }
 /* solved at once (the "To the box" button and the test pages that start at the door) */
 function solveRings(){ if(!ringsOn) return; solved=true; solvedAt=-99; bankK=0; doorOpen=1; arrived=true;
-  for(const R of rings){ R.light=1; R.lit=true; R.chimed=true; } }
+  for(const R of rings){ R.light=1; R.lit=true; R.chimed=true; R.rise=1; } }
 
 /* one of your flock settles in a ring: it walks to the middle and stands there, resting, for good */
 function sendToRing(R,m){ R.bird=m; m.ring=rings.indexOf(R);
@@ -96,11 +108,11 @@ function updateRings(dt,time){
   /* a kid down on the sand inside an empty ring leaves a flamingo there */
   if(!solved && (P.state==='ground'||P.state==='touch') && P.y<0.3)
     for(const R of rings){ if(R.bird) continue; if(Math.hypot(P.x-R.x,P.z-R.z)<PUZZLE.ringR+0.6){ const m=freeMate(); if(m) sendToRing(R,m); } }
-  /* the light runs round a ring once its flamingo stands in the middle */
+  /* once its flamingo stands in the middle, the ring brightens all at once, then its column of light rises */
   let lit=0;
   rings.forEach((R,i)=>{ const m=R.bird;
     if(m && !R.lit && m.y<=0.01 && Math.hypot(m.x-R.gx,m.z-R.gz)<25) R.lit=true;
-    if(R.lit){ R.light=Math.min(1,R.light+dt/1.2); if(!R.chimed){ R.chimed=true; chime([0,3,5,7,12][Math.min(4,rings.filter(q=>q.chimed).length-1)]); } }
+    if(R.lit){ R.light=Math.min(1,R.light+dt/PUZZLE.lightTime); if(R.light>=1) R.rise=Math.min(1,R.rise+dt/PUZZLE.beamTime); if(!R.chimed){ R.chimed=true; chime([0,3,5,7,12][Math.min(4,rings.filter(q=>q.chimed).length-1)]); } }
     if(R.light>=1) lit++; });
   /* five: the fog lifts, the flamingos turn to the box, and the door's light comes on */
   if(!solved && lit===RING_N){ solved=true; solvedAt=time; arrived=true; [12,16,19].forEach((n,q)=>setTimeout(()=>chime(n),400+q*160));
@@ -110,13 +122,36 @@ function updateRings(dt,time){
   /* the bank: centred on the box, on the sand */
   const bp=boxGroup.position; BANK.x=bp.x; BANK.y=bp.y; BANK.z=bp.z; BANK.w=PUZZLE.fog*bankK; BANKR.x=PUZZLE.fogR; BANKR.y=PUZZLE.fogH;
   /* the stones and their light */
-  rings.forEach((R,i)=>{ for(let k=0;k<STONES;k++){ const on=clamp(R.light*STONES-k,0,1); stones.setColorAt(i*STONES+k,_sc2.copy(STONE_PALE).lerp(STONE_LIT,on)); } });
+  rings.forEach((R,i)=>{ const on=ease(R.light); for(let k=0;k<STONES;k++) stones.setColorAt(i*STONES+k,_sc2.copy(STONE_PALE).lerp(STONE_LIT,on)); });
   stones.instanceColor.needsUpdate=true;
-  rings.forEach((R,i)=>paintGlow(R,i,time)); }
+  rings.forEach((R,i)=>{ paintGlow(R,i,time);
+    /* the column: rising, bright, breathing very slightly; brighter by night */
+    const u=R.beam.material.uniforms, rs=ease(R.rise); R.beam.visible=rs>0.001; u.uRise.value=rs; u.uA.value=(PUZZLE.beamDay+(PUZZLE.beamNight-PUZZLE.beamDay)*night)*(0.94+0.06*Math.sin(time*1.4+i*1.7)); });
+  /* what stands in a column goes dark against it: the ring's flamingo, and the kids while they are in it */
+  rings.forEach(R=>{ if(R.bird) shadeBird(R.bird,ease(R.rise)); });
+  for(const K of [girl,boy]){ let k=0; for(const R of rings){ if(R.rise<=0) continue; const d=Math.hypot(K.P.x-R.x,K.P.z-R.z); k=Math.max(k,ease(R.rise)*clamp((PUZZLE.ringR+0.8-d)/1.6,0,1)); } shadeKid(K,k); } }
+const ease=t=>t*t*(3-2*t);
+/* turning a figure dark: its colours pulled down toward a deep plum. A ring's flamingo gets its own copies of the flock's shared materials
+   (keeping their shader changes); the kids' materials are their own already, so they are darkened in place. All put back on Reset level. */
+const SIL=new THREE.Color('#2a2234').convertSRGBToLinear(), shaded=[];
+function shadeRoot(o,k,copy){
+  if(!o.userData.sil){ o.userData.sil=[]; o.traverse(n=>{ if(!n.isMesh) return; const orig=n.material;
+      const mats=[].concat(orig).map(m=>{ const c=copy?m.clone():m; if(copy){ c.onBeforeCompile=m.onBeforeCompile; c.customProgramCacheKey=m.customProgramCacheKey; }
+        if(!c.userData.sil0) c.userData.sil0={c:c.color?c.color.clone():null, e:c.emissive?c.emissive.clone():null, env:c.envMapIntensity}; return c; });
+      o.userData.sil.push({n,orig}); if(copy) n.material=Array.isArray(orig)?mats:mats[0]; }); shaded.push(o); }
+  if(Math.abs((o.userData.k??-1)-k)<0.004) return; o.userData.k=k;
+  for(const {n} of o.userData.sil) for(const m of [].concat(n.material)){ const z=m.userData.sil0; if(!z) continue;
+    if(z.c) m.color.copy(z.c).lerp(SIL,k); if(z.e) m.emissive.copy(z.e).multiplyScalar(1-k); if(z.env!==undefined) m.envMapIntensity=z.env*(1-k*0.9); } }
+function shadeBird(m,k){ const i=mates.indexOf(m), b=FL.mateBirds[i]; if(b) shadeRoot(b.o,k,true); }
+function shadeKid(K,k){ if(k<=0.001&&!K.root.userData.sil) return; shadeRoot(K.root,k,false); }
+/* everything back to its own materials */
+function shadeBack(){ for(const o of shaded){ for(const {n,orig} of o.userData.sil){ for(const m of [].concat(n.material)){ const z=m.userData.sil0; if(!z) continue; if(z.c) m.color.copy(z.c); if(z.e) m.emissive.copy(z.e); if(z.env!==undefined) m.envMapIntensity=z.env; } n.material=orig; }
+  delete o.userData.sil; delete o.userData.k; } shaded.length=0; }
 const _sc2=new THREE.Color();
 function paintGlow(R,i,time){
   const C=R.glow.geometry.attributes.color.array, rr=PUZZLE.ringR, breathe=0.82+0.18*Math.sin(time*1.4+i*1.7), faint=(0.07+0.02*night)*(1-R.light);   /* unlit, a ring is only a faint pale circle, easiest seen from above or by night */
-  for(let a=0;a<=GA;a++){ const u=a/GA, sweep=clamp((R.light*1.08-u)/0.08,0,1);
+  const sweep=ease(R.light);   /* the whole ring at once */
+  for(let a=0;a<=GA;a++){
     for(let q=0;q<=GR;q++){ const d=q/GR*GLOW_R, band=Math.exp(-Math.pow((d-rr)/0.45,2))+0.35*Math.exp(-Math.pow((d-rr)/1.7,2))+(d<rr?0.14:0), edge=1-clamp((d-GLOW_R*0.8)/(GLOW_R*0.2),0,1);
       const f=(sweep*breathe*0.8+faint)*band*edge, n=(a*(GR+1)+q)*3; C[n]=f; C[n+1]=f*0.92; C[n+2]=f*0.74; } }
   R.glow.geometry.attributes.color.needsUpdate=true; }

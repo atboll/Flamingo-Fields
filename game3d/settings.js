@@ -22,7 +22,9 @@ const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
 
 /* the puzzle at the box (rings.js): a bank of fog over the desert round the box (radius and height in metres, density per metre),
    and five rings of stones in it (radius in metres). Land in a ring and one of your flamingos stays there; five, and the fog lifts and the door opens. */
-const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3};   // fog 0: no fog bank for now (it was 0.02)
+const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now (it was 0.02)
+  lightTime:1.5,                                 // seconds for a ring to brighten, all at once, once its flamingo stands in it
+  beamH:260, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
 
 /* the level the game is on (1: the field and the desert; 2: the clouds and the whales). Changed only by enterLevel2 and leaveLevel2 (level2.js). */
 let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;
