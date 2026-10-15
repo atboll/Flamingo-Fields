@@ -98,7 +98,7 @@ function flightRules(dt){
   if(P.state==='fly' && !freeFly()){
     if(!(flock&&flock.joined)) flightLeft-=dt;                     // with the flock, the clock stops
     if(flightLeft<=0){ flightLeft=0; jumpKid(girl); } }              // time's up: down they come
-  else if(P.state!=='fly') flightLeft=0;
+  else if(P.state!=='fly' && flightLeft>0){ feathers=Math.min(NEED,feathers+Math.ceil(flightLeft/FLY_TIME*NEED)); flightLeft=0; }   // down early: the flight not used comes back as feathers
 }
 /* with a wild flock and hands off the arrows, the kids settle into the gap behind its leader and keep its height */
 function flockAssist(In,air){
