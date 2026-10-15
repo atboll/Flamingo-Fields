@@ -33,6 +33,11 @@ function updatePath(K,dt,time){
     if(hintEl && hit && !hintWas && time-hintT>40){ hintT=time; try{ hintEl.currentTime=0; }catch(e){} const pr=hintEl.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
     hintWas=hit; }
 }
+/* the road's sound, played on its own: each time a ring's beam of light starts to rise (rings.js) */
+function roadSound(){ if(!actx||!master) return;
+  if(!hintEl){ hintEl=new Audio('assets/path.mp3'); hintEl.preload='auto';
+    try{ const g=actx.createGain(); g.gain.value=0.9; actx.createMediaElementSource(hintEl).connect(g); g.connect(master); }catch(e){ hintEl.volume=0.9; } }
+  try{ hintEl.currentTime=0; }catch(e){} const pr=hintEl.play(); if(pr&&pr.catch) pr.catch(()=>{}); }
 /* one feather of the road, j steps along it; al is how far along it the kids are */
 function trailFeather(j,al,lead,time){
   const t=(j+h2(j,9)-0.5)*ROAD_STEP, ahead=t-al;

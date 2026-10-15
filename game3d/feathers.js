@@ -148,7 +148,7 @@ function drawHud(time){
     ctx.drawImage(on?featherOn:featherOff,-fw/2,-fh/2,fw,fh); ctx.restore();
   }
   // your flock: grey flamingos turn pink as birds join; the next one fills from the feet up while the kids fly with the wild flock
-  { const u=10*q, gp=34*q, fy=y+46*q, fx0=W/2-(MATES_MAX-1)*gp/2, n=ringFree(), lit=rings.filter(r=>r.rise>0).length, since=time-mateMsgT, left=time-ringLeftT;   // pink: with you; white: standing in a lit ring   // flamingos left standing in the rings (rings.js) no longer count
+  { const u=10*q, gp=34*q, fy=y+46*q, fx0=W/2-(MATES_MAX-1)*gp/2, lit=rings.filter(r=>r.rise>0).length, n=ringFree()+rings.filter(r=>r.bird&&r.rise<=0).length,   /* a flamingo in a ring stays pink until its beam rises */ since=time-mateMsgT, left=time-ringLeftT;   // pink: with you; white: standing in a lit ring   // flamingos left standing in the rings (rings.js) no longer count
     const prog=(flock&&!flock.gave&&!free)?clamp(flock.withKids/PASS_NEEDED,0,1):0, earning=!!(flock&&flock.joined&&!flock.gave&&!free);
     const nudge=!!(flock&&flock.s<FLOCK_NEAR&&!flock.gave&&!free&&!flying&&feathers>=NEED);   // a flock is passing and the kids could go up to it
     for(let i=0;i<MATES_MAX;i++){
@@ -162,7 +162,6 @@ function drawHud(time){
       else if(i<n){ if(glow){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=12; } flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
       else {
         flamingoIcon(ctx,u,'rgba(70,62,58,.42)','rgba(70,62,58,.42)','rgba(40,34,32,.5)');
-        if(i===n+lit && left<1.2){ ctx.save(); ctx.globalAlpha=1-left/1.2; flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }   // the one just left in a ring fades
         if(i===n && prog>0){ ctx.save(); ctx.beginPath(); ctx.rect(-u*1.4,u*1.98-prog*u*4.3,u*2.8,prog*u*4.3+2); ctx.clip();
           ctx.shadowColor='rgba(255,170,190,.9)'; ctx.shadowBlur=earning?8:0; flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }
         else if(i===n && nudge){ ctx.globalAlpha=0.35+0.35*Math.sin(time*3); flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
