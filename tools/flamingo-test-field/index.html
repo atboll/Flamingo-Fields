@@ -91,10 +91,11 @@ T.color.encoding=THREE.sRGBEncoding;
 /* the texture coordinates came over from the FBX file as they were, so the textures are flipped as for FBX */
 /* the feather cards: their colour comes from the first texture coordinates, their outline and shading from the second.
    three.js reads the shading (aoMap) from the second set; the outline (its alpha) and the feather's own bumps are read there too. */
-/* Pink: pulls the texture's colours toward flamingo pink, keeping their light and shade (the black wing tips stay dark) */
+/* Pink: the texture's own colours made richer and turned toward pink, so its two tones (pale pink and deep coral) stay apart;
+   light and shade are kept, and the black wing tips stay dark */
 const uPink={value:0};
 function pinkify(sh){ sh.uniforms.uPink=uPink; sh.fragmentShader='uniform float uPink;\n'+sh.fragmentShader.replace('#include <map_fragment>',
-  '#include <map_fragment>\n{ float l=dot(diffuseColor.rgb,vec3(0.3,0.59,0.11)); vec3 pk=l*vec3(1.45,0.62,0.80); diffuseColor.rgb=mix(diffuseColor.rgb,pk,uPink); }'); }
+  '#include <map_fragment>\n{ vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.3,0.59,0.11)); c=l+(c-l)*(1.0+1.8*uPink); c*=vec3(1.0+0.12*uPink,1.0-0.40*uPink,1.0+0.10*uPink); diffuseColor.rgb=clamp(c,0.0,1.0); }'); }
 function featherMat(){ const m=new THREE.MeshStandardMaterial({map:T.color, aoMap:T.shape, aoMapIntensity:0.9, normalMap:T.fnormal, roughness:0.85, side:THREE.DoubleSide, alphaTest:0.18});
   m.onBeforeCompile=sh=>{ pinkify(sh); sh.fragmentShader=sh.fragmentShader
       .replace('#include <alphamap_fragment>','diffuseColor.a*=texture2D(aoMap,vUv2).a;')
@@ -144,7 +145,7 @@ view.addEventListener('pointerdown',e=>{ drag={id:e.pointerId,x:e.clientX,y:e.cl
 view.addEventListener('pointermove',e=>{ if(!drag||drag.id!==e.pointerId) return; orbit.yaw-=(e.clientX-drag.x)*0.008; orbit.pitch=Math.max(-0.2,Math.min(1.35,orbit.pitch+(e.clientY-drag.y)*0.006)); drag.x=e.clientX; drag.y=e.clientY; });
 const endDrag=()=>{ drag=null; }; view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel',endDrag);
 view.addEventListener('wheel',e=>{ e.preventDefault(); orbit.dist=Math.max(1.2,Math.min(40,orbit.dist*Math.exp(e.deltaY*0.001))); },{passive:false});
-$('pink').addEventListener('input',()=>{ uPink.value=$('pink').value/100*0.7; $('pinkV').textContent=$('pink').value+'%'; });
+$('pink').addEventListener('input',()=>{ uPink.value=$('pink').value/100; $('pinkV').textContent=$('pink').value+'%'; });
 addEventListener('keydown',e=>{ if(e.key==='m'||e.key==='M') $('hide').click(); });
 
 /* ---------- the flock: ten birds in a V, circling far off, to see how it looks and how fast it runs ---------- */
