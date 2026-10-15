@@ -10,11 +10,22 @@ function scheduleField(){
     const t=Math.max(nextAt,actx.currentTime+0.05), dur=fieldBuf.duration, src=actx.createBufferSource(), g=actx.createGain();
     src.buffer=fieldBuf; g.gain.setValueAtTime(1,t); g.gain.setValueCurveAtTime(fadeOut,t+dur-OVERLAP,OVERLAP);
     src.connect(g); g.connect(fieldGain); src.start(t); nextAt=t+dur-OVERLAP; } }
+/* level 2's own background: a low rumble, looped with a 4 s crossfade like the field, heard only on the clouds (fading in and out) */
+let l2Buf=null, l2Gain=null, l2Next=0;
+function scheduleL2(){
+  if(!l2Buf) return;
+  while(l2Next<actx.currentTime+12){
+    const t=Math.max(l2Next,actx.currentTime+0.05), dur=l2Buf.duration, src=actx.createBufferSource(), g=actx.createGain();
+    src.buffer=l2Buf; g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(1,t+OVERLAP); g.gain.setValueAtTime(1,t+dur-OVERLAP); g.gain.linearRampToValueAtTime(0,t+dur);
+    src.connect(g); g.connect(l2Gain); src.start(t); l2Next=t+dur-OVERLAP; } }
 function startSound(){
   if(actx){ if(actx.state==='suspended'&&!document.hidden) actx.resume(); return; }
   const AC=window.AudioContext||window.webkitAudioContext; if(!AC) return;
   actx=new AC(); master=actx.createGain(); master.gain.value=soundOn?0.85:0; master.connect(actx.destination);
   fieldGain=actx.createGain(); fieldGain.gain.value=0; fieldGain.connect(master);
+  l2Gain=actx.createGain(); l2Gain.gain.value=0; l2Gain.connect(master);
+  fetch('assets/level2_rumble.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
+    .then(buf=>{ l2Buf=buf; scheduleL2(); setInterval(scheduleL2,2000); }).catch(()=>{});
   fetch('assets/field01.mp3').then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b))
     .then(buf=>{ fieldBuf=buf; scheduleField(); setInterval(scheduleField,2000); fieldGain.gain.setTargetAtTime(1,actx.currentTime,0.8); })   /* it fades in */
     .catch(()=>{ soundBtn.textContent='Sound unavailable'; soundBtn.disabled=true; });
@@ -85,6 +96,7 @@ function stepsFor(K){ const P=K.P; return (P.state==='ground'||P.state==='touch'
 /* footsteps on the field; on level 2's clouds there are none, and no wind: the field recording falls silent up there and comes back on level 1 */
 function updateRunSound(){ if(!actx||!girl) return; const t=actx.currentTime, l2=LEVEL===2;
   if(fieldGain&&fieldBuf) fieldGain.gain.setTargetAtTime(l2?0:1,t,l2?0.3:0.8);
+  if(l2Gain) l2Gain.gain.setTargetAtTime(l2?1:0,t,l2?1.5:0.6);   // the rumble fades in on the clouds, out again back on the field
   if(!runGain) return; const on=l2?0:stepsFor(girl), pon=l2?0:stepsFor(boy);
   runGain.gain.setTargetAtTime(on*0.9,t,l2?0.03:on>0?0.05:0.09); runSrc.playbackRate.setTargetAtTime(1+0.28*on,t,0.15);
   palGain.gain.setTargetAtTime(pon*0.75,t,l2?0.03:pon>0?0.05:0.09); palSrc.playbackRate.setTargetAtTime(1.1*(1+0.28*pon),t,0.15); }
