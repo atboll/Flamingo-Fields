@@ -13,10 +13,11 @@ function featherAt(ci,cj){
   if(got.has((ci+32768)*65536+(cj+32768))) return null;
   if(COAST.on && (coastAlong((ci+0.5)*FC,(cj+0.5)*FC)>400 || boxDist((ci+0.5)*FC,(cj+0.5)*FC)<CR_R+600)) return null;     // none out on the sand, and none inside the crater
   if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
-  // a rare great feather: about one cell in eight hundred, worth a whole flight on its own
-  if(h2(ci*13+7,cj*11+3)<0.0012) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};
+  // a rare great feather: about one cell in nine hundred (a tenth fewer than before), worth a whole flight on its own
+  if(h2(ci*13+7,cj*11+3)<0.00108) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};
   const rich=vnoise(ci/4,cj/4,555)>0.5;                       // feathers lie in loose patches and trails
   if(h2(ci*5+3,cj*7-11)>(rich?0.21:0.05)) return null;
+  if(h2(ci*3+19,cj*5-7)<0.3) return null;                     // three in ten taken away (fewer small feathers)
   return {x:(ci+0.2+0.6*h2(ci+17,cj))*FC, z:(cj+0.2+0.6*h2(ci,cj+29))*FC, ph:h2(ci-3,cj+8), ci, cj};
 }
 
