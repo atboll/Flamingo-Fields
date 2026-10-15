@@ -173,30 +173,47 @@ function frame(now){ const raw=Math.min(0.05,(now-last)/1000); last=now; const d
 function size(){ R.setSize(innerWidth,innerHeight); cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); }
 addEventListener('resize',size); size();
 /* ---------- one leg: the leg folded up under the body, laid over whatever the bird is playing ----------
-   The model has no one-leg move, so the pose is made here: the thigh and the knee bend (degrees, round two axes), and the foot,
-   which hangs on its own from the root, is lifted and drawn in under the body (model centimetres) and turned. Shape it by eye. */
-const LEG={thighX:0, thighZ:0, kneeX:0, kneeZ:0, footUp:0, footIn:0, footTurn:0};
-const LEG_SL=[['thighX','Thigh ↕',-150,150],['thighZ','Thigh ↔',-150,150],['kneeX','Knee ↕',-180,180],['kneeZ','Knee ↔',-180,180],['footUp','Foot up',-20,120],['footIn','Foot in',-60,60],['footTurn','Foot turn',-180,180]];
+   The model has no one-leg move, so the pose is made here. Its leg is two chains: hip, knee and heel hang from the pelvis
+   (LegL002, LegL004, LegL005), but the foot hangs on its own from the root (LegL007), and the animation keeps it on the ground.
+   So the hip, knee and heel are bent round the bird's own side axis (degrees), and then the foot is carried along to wherever the heel's
+   chain now ends. The model also has three skeletons (body, wings, feathers), each with its own copy of the bones: all are moved. */
+const LEG={hip:0, knee:0, heel:0, out:0};
+const LEG_SL=[['hip','Hip',-90,90],['knee','Knee',-150,150],['heel','Heel',-180,180],['out','Leg out',-40,40]];
 let legOn=false, legK=0, legSide='L';
 { const box=$('legSl');
   for(const [k,label,lo,hi] of LEG_SL){ const row=document.createElement('label'); row.className='sl';
     row.innerHTML=`<span>${label}</span><input type="range" min="${lo}" max="${hi}" step="1" value="${LEG[k]}"><output>${LEG[k]}</output>`;
-    const inp=row.querySelector('input'), out=row.querySelector('output');
+    const inp=row.querySelector('input'), out=row.querySelector('output'); row.dataset.k=k;
     inp.addEventListener('input',()=>{ LEG[k]=+inp.value; out.textContent=inp.value; legNums(); }); box.appendChild(row); }
   $('oneLeg').addEventListener('click',()=>{ legOn=!legOn; $('oneLeg').setAttribute('aria-pressed',String(legOn)); });
   group('data-side',v=>{ legSide=v; }); legNums(); }
 function legNums(){ $('legNums').textContent='LEG='+JSON.stringify({side:legSide,...LEG}); }
-const _q=new THREE.Quaternion(), _e=new THREE.Euler(), D2R=Math.PI/180;
-/* the bones by name: the model has three skeletons (body, wings, feathers), each with its own copy of every bone, some nested
-   inside another of the same name; all are moved, except a copy that sits inside one already moved (it follows anyway) */
+function setLeg(v){ Object.assign(LEG,v); document.querySelectorAll('#legSl .sl').forEach(r=>{ const k=r.dataset.k; r.querySelector('input').value=LEG[k]; r.querySelector('output').textContent=LEG[k]; }); legNums(); }
+/* the bones by name, every copy, except a copy that sits inside another one (it follows that one anyway) */
 function bones(o,name){ const all=new Set(); o.traverse(n=>{ if(n.isSkinnedMesh) for(const bn of n.skeleton.bones) if(bn.name===name) all.add(bn); });
   return [...all].filter(bn=>{ for(let p=bn.parent;p;p=p.parent) if(all.has(p)) return false; return true; }); }
-function legBones(b){ const S=legSide; if(!b.leg||b.leg.side!==S) b.leg={side:S, thigh:bones(b.o,'Leg'+S+'002'), knee:bones(b.o,'Leg'+S+'004'), foot:bones(b.o,'Leg'+S+'007')}; return b.leg; }
+function legBones(b){ const S=legSide; if(!b.leg||b.leg.side!==S){ const hip=bones(b.o,'Leg'+S+'002'), knee=bones(b.o,'Leg'+S+'004'), heel=bones(b.o,'Leg'+S+'005'),
+    end=bones(b.o,'LegFK'+S+'001'), foot=bones(b.o,'Leg'+S+'007');
+    /* each foot goes with the leg end of its own skeleton: the one standing in the same place */
+    b.o.updateMatrixWorld(true); const v=new THREE.Vector3(), w=new THREE.Vector3();
+    const pairs=foot.map(f=>{ f.getWorldPosition(v); let best=end[0], bd=1e9; for(const e of end){ e.getWorldPosition(w); const d=v.distanceTo(w); if(d<bd){ bd=d; best=e; } } return [f,best]; });
+    b.leg={side:S, hip, knee, heel, pairs}; } return b.leg; }
+const _q=new THREE.Quaternion(), _qp=new THREE.Quaternion(), _ax=new THREE.Vector3(), _m=new THREE.Matrix4(), _m2=new THREE.Matrix4(), D2R=Math.PI/180;
+/* turn a bone by an angle round an axis given in the bird's own space (x: its side, z: forward) */
+function turnBone(x,axis,ang,root){ root.getWorldQuaternion(_qp); _ax.copy(axis).applyQuaternion(_qp);
+  x.parent.getWorldQuaternion(_qp); _ax.applyQuaternion(_qp.invert()); _q.setFromAxisAngle(_ax.normalize(),ang); x.quaternion.premultiply(_q); x.updateMatrixWorld(true); }
+const SIDE=new THREE.Vector3(1,0,0), FWD=new THREE.Vector3(0,0,1);
 function oneLeg(b,dt){
-  legK+=((legOn?1:0)-legK)*(1-Math.exp(-dt*2.5)); if(legK<0.002) return; const k=legK*legK*(3-2*legK), L=legBones(b);
-  _q.setFromEuler(_e.set(LEG.thighX*D2R*k,0,LEG.thighZ*D2R*k)); for(const x of L.thigh) x.quaternion.multiply(_q);
-  _q.setFromEuler(_e.set(LEG.kneeX*D2R*k,0,LEG.kneeZ*D2R*k)); for(const x of L.knee) x.quaternion.multiply(_q);
-  _q.setFromEuler(_e.set(LEG.footTurn*D2R*k,0,0)); for(const x of L.foot){ x.position.y+=LEG.footUp*k; x.position.z+=LEG.footIn*k; x.quaternion.multiply(_q); }
+  legK+=((legOn?1:0)-legK)*(1-Math.exp(-dt*2.5)); if(legK<0.002) return; const k=legK*legK*(3-2*legK), L=legBones(b), sd=legSide==='L'?1:-1;
+  b.o.updateMatrixWorld(true);
+  /* where each foot sits against its leg's end, as the animation has them now */
+  const offs=L.pairs.map(([f,e])=>_m.copy(e.matrixWorld).invert().multiply(f.matrixWorld).clone());
+  for(const x of L.hip){ turnBone(x,SIDE,LEG.hip*D2R*k,b.o); turnBone(x,FWD,sd*LEG.out*D2R*k,b.o); }
+  for(const x of L.knee) turnBone(x,SIDE,LEG.knee*D2R*k,b.o);
+  for(const x of L.heel) turnBone(x,SIDE,LEG.heel*D2R*k,b.o);
+  /* the foot follows: put it back against the leg's end */
+  L.pairs.forEach(([f,e],i)=>{ _m2.copy(e.matrixWorld).multiply(offs[i]); f.parent.updateMatrixWorld(true); _m.copy(f.parent.matrixWorld).invert().multiply(_m2);
+    _m.decompose(f.position,f.quaternion,f.scale); f.updateMatrixWorld(true); });
 }
 document.querySelectorAll('[data-side]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.side==='L')));
 loadBird().then(()=>{ bird=makeBird(); choose('idle_A1'); $('load').hidden=true; })
