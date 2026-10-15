@@ -22,10 +22,9 @@ h2{ margin:2px 0 0; font-size:11px; font-weight:650; letter-spacing:.06em; text-
 button{ font:inherit; font-size:12.5px; border:1px solid var(--line); background:#fffdf7; color:var(--ink); border-radius:7px; padding:5px 9px; cursor:pointer }
 button[aria-pressed="true"]{ background:var(--dark); color:#fff; border-color:var(--dark) }
 button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px }
-.sl{ display:grid; grid-template-columns:70px 1fr 44px; gap:6px; align-items:center; font-size:12px; color:var(--muted) }
-.sl input{ width:100%; min-width:0; accent-color:var(--dark) }
+.sl{ display:grid; grid-template-columns:58px 1fr 44px; gap:6px; align-items:center; font-size:12px; color:var(--muted) }
+.sl input{ width:100%; min-width:0; accent-color:var(--accent) }
 .sl output{ font:12px ui-monospace,Menlo,monospace; text-align:right }
-#legNums{ font:11px ui-monospace,Menlo,monospace; color:var(--muted); word-break:break-all; user-select:all }
 #load{ position:fixed; inset:0; display:grid; place-items:center; color:var(--muted); font-size:15px; pointer-events:none }
 #fps{ position:fixed; right:12px; bottom:calc(12px + env(safe-area-inset-bottom,0px)); font:12px ui-monospace,Menlo,monospace; color:var(--muted); background:var(--panel); border-radius:6px; padding:3px 7px }
 </style>
@@ -40,16 +39,14 @@ button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px }
     <p class="keys">Drag to turn the camera round the bird, wheel or pinch to zoom. Start and stop moves run into their loop by themselves.</p>
     <h2>Standing</h2>
     <div class="row"><button type="button" data-anim="idle_A1" aria-pressed="true">Idle 1</button><button type="button" data-anim="idle_A2">Idle 2</button><button type="button" data-anim="idle_B1">Idle 3</button></div>
-    <h2>One leg</h2>
-    <div class="row"><button type="button" id="oneLeg" aria-pressed="false">Stand on one leg</button><span>Leg</span><button type="button" data-side="L" aria-pressed="true">Left</button><button type="button" data-side="R">Right</button></div>
-    <div id="legSl"></div>
-    <div id="legNums"></div>
     <h2>Walking</h2>
     <div class="row"><button type="button" data-anim="walk_start_A">Start</button><button type="button" data-anim="walk_A1">Walk</button><button type="button" data-anim="walk_end_A">Stop</button></div>
     <h2>Flying</h2>
     <div class="row"><button type="button" data-anim="fly_start_A">Take off</button><button type="button" data-anim="fly_A1">Flap</button><button type="button" data-anim="fly_A2">Fly 2</button><button type="button" data-anim="fly_A3">Fly 3</button><button type="button" data-anim="fly_end_A">Land</button></div>
     <h2>Feeding</h2>
     <div class="row"><button type="button" data-anim="foraging_start_A">Head down</button><button type="button" data-anim="foraging_A1">Feed</button><button type="button" data-anim="foraging_end_A">Head up</button></div>
+    <h2>Colour</h2>
+    <label class="sl"><span>Pink</span><input type="range" id="pink" min="0" max="100" step="1" value="0"><output id="pinkV">0%</output></label>
     <h2>View</h2>
     <div class="row"><span>Camera</span><button type="button" data-cam="side" aria-pressed="true">Side</button><button type="button" data-cam="front">Front</button><button type="button" data-cam="above">Above</button></div>
     <div class="row"><span>Speed</span><button type="button" data-spd="1" aria-pressed="true">Normal</button><button type="button" data-spd="0.3">Slow motion</button></div>
@@ -94,12 +91,16 @@ T.color.encoding=THREE.sRGBEncoding;
 /* the texture coordinates came over from the FBX file as they were, so the textures are flipped as for FBX */
 /* the feather cards: their colour comes from the first texture coordinates, their outline and shading from the second.
    three.js reads the shading (aoMap) from the second set; the outline (its alpha) and the feather's own bumps are read there too. */
+/* Pink: pulls the texture's colours toward flamingo pink, keeping their light and shade (the black wing tips stay dark) */
+const uPink={value:0};
+function pinkify(sh){ sh.uniforms.uPink=uPink; sh.fragmentShader='uniform float uPink;\n'+sh.fragmentShader.replace('#include <map_fragment>',
+  '#include <map_fragment>\n{ float l=dot(diffuseColor.rgb,vec3(0.3,0.59,0.11)); vec3 pk=l*vec3(1.45,0.62,0.80); diffuseColor.rgb=mix(diffuseColor.rgb,pk,uPink); }'); }
 function featherMat(){ const m=new THREE.MeshStandardMaterial({map:T.color, aoMap:T.shape, aoMapIntensity:0.9, normalMap:T.fnormal, roughness:0.85, side:THREE.DoubleSide, alphaTest:0.18});
-  m.onBeforeCompile=sh=>{ sh.fragmentShader=sh.fragmentShader
+  m.onBeforeCompile=sh=>{ pinkify(sh); sh.fragmentShader=sh.fragmentShader
       .replace('#include <alphamap_fragment>','diffuseColor.a*=texture2D(aoMap,vUv2).a;')
       .replace('#include <normal_fragment_maps>',THREE.ShaderChunk.normal_fragment_maps.replace(/vUv\b/g,'vUv2')); };
   return m; }
-const bodyMat=new THREE.MeshStandardMaterial({map:T.color, normalMap:T.normal, roughness:0.8});
+const bodyMat=new THREE.MeshStandardMaterial({map:T.color, normalMap:T.normal, roughness:0.8}); bodyMat.onBeforeCompile=pinkify;
 const eyeMat=new THREE.MeshStandardMaterial({map:T.color, roughness:0.25});
 let proto, clips={};
 async function loadBird(){
@@ -143,6 +144,7 @@ view.addEventListener('pointerdown',e=>{ drag={id:e.pointerId,x:e.clientX,y:e.cl
 view.addEventListener('pointermove',e=>{ if(!drag||drag.id!==e.pointerId) return; orbit.yaw-=(e.clientX-drag.x)*0.008; orbit.pitch=Math.max(-0.2,Math.min(1.35,orbit.pitch+(e.clientY-drag.y)*0.006)); drag.x=e.clientX; drag.y=e.clientY; });
 const endDrag=()=>{ drag=null; }; view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel',endDrag);
 view.addEventListener('wheel',e=>{ e.preventDefault(); orbit.dist=Math.max(1.2,Math.min(40,orbit.dist*Math.exp(e.deltaY*0.001))); },{passive:false});
+$('pink').addEventListener('input',()=>{ uPink.value=$('pink').value/100*0.7; $('pinkV').textContent=$('pink').value+'%'; });
 addEventListener('keydown',e=>{ if(e.key==='m'||e.key==='M') $('hide').click(); });
 
 /* ---------- the flock: ten birds in a V, circling far off, to see how it looks and how fast it runs ---------- */
@@ -161,7 +163,7 @@ function frame(now){ const raw=Math.min(0.05,(now-last)/1000); last=now; const d
     /* in the air the bird rises off the ground, and comes back down to land */
     const up=/^fly_(A|start)/.test(bird.name)?(bird.name==='fly_start_A'?Math.min(1,Math.max(0,(bird.act.time-1.2)/1.6)):1):bird.name==='fly_end_A'?Math.max(0,1-bird.act.time/2.4):0;
     bird.lift+=(up*1.4-bird.lift)*(1-Math.exp(-raw*3)); bird.o.position.y=bird.lift;
-    bird.mixer.update(dt); oneLeg(bird,raw);
+    bird.mixer.update(dt);
     if(flockOn){ for(const f of flock) f.mixer.update(dt); moveFlock(clock); }
     const tx=0, ty=0.75+bird.lift, tz=0, d=flockOn?Math.max(orbit.dist,14):orbit.dist;
     cam.position.set(tx+Math.sin(orbit.yaw)*Math.cos(orbit.pitch)*d, ty+Math.sin(orbit.pitch)*d, tz+Math.cos(orbit.yaw)*Math.cos(orbit.pitch)*d);
@@ -172,50 +174,6 @@ function frame(now){ const raw=Math.min(0.05,(now-last)/1000); last=now; const d
   requestAnimationFrame(frame); }
 function size(){ R.setSize(innerWidth,innerHeight); cam.aspect=innerWidth/innerHeight; cam.updateProjectionMatrix(); }
 addEventListener('resize',size); size();
-/* ---------- one leg: the leg folded up under the body, laid over whatever the bird is playing ----------
-   The model has no one-leg move, so the pose is made here. Its leg is two chains: hip, knee and heel hang from the pelvis
-   (LegL002, LegL004, LegL005), but the foot hangs on its own from the root (LegL007), and the animation keeps it on the ground.
-   So the hip, knee and heel are bent round the bird's own side axis (degrees), and then the foot is carried along to wherever the heel's
-   chain now ends. The model also has three skeletons (body, wings, feathers), each with its own copy of the bones: all are moved. */
-const LEG={hip:0, knee:0, heel:0, out:0};
-const LEG_SL=[['hip','Hip',-90,90],['knee','Knee',-150,150],['heel','Heel',-180,180],['out','Leg out',-40,40]];
-let legOn=false, legK=0, legSide='L';
-{ const box=$('legSl');
-  for(const [k,label,lo,hi] of LEG_SL){ const row=document.createElement('label'); row.className='sl';
-    row.innerHTML=`<span>${label}</span><input type="range" min="${lo}" max="${hi}" step="1" value="${LEG[k]}"><output>${LEG[k]}</output>`;
-    const inp=row.querySelector('input'), out=row.querySelector('output'); row.dataset.k=k;
-    inp.addEventListener('input',()=>{ LEG[k]=+inp.value; out.textContent=inp.value; legNums(); }); box.appendChild(row); }
-  $('oneLeg').addEventListener('click',()=>{ legOn=!legOn; $('oneLeg').setAttribute('aria-pressed',String(legOn)); });
-  group('data-side',v=>{ legSide=v; }); legNums(); }
-function legNums(){ $('legNums').textContent='LEG='+JSON.stringify({side:legSide,...LEG}); }
-function setLeg(v){ Object.assign(LEG,v); document.querySelectorAll('#legSl .sl').forEach(r=>{ const k=r.dataset.k; r.querySelector('input').value=LEG[k]; r.querySelector('output').textContent=LEG[k]; }); legNums(); }
-/* the bones by name, every copy, except a copy that sits inside another one (it follows that one anyway) */
-function bones(o,name){ const all=new Set(); o.traverse(n=>{ if(n.isSkinnedMesh) for(const bn of n.skeleton.bones) if(bn.name===name) all.add(bn); });
-  return [...all].filter(bn=>{ for(let p=bn.parent;p;p=p.parent) if(all.has(p)) return false; return true; }); }
-function legBones(b){ const S=legSide; if(!b.leg||b.leg.side!==S){ const hip=bones(b.o,'Leg'+S+'002'), knee=bones(b.o,'Leg'+S+'004'), heel=bones(b.o,'Leg'+S+'005'),
-    end=bones(b.o,'LegFK'+S+'001'), foot=bones(b.o,'Leg'+S+'007');
-    /* each foot goes with the leg end of its own skeleton: the one standing in the same place */
-    b.o.updateMatrixWorld(true); const v=new THREE.Vector3(), w=new THREE.Vector3();
-    const pairs=foot.map(f=>{ f.getWorldPosition(v); let best=end[0], bd=1e9; for(const e of end){ e.getWorldPosition(w); const d=v.distanceTo(w); if(d<bd){ bd=d; best=e; } } return [f,best]; });
-    b.leg={side:S, hip, knee, heel, pairs}; } return b.leg; }
-const _q=new THREE.Quaternion(), _qp=new THREE.Quaternion(), _ax=new THREE.Vector3(), _m=new THREE.Matrix4(), _m2=new THREE.Matrix4(), D2R=Math.PI/180;
-/* turn a bone by an angle round an axis given in the bird's own space (x: its side, z: forward) */
-function turnBone(x,axis,ang,root){ root.getWorldQuaternion(_qp); _ax.copy(axis).applyQuaternion(_qp);
-  x.parent.getWorldQuaternion(_qp); _ax.applyQuaternion(_qp.invert()); _q.setFromAxisAngle(_ax.normalize(),ang); x.quaternion.premultiply(_q); x.updateMatrixWorld(true); }
-const SIDE=new THREE.Vector3(1,0,0), FWD=new THREE.Vector3(0,0,1);
-function oneLeg(b,dt){
-  legK+=((legOn?1:0)-legK)*(1-Math.exp(-dt*2.5)); if(legK<0.002) return; const k=legK*legK*(3-2*legK), L=legBones(b), sd=legSide==='L'?1:-1;
-  b.o.updateMatrixWorld(true);
-  /* where each foot sits against its leg's end, as the animation has them now */
-  const offs=L.pairs.map(([f,e])=>_m.copy(e.matrixWorld).invert().multiply(f.matrixWorld).clone());
-  for(const x of L.hip){ turnBone(x,SIDE,LEG.hip*D2R*k,b.o); turnBone(x,FWD,sd*LEG.out*D2R*k,b.o); }
-  for(const x of L.knee) turnBone(x,SIDE,LEG.knee*D2R*k,b.o);
-  for(const x of L.heel) turnBone(x,SIDE,LEG.heel*D2R*k,b.o);
-  /* the foot follows: put it back against the leg's end */
-  L.pairs.forEach(([f,e],i)=>{ _m2.copy(e.matrixWorld).multiply(offs[i]); f.parent.updateMatrixWorld(true); _m.copy(f.parent.matrixWorld).invert().multiply(_m2);
-    _m.decompose(f.position,f.quaternion,f.scale); f.updateMatrixWorld(true); });
-}
-document.querySelectorAll('[data-side]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.side==='L')));
 loadBird().then(()=>{ bird=makeBird(); choose('idle_A1'); $('load').hidden=true; })
   .catch(err=>{ $('load').textContent='Could not load the flamingo: '+err.message; console.error(err); });
 requestAnimationFrame(frame);
