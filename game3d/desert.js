@@ -147,6 +147,11 @@ const kidWhite=[4,8].map((bit,i)=>{ const u={uA:{value:0}}; const m=new THREE.Me
     stencilWrite:true, stencilRef:bit, stencilFuncMask:bit, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp,
     vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`, fragmentShader:`uniform float uA; void main(){ gl_FragColor=vec4(1.0,1.0,250.0/255.0,uA); }`}));
   m.frustumCulled=false; m.renderOrder=3+i; washScene.add(m); return u; });
+/* and at the very crossing, white over everything, flamingos and all (level2.js sets it) */
+const allWhite={uA:{value:0}};
+{ const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:allWhite, transparent:true, depthTest:false, depthWrite:false,
+    vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`, fragmentShader:`uniform float uA; void main(){ gl_FragColor=vec4(1.0,1.0,250.0/255.0,uA); }`}));
+  m.frustumCulled=false; m.renderOrder=10; washScene.add(m); }
 const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };

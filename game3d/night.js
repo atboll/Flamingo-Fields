@@ -143,6 +143,6 @@ function renderFrame(){
     if(!fbTex||fbTex.image.width!==_db.x||fbTex.image.height!==_db.y){ if(fbTex) fbTex.dispose(); fbTex=new THREE.FramebufferTexture(_db.x,_db.y,THREE.RGBAFormat); gradeU.tFrame.value=fbTex; }
     R.copyFramebufferToTexture(_zero,fbTex); R.render(gradeScene,gradeCam); }
   R.render(lightScene,cam);
-  if(washU.uM.value>0.002||kidWhite[0].uA.value>0||kidWhite[1].uA.value>0) R.render(washScene,washCam);   /* the door's light taking the view (desert.js) */
+  if(washU.uM.value>0.002||kidWhite[0].uA.value>0||kidWhite[1].uA.value>0||allWhite.uA.value>0) R.render(washScene,washCam);   /* the door's light taking the view (desert.js) */
   R.autoClear=true;
 }
