@@ -168,7 +168,7 @@ function drawHud(time){
         else if(i===n && nudge){ ctx.globalAlpha=0.35+0.35*Math.sin(time*3); flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
       }
       ctx.restore(); } }
-  if(time-mateMsgT<5){
+  if(false && time-mateMsgT<5){   // (no words: the flock's messages are switched off; it is a puzzle)
     ctx.save(); ctx.globalAlpha=clamp((5-(time-mateMsgT))/1.2,0,1); ctx.font='600 '+Math.round(17*q)+'px system-ui,-apple-system,"Segoe UI",sans-serif'; ctx.textAlign='center';
     ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(freeFly()?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+118*q); ctx.restore(); }
   flockArrow(ctx,W,H,time);

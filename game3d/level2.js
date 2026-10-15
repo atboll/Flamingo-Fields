@@ -175,7 +175,7 @@ function liftHint(on){ if(!hintEl){ if(!on) return; hintEl=document.createElemen
 function updateLift(dt){
   if(LEVEL!==2){ liftHint(false); return; }
   const near=whaleNearness(), P=girl.P;
-  liftHint(P.state!=='fly' && P.state!=='land' && near<1.5);
+  liftHint(false);   // (no words: the whale hint is switched off)
   if(P.state==='fly' && near>2){ P.alt=Math.max(0.5,P.alt-3.5*dt); if(P.alt<=1.5 && P.y<2.2) jumpKid(girl); }   // out of the whales' wake: down onto the cloud
 }
 Object.assign(window,{enterLevel2, leaveLevel2, updateDoor, updateClouds, updateLift, placeDoorScreen2, level2Frame});
