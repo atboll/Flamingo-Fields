@@ -221,7 +221,7 @@ function girlTexSetup(img,mesh){
   girlTights(mesh);
 }
 /* short tights under her dress: the skin on her upper legs (from the hips to just above the knee, found by the model) becomes its own patch, class 5 */
-const GIRL_TIGHTS='#f2b9c8';
+const GIRL_TIGHTS='#2a2629';   // black (a touch above pure black, so they keep their shading)
 function girlTights(mesh){
   const T=GIRLTEX, W=T.canvas.width, H=T.canvas.height, c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
   const geo=mesh.geometry, uv=geo.attributes.uv, si=geo.attributes.skinIndex.array, sw=geo.attributes.skinWeight.array, N=uv.count, bones=mesh.skeleton.bones;
