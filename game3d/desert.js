@@ -70,7 +70,7 @@ const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasic
 Object.assign(doorPane.material,{polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-8});
 doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front+DOOR.tunnel-0.3); doorLight.add(doorPane);   /* at the far end of the passage (on the clouds, level2.js puts it back in the doorway) */
 /* the passage behind the doorway: walls, floor and ceiling of pure white light, drawn with the door's light, open at the door */
-const tunnel=new THREE.Mesh((()=>{ const g=new THREE.BoxGeometry(DW,DH,DOOR.tunnel); g.translate(0,DH/2,front+DOOR.tunnel/2); return g; })(),
+const tunnel=new THREE.Mesh((()=>{ const g=new THREE.BoxGeometry(DW,DH,DOOR.tunnel); g.translate(0,DH/2+0.5,front+DOOR.tunnel/2); return g;   /* its floor just above the sand */ })(),
   new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.BackSide, toneMapped:false, fog:false, transparent:true}));
 tunnel.visible=false; doorLight.add(tunnel);
 doorPane.material.transparent=true;   /* it fades in as the door opens (rings.js) */
@@ -214,7 +214,7 @@ function updateDesert(dt,time){
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
   /* the door: white, pulsing gently */
   const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3))*doorOpen;   // shut until the rings are lit (rings.js)
-  doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3)); doorPane.material.opacity=doorOpen; doorPane.visible=doorOpen>0.001; doorShutMesh.visible=doorOpen<0.999;
+  doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3)); doorPane.material.opacity=doorOpen; doorPane.visible=false;   /* on level 1 the passage itself is the white (the panel is the lone door's on the clouds) */ doorShutMesh.visible=doorOpen<0.999;
   tunnel.visible=doorOpen>0.001; tunnel.material.opacity=doorOpen; tunnel.material.color.setScalar(0.92+0.08*Math.sin(time*1.3));
   /* how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it (the 2D game's rule) */
   { const P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7; let tg=0;
