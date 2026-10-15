@@ -125,11 +125,10 @@ function updateDoor(dt,time){
   if(!COAST.on) return;
   /* walking in through the doorway: dark shapes into the light, and over the next few steps past its face the view goes all white,
      kids and all; only then are they through (so the change is never seen). Turning back, the white falls away again. */
-  /* the kids fade into the white as they walk in (desert.js); the view goes all white as the camera itself comes up to the doorway and in */
-  let want=0; if(doorPass>0){ const c=boxC(), dx=-cam.position.x/U-c[0], dz=cam.position.z/U-c[1], cv=(dx*SUNDX_G+dz*SUNDZ_G+BOX_HALF)*U; want=clamp((cv+1.2)/1.2,0,1); }
+  /* one white layer over the whole screen, as in the 2D game: it rises as the girl walks in through the doorway (DOOR.fade metres), and when it is full they are through */
+  const want=girl.P.state!=='fly'?clamp(doorPass/DOOR.fade,0,1):0;
   whiteIn+=(want-whiteIn)*(1-Math.exp(-dt*(want>whiteIn?12:4))); if(want>=1&&whiteIn>0.97) whiteIn=1;
   allWhite.uA.value=whiteIn*whiteIn*(3-2*whiteIn);
-  if(whiteIn>0){ const w=whiteIn*whiteIn*(3-2*whiteIn); washU.uM.value=Math.max(washU.uM.value,w); frontU.uFade.value=Math.max(frontU.uFade.value,w); frontU.uK.value=frontU.uK.value*(1-w); }
   if(whiteIn>=1){ enterLevel2(true); return; }
   /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
   const a=0.9+0.1*Math.sin(time*1.3), k=clamp((doorNear-0.3)/0.7,0,1); doorPane.material.color.setRGB(a,a*(1-0.1*k),a*(1-0.05*k)); }

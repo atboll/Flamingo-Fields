@@ -213,7 +213,7 @@ function updateDesert(dt,time){
   for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80; let u=dx*SUNDZ_G-dz*SUNDX_G;
     const passage=doorOpen>0.95 && Math.abs(u)<DOOR_W*0.5 && v<-BOX_HALF+DOOR.tunnel/U && P.y/U<DOOR_H;
     if(passage){ if(v>-BOX_HALF-80){ const cu=clamp(u,-DOOR_W*0.38,DOOR_W*0.38); if(cu!==u){ const du=cu-u; P.x=-(gx+SUNDZ_G*du)*U; P.z=(gz-SUNDX_G*du)*U; u=cu; } }   // inside, kept between the doorway's sides
-      const pass=Math.max(0,(v+BOX_HALF)*U); if(K===girl) doorPass=pass; kidWhite[K===girl?0:1].uA.value=clamp(pass/DOOR.fade,0,1); if(v>-BOX_HALF+DOOR.tunnel/U-60){ const dv=-BOX_HALF+DOOR.tunnel/U-60-v; P.x=-(gx+SUNDX_G*dv)*U; P.z=(gz+SUNDZ_G*dv)*U; } continue; }   // fading into the white; the passage's end holds them
+      const pass=Math.max(0,(v+BOX_HALF)*U); if(K===girl) doorPass=pass; if(v>-BOX_HALF+DOOR.tunnel/U-60){ const dv=-BOX_HALF+DOOR.tunnel/U-60-v; P.x=-(gx+SUNDX_G*dv)*U; P.z=(gz+SUNDZ_G*dv)*U; } continue; }   // fading into the white; the passage's end holds them
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
