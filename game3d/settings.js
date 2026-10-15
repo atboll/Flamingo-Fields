@@ -2,7 +2,7 @@
    Loaded first, so every other file can read these. */
 
 /* the dunes' shape and paint (the #dev-dunes page has sliders for all of these, and prints a line like this one to paste back here) */
-const DUNE={size:1, height:1, round:1.1, curve:1, cross:0.3, angle:0.45, contrast:2.2, soft:0.85, crest:0, warm:0.85, ripple:1, ridges:0};
+const DUNE={size:1, height:1, round:1.1, curve:1, cross:0.3, angle:0.45, contrast:2.2, soft:0.85, crest:0, warm:0.85, ripple:0, ridges:0};
 
 /* each level's feel: gravity and the hop's lift (metres, seconds); level 2's clouds are lighter, so the hop goes about 5.5 m high and floats.
    The land on level 2 also lies a tenth lower. */

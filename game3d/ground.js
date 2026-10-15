@@ -35,7 +35,7 @@ const crWander=th=>1200*Math.sin(3*th+1)+700*Math.sin(7*th+2)+400*Math.sin(13*th
 /* the crater's shape, as the drawn craters have it: a flat floor with a low rise in the middle (where the box struck), the inside wall
    coming down in three soft terraces, an uneven rim, and outside it a skirt of rubble humps thinning into the field */
 function craterH(d,th){ const S=Math.sin, ss=t=>t*t*(3-2*t), rim=CR_H*(1+0.45*S(3*th+1)+0.25*S(8*th+2));
-  if(d<CR_R){ const t=ss(clamp((d-(CR_R-CR_WI))/CR_WI,0,1)), tt=t-0.85*S(6.2832*3*t)/(6.2832*3);   /* terraces: flat steps on the way down */
+  if(d<CR_R){ const t=ss(clamp((d-(CR_R-CR_WI))/CR_WI,0,1)), tt=t-0.5*S(6.2832*3*t)/(6.2832*3);   /* terraces: flat steps on the way down */
     return -CR_D+(CR_D+rim)*tt+300*Math.exp(-Math.pow(d/4100,2)); }   /* the floor, and the rise in its middle */
   const t=clamp((d-CR_R)/CR_WO,0,1), e=clamp((d-CR_R)/(CR_WO*1.6),0,1);
   return rim*(1-ss(t))+110*(1-e)*(1-e)*Math.max(0,S(d*0.011+th*7)*S(th*23+d*0.004)); }   /* the rubble humps outside */
@@ -79,7 +79,7 @@ float edgeWander(float a, float lat){ float q=sin(a*0.0031+2.0*sin(lat*0.0023))*
         +4000.0*pow(max(0.0,q),2.0)-3000.0*pow(max(0.0,-q),2.0); }
 float crWander(float th){ return 1200.0*sin(3.0*th+1.0)+700.0*sin(7.0*th+2.0)+400.0*sin(13.0*th+0.5); }
 float craterH(float d, float th){ float rim=${CR_H.toFixed(1)}*(1.0+0.45*sin(3.0*th+1.0)+0.25*sin(8.0*th+2.0));
-  if(d<${CR_R.toFixed(1)}){ float t=clamp((d-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0); t=t*t*(3.0-2.0*t); float tt=t-0.85*sin(6.2832*3.0*t)/(6.2832*3.0);
+  if(d<${CR_R.toFixed(1)}){ float t=clamp((d-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0); t=t*t*(3.0-2.0*t); float tt=t-0.5*sin(6.2832*3.0*t)/(6.2832*3.0);
     return -${CR_D.toFixed(1)}+(${(CR_D).toFixed(1)}+rim)*tt+300.0*exp(-pow(d/4100.0,2.0)); }
   float t=clamp((d-${CR_R.toFixed(1)})/${CR_WO.toFixed(1)},0.0,1.0), e=clamp((d-${CR_R.toFixed(1)})/${(CR_WO*1.6).toFixed(1)},0.0,1.0);
   return rim*(1.0-t*t*(3.0-2.0*t))+110.0*(1.0-e)*(1.0-e)*max(0.0,sin(d*0.011+th*7.0)*sin(th*23.0+d*0.004)); }
