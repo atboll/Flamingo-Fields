@@ -2,7 +2,7 @@
    It starts with the first key or tap, since browsers only play sound after the player has done something. ---------- */
 const OVERLAP=4, soundBtn=$('sound'), fadeOut=new Float32Array(48).map((_,i)=>Math.cos(i/47*Math.PI/2));
 let actx=null, master=null, fieldBuf=null, fieldGain=null, nextAt=0, soundOn=true, runGain=null, runSrc=null, palGain=null, palSrc=null;
-try{ soundOn=localStorage.getItem('ff3dSound')!=='off'; }catch(_){ }
+/* sound is always on: the sound button is gone */
 function showSound(){ soundBtn.textContent=soundOn?'Sound on':'Sound off'; soundBtn.setAttribute('aria-pressed',String(soundOn)); }
 function scheduleField(){
   if(!fieldBuf) return;
@@ -89,7 +89,7 @@ function updateFlamSound(){
     src.connect(g); g.connect(flamGain); src.start(flamNext); flamNext+=dur-1.5; }
   const lx=-girl.P.x/U, lz=girl.P.z/U, d=Math.hypot(lx-flock.x,lz-flock.z), coming=flock.s<FLOCK_NEAR?1:0;
   const lv=clamp(1.15-d/3000,coming*(0.03+0.11*clamp((9000-d)/5000,0,1)),1)*0.9;
-  flamGain.gain.setTargetAtTime(lv,t,0.3);
+  flamGain.gain.setTargetAtTime(lv*0.8,t,0.3);   // the wild flock's calls, a fifth quieter
   if(flamPan){ /* (rx,rz) is the camera's left */ const rx=Math.cos(camYaw), rz=-Math.sin(camYaw), dx=-flock.x*U-cam.position.x, dz=flock.z*U-cam.position.z, m=Math.hypot(dx,dz)||1;
     flamPan.pan.setTargetAtTime(clamp(-(dx*rx+dz*rz)/m*0.85,-0.85,0.85),t,0.25); } }
 function stepsFor(K){ const P=K.P; return (P.state==='ground'||P.state==='touch')&&P.y<0.02 ? clamp((P.spd/K.RUN_SPEED-0.25)/0.5,0,1) : 0; }
