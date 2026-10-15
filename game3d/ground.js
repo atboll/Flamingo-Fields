@@ -60,7 +60,7 @@ function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e), D=
 function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
   if(COAST.on){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, db=Math.hypot(al-SHORE,lat), cs=coastAlong(gx,gz);
     if(cs>0){ const r=clamp(cs/4200,0,1), f0=clamp((db-BOX_HALF-900)/3200,0,1), dk=clamp((CR_R-CR_WI-db)/(CR_WI*0.3),0,1), A=r*f0*f0*(3-2*f0)*dk;   /* dunes on the crater floor, none up its walls */
-      g=g*(1-0.65*r)+A*duneH(al,lat); }
+      g=g*(1-r)+A*duneH(al,lat); }   /* the field's own small waves gone under the sand (they showed as stripes) */
     g+=craterH(db,Math.atan2(lat,al-SHORE)); }
   return g*U*LEVELS[LEVEL].land; }   // (level 2's land lies a tenth lower)
 /* flying, heights are measured from a gentler ground: 30% of the real hills and dunes, 70% their average over a disc about 46 m across
@@ -98,6 +98,6 @@ float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float g=90.0*sin(a)*sin(b)+30.0*sin(c);
   if(uCoast.z>0.5){ vec2 d=vec2(gx,gz)-uCoast.xy; float al=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x, db=length(vec2(al-${SHORE.toFixed(1)},lat)), cs=coastAlong(p);
     if(cs>0.0){ float r=clamp(cs/4200.0,0.0,1.0), f0=clamp((db-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), dk=clamp((${(CR_R-CR_WI).toFixed(1)}-db)/${(CR_WI*0.3).toFixed(1)},0.0,1.0), A=r*f0*f0*(3.0-2.0*f0)*dk;
-      g=g*(1.0-0.65*r)+A*duneH(al,lat); }
+      g=g*(1.0-r)+A*duneH(al,lat); }
     g+=craterH(db,atan(lat,al-${SHORE.toFixed(1)})); }
   return g*${U.toFixed(8)}; }`;
