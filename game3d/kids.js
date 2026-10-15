@@ -53,7 +53,7 @@ const clone=o=>JSON.parse(JSON.stringify(o));
    and swing — a soft spring that lags behind when they speed up, stop, turn or land. It is not real cloth.
    Hair tips: the ends of the hair (furthest from the scalp) can take a second colour, like the orange tips in the clip.
    Face: a picture painted in the model's own measurements, laid onto the front of the head in the rest pose. */
-function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},
+function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},uSkirtSw:{value:new THREE.Vector3()},uFlare:{value:0},
   uPh:{value:new THREE.Vector4()},uPh5:{value:0},uHead:{value:head.clone()},uTips:{value:new THREE.Color('#e8742c')},uTipsAmt:{value:0},uMouthHide:{value:0},uMouthBox:{value:new THREE.Vector4(0.012,0.553,0.072,0.019)}}; }
 function wavesStep(W,dt){ const f=W.uFlow.value, p=W.uPh.value; W.uTime.value+=dt; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); W.uPh5.value+=dt*(5+8*f); }
 function addWind(mat,W,key,face){
@@ -64,7 +64,7 @@ function addWind(mat,W,key,face){
       frag+='uniform sampler2D uFaceTex;\nvarying vec2 vFaceUV;\nvarying float vFace;\n';
       add=`\n        if(vFace>0.01 && vFaceUV.x>0.0 && vFaceUV.x<1.0 && vFaceUV.y>0.0 && vFaceUV.y<1.0){ vec4 fp=texture2D(uFaceTex,vFaceUV); diffuseColor.rgb=mix(diffuseColor.rgb,fp.rgb,fp.a*clamp(vFace*1.5,0.0,1.0)); }`+add; }
     sh.fragmentShader=frag+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>'+add);
-    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uMouthHide;\nuniform vec4 uMouthBox;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
+    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uMouthHide;\nuniform vec4 uMouthBox;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead,uSkirtSw;\nuniform float uFlare;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
       .replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
       /* her own smile is carved into the face; when another mouth is painted, the groove's shading is smoothed away */
       if(uMouthHide>0.5 && aFace>0.0){ vec2 q=(position.xy-uMouthBox.xy)/uMouthBox.zw; float mw=1.0-smoothstep(0.55,1.0,length(q));
@@ -90,11 +90,13 @@ function addWind(mat,W,key,face){
       if(sw>0.0){
         transformed.z-=sw*((0.014+0.055*f*f)*gust*(1.0+0.6*f) + 0.022*f*f*(0.5+0.5*sin(uPh.z+ph)));
         transformed+=sw*uSwing; }
+      /* the dress as fabric: the hem lags behind her moves on its own slow spring, and flares out when she turns (CLOTH, settings.js) */
+      if(aSkirt>0.0){ vec2 rd=normalize(bp.xz+vec2(1e-4)); transformed.xz+=rd*aSkirt*uFlare; transformed+=aSkirt*uSkirtSw; }
       if(hw>0.0){
         transformed.z-=hw*(0.008+0.07*f*f)*gust;
         transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'kidwind4-'+key+(face?'f':''); return mat;
+  mat.customProgramCacheKey=()=>'kidwind5-'+key+(face?'f':''); return mat;
 }
 /* the swing spring: driven by how the kid accelerates, seen from their own body (forward, sideways, up) */
 function swingStep(K,dt){
@@ -108,6 +110,13 @@ function swingStep(K,dt){
   const w=7, z=0.32, k=w*w, d=2*z*w;
   for(const [p,v,t] of [['x','vx',tx],['y','vy',ty],['z','vz',tz]]){ S[v]+=(-k*(S[p]-t)-d*S[v])*dt; S[p]+=S[v]*dt; }
   K.W.uSwing.value.set(S.x,S.y,S.z);
+  /* the dress: its own slower, looser spring, so the hem trails, overshoots and settles like fabric; and a flare when she turns */
+  if(K.W.uAmt.value>0){ const D=K.SK||(K.SK={x:0,y:0,z:0,vx:0,vy:0,vz:0,f:0,vf:0,h:P.h}), L=CLOTH.reach, lm=v=>Math.max(-L,Math.min(L,v));
+    const ux=lm(-(ax*c-az*s)*CLOTH.lag), uy=lm(-ay*CLOTH.lift), uz=lm(-(ax*s+az*c)*CLOTH.lag);
+    let dh=P.h-D.h; dh=Math.atan2(Math.sin(dh),Math.cos(dh)); D.h=P.h; const yaw=Math.abs(dh/dt);
+    const uf=Math.min(L*0.6,yaw*CLOTH.flare), w2=CLOTH.spring, k2=w2*w2, d2=2*CLOTH.damp*w2;
+    for(const [p,v,t] of [['x','vx',ux],['y','vy',uy],['z','vz',uz],['f','vf',uf]]){ D[v]+=(-k2*(D[p]-t)-d2*D[v])*dt; D[p]+=D[v]*dt; }
+    K.W.uSkirtSw.value.set(D.x,D.y,D.z); K.W.uFlare.value=Math.max(0,D.f); }
 }
 
 /* The boy's hair: dark texels on the points his head bone carries, away from his face; tips move most. */

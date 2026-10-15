@@ -24,6 +24,11 @@ const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
    and tipped further down (degrees), so you look down on them; it eases in as they take off and out as they land */
 const CAMFLY={raise:2.5, tilt:8};
 
+/* the girl's dress as fabric (kids.js): a slow, loose spring on its hem. lag and lift: how far it trails her speeding up, stopping and
+   turning, and rises as she falls; flare: how far it swings out when she turns; reach: the most it moves (metres); spring and damp:
+   how quickly it swings back (lower is slower) and how soon it settles (lower overshoots more) */
+const CLOTH={lag:0.014, lift:0.008, flare:0.05, reach:0.14, spring:4.5, damp:0.22};
+
 /* the puzzle at the box (rings.js): a bank of fog over the desert round the box (radius and height in metres, density per metre),
    and five rings of stones in it (radius in metres). Land in a ring and one of your flamingos stays there; five, and the fog lifts and the door opens. */
 const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now (it was 0.02)
