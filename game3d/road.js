@@ -71,5 +71,31 @@ function placeRoad(K,time){
       const s=focal/(dz/U);                                                       // the 2D game's scale: pixels per game unit at this depth
       if(11*s>=2.6) roadNear.push({x,y,z,ph:q.ph,a:q.a});                           // big enough to be a feather
       else if(nd<ROAD_MAX){ const k=clamp(1-(dz/U-3000)/38000,0.3,1); roadPos[nd*3]=x; roadPos[nd*3+1]=y; roadPos[nd*3+2]=z; roadA[nd]=q.a*night; roadK[nd]=k; nd++; } } }   // farther, a point of light
+  blueFeathers(K,time);
   const g=roadDots.geometry; g.setDrawRange(0,nd); if(nd){ g.attributes.position.needsUpdate=g.attributes.a.needsUpdate=g.attributes.k.needsUpdate=true; } roadDots.material.uniforms.uDpr.value=R.getPixelRatio();
 }
+
+/* ---------- the blue feathers: five single ones down the middle of the road, low over the ground, so the kids must dive for them.
+   Fly through one and the flight bursts ahead for a few seconds (sound.js). They come back each time the road forms. ---------- */
+const BLUE_N=5, BLUE_H=75, BLUE_R=110, BURST_TIME=4, BURST=0.8;   // height over the ground and pick-up reach (game units), the burst's seconds and extra speed
+const blueGot=new Set(); let blueSpr=null, burstUntil=-9;
+function blueFeathers(K,time){
+  if(pathA===0) blueGot.clear();
+  if(!FEATHER_TEX) return;
+  if(!blueSpr){ blueSpr=[]; for(let i=0;i<BLUE_N;i++){
+      const card=new THREE.Sprite(new THREE.SpriteMaterial({map:FEATHER_TEX, color:'#7fb2ff', transparent:true, depthWrite:false, fog:false, alphaTest:0.05}));
+      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_TEX, color:'#8fc0ff', transparent:true, depthWrite:false, fog:false}));
+      card.renderOrder=3; glow.renderOrder=4; card.visible=glow.visible=false; scene.add(card); lightScene.add(glow); blueSpr.push({card,glow}); } }
+  const show=pathA>0.3 && COAST.on && LEVEL===1;
+  let L=0; if(show){ const c=boxC(); L=(c[0]-pathPx)*RDX+(c[1]-pathPz)*RDZ-60/U-1500; }
+  const P=K.P, kx=-P.x/U, kz=P.z/U;
+  for(let i=0;i<BLUE_N;i++){ const S=blueSpr[i];
+    if(!show || L<2000 || blueGot.has(i)){ S.card.visible=S.glow.visible=false; continue; }
+    const t=L*(i+1)/(BLUE_N+1), gx=pathPx+RDX*t, gz=pathPz+RDZ*t, x=-gx*U, z=gz*U, y=groundAt(x,z)+(BLUE_H+Math.sin(time*2+i)*6)*U;
+    if(Math.hypot(gx-kx,gz-kz)<BLUE_R && P.y/U<BLUE_H+BLUE_R){ blueGot.add(i); burstUntil=time+BURST_TIME; [7,12,16,19].forEach((n,q)=>setTimeout(()=>chime(n),q*60)); continue; }
+    const a=clamp(pathA*3-1,0,1), sz=1.6;
+    S.card.visible=S.glow.visible=true; S.card.position.set(x,y,z); S.glow.position.set(x,y,z);
+    S.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); S.card.material.rotation=-(0.6+Math.sin(time*1.6+i)*0.5); S.card.material.opacity=a;
+    const gr=FEATHER_LEN*sz*3.2; S.glow.scale.set(gr,gr,1); S.glow.material.opacity=(0.55+0.3*Math.sin(time*4+i))*a; }
+}
+const burstNow=()=>clamp((burstUntil-clock)/1,0,1);   // 1 during the burst, easing off over its last second
