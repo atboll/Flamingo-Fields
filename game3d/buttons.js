@@ -14,7 +14,7 @@ function resetLevel(){
   leaveLevel2();
   feathers=0; flightLeft=0; got.clear(); lastGot=-9;
   mates.length=0; mateMsgT=-99; flock=null; flockN=0; nextFlock=clock+FLOCK_FIRST;
-  nightOn=false; dayOffset=-clock; night=0; pathA=0; pathAlign=0; pathOn=false; clearCoast(); layCrater(); arrived=false; doorNear=0; doorIn=0; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
+  nightOn=false; dayOffset=-clock; night=0; pathA=0; roadLaid=false; pathAlign=0; pathOn=false; clearCoast(); layCrater(); arrived=false; doorNear=0; doorIn=0; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
   if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(_){ } } padPlayed=false;
   events.length=0; keys.clear();
   [[girl,0,0],[boy,-1.5,-1.4]].forEach(([K,x,z])=>{ Object.assign(K.P,{x,z,y:0,vy:0,h:0.1,turn:0,bank:0,pitch:0,spd:0,alt:CRUISE,state:'ground',crouch:0,upLock:false}); });

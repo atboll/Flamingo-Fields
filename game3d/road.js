@@ -9,7 +9,7 @@
    Near feathers are drawn like the field's (feathers.js); far ones are points of light over the night. Game units and unmirrored coordinates, as in flock.js. */
 
 const ROAD_STEP=130, ROAD_HALF=600, ROAD_END=70000;
-let pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas=false, hintT=-99;
+let roadLaid=false, pathOn=false, pathA=0, pathPx=0, pathPz=0, pathAlign=0, hintEl=null, hintWas=false, hintT=-99;
 const SUNDX=Math.sin(SUN_B), SUNDZ=Math.cos(SUN_B);   /* toward the sun and the moon, in the game's ground coordinates */
 let RDX=SUNDX, RDZ=SUNDZ;                                /* the road's own way: from where it forms, straight to the crater's box */
 const roadNear=[];                                       /* this frame's near road feathers, for feathers.js: {x,y,z (metres), ph, a} */
@@ -17,9 +17,10 @@ const roadNear=[];                                       /* this frame's near ro
 function updatePath(K,dt,time){
   const P=K.P, lx=-P.x/U, lz=P.z/U, hx=-Math.sin(P.h), hz=Math.cos(P.h);
   const lat=(lx-pathPx)*RDZ-(lz-pathPz)*RDX;
-  const ok=night>0.98 && freeFly() && (pathA===0 || Math.abs(lat)<6000);     // wander far from it and it fades, to be found again nearby
-  if(ok && pathA===0 && COAST.on){ const c=boxC(), dx=c[0]-lx, dz=c[1]-lz, dl=Math.hypot(dx,dz)||1; RDX=dx/dl; RDZ=dz/dl; }   // it points at the crater
-  if(ok && pathA===0){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lx+RDZ*sd*700; pathPz=lz-RDX*sd*700; }
+  const ok=roadLaid || (night>0.98 && freeFly());                             // once laid it stays where it formed, day and night, until Reset level
+  const fresh=ok && !roadLaid; roadLaid=roadLaid||ok;
+  if(fresh && COAST.on){ const c=boxC(), dx=c[0]-lx, dz=c[1]-lz, dl=Math.hypot(dx,dz)||1; RDX=dx/dl; RDZ=dz/dl; }   // it points at the crater
+  if(fresh){ const sd=h2(Math.floor(time),31)<0.5?-1:1; pathPx=lx+RDZ*sd*700; pathPz=lz-RDX*sd*700; }
   pathA=clamp(pathA+(ok?dt/21:-dt/3),0,1);                                    // the gathering is slow
   // the road answers when the kids travel along it toward the moon
   const air=P.state==='fly'||P.state==='land', v=(air?FLY_SPEED*P.flyW+P.spd*(1-P.flyW):P.spd)/U;
@@ -80,7 +81,7 @@ function placeRoad(K,time){
 const BLUE_N=5, BLUE_H=75+5/U, BLUE_R=110, BURST_TIME=4, BURST=0.8;   // height over the ground and pick-up reach (game units), the burst's seconds and extra speed
 const blueGot=new Set(); let blueSpr=null, burstUntil=-9;
 function blueFeathers(K,time){
-  if(pathA===0) blueGot.clear();
+  if(!roadLaid) blueGot.clear();
   if(!FEATHER_TEX) return;
   if(!blueSpr){ blueSpr=[]; for(let i=0;i<BLUE_N;i++){
       const card=new THREE.Sprite(new THREE.SpriteMaterial({map:FEATHER_TEX, color:'#7fb2ff', transparent:true, depthWrite:false, fog:false, alphaTest:0.05}));
