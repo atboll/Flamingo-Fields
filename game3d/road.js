@@ -77,7 +77,7 @@ function placeRoad(K,time){
 
 /* ---------- the blue feathers: five single ones down the middle of the road, low over the ground, so the kids must dive for them.
    Fly through one and the flight bursts ahead for a few seconds (sound.js). They come back each time the road forms. ---------- */
-const BLUE_N=5, BLUE_H=75, BLUE_R=110, BURST_TIME=4, BURST=0.8;   // height over the ground and pick-up reach (game units), the burst's seconds and extra speed
+const BLUE_N=5, BLUE_H=75+5/U, BLUE_R=110, BURST_TIME=4, BURST=0.8;   // height over the ground and pick-up reach (game units), the burst's seconds and extra speed
 const blueGot=new Set(); let blueSpr=null, burstUntil=-9;
 function blueFeathers(K,time){
   if(pathA===0) blueGot.clear();
@@ -92,7 +92,7 @@ function blueFeathers(K,time){
   for(let i=0;i<BLUE_N;i++){ const S=blueSpr[i];
     if(!show || L<2000 || blueGot.has(i)){ S.card.visible=S.glow.visible=false; continue; }
     const t=L*(i+1)/(BLUE_N+1), gx=pathPx+RDX*t, gz=pathPz+RDZ*t, x=-gx*U, z=gz*U, y=groundAt(x,z)+(BLUE_H+Math.sin(time*2+i)*6)*U;
-    if(Math.hypot(gx-kx,gz-kz)<BLUE_R && P.y/U<BLUE_H+BLUE_R){ blueGot.add(i); burstUntil=time+BURST_TIME; [7,12,16,19].forEach((n,q)=>setTimeout(()=>chime(n),q*60)); continue; }
+    if(Math.hypot(gx-kx,gz-kz)<BLUE_R && Math.abs(P.y/U-BLUE_H)<BLUE_R){ blueGot.add(i); burstUntil=time+BURST_TIME; [7,12,16,19].forEach((n,q)=>setTimeout(()=>chime(n),q*60)); continue; }
     const a=clamp(pathA*3-1,0,1), sz=1.6;
     S.card.visible=S.glow.visible=true; S.card.position.set(x,y,z); S.glow.position.set(x,y,z);
     S.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); S.card.material.rotation=-(0.6+Math.sin(time*1.6+i)*0.5); S.card.material.opacity=a;
