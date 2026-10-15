@@ -32,8 +32,9 @@ const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now
    and the outside wall are this wide (m); the field's grass climbs half way up the outside wall, and rubble thrown out lies beyond it. */
 const CRATER={dist:1500, radius:400, rim:7, depth:40, inner:150, outer:180};
 
-/* going through the door: the kids walk in through the doorway, and this many metres past its face (about 5 steps) the view is all white and they are through */
-const DOOR={walkIn:3.5};
+/* going through the door: the doorway opens into a passage of white light this deep (m); the kids fade into total white over the first
+   few metres of it (m), and when the camera itself passes in at the door, the view is all white and they are through */
+const DOOR={tunnel:14, fade:4};
 
 /* the level the game is on (1: the field and the desert; 2: the clouds and the whales). Changed only by enterLevel2 and leaveLevel2 (level2.js). */
 let LEVEL=1, G=LEVELS[1].gravity, HOP=LEVELS[1].hop;

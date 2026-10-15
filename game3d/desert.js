@@ -41,7 +41,10 @@ silver.onBeforeCompile=sh=>{ sh.uniforms.uNight=boxNight;
         face*=mix(1.0, vNo.z>0.5 ? 1.15 : vNo.y>0.5 ? 1.05 : vNo.z<-0.5 ? 0.5 : 0.8, uNight);   /* by night the moon, behind it, lights its far face and top; the door's face falls deep into shade */
         outgoingLight*=face*(0.72+0.28*foot); }
       #include <output_fragment>`); };
-const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),silver); boxMesh.position.y=BH/2; boxGroup.add(boxMesh);
+/* the box, with a real opening in its face where the door is: the face toward the kids is three pieces round the doorway (left, right, above) */
+const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),[silver,silver,silver,silver,silver,new THREE.MeshBasicMaterial({visible:false})]); boxMesh.position.y=BH/2; boxGroup.add(boxMesh);
+{ const dw=DOOR_W*U, dh=DOOR_H*U, piece=(w,h,x,y)=>{ const g=new THREE.PlaneGeometry(w,h); g.rotateY(Math.PI); g.translate(x,y,-BW/2); const m=new THREE.Mesh(g,silver); boxMesh.add(m); };
+  piece((BW-dw)/2,BH,-(BW+dw)/4,0); piece((BW-dw)/2,BH,(BW+dw)/4,0); piece(dw,BH-dh,0,dh/2); }
 /* ---------- the box's shadow on the sand: from the sun by day and the moon by night, both behind it, so it falls toward the kids ----------
    The game's real shadows reach only a few metres round the kids, so this one is laid on the sand as a soft dark shape over the dunes,
    as long as the box (29 m) throws it from the light's height: about 140 m from the low sun, 70 m or more from the moon. */
@@ -65,7 +68,11 @@ function layShadow(len,dark){
 const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's local -z face looks back down the road */
 const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
 Object.assign(doorPane.material,{polygonOffset:true, polygonOffsetFactor:-2, polygonOffsetUnits:-8});
-doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front-0.2); doorLight.add(doorPane);
+doorPane.rotation.y=Math.PI; doorPane.position.set(0,DH/2,front+DOOR.tunnel-0.3); doorLight.add(doorPane);   /* at the far end of the passage (on the clouds, level2.js puts it back in the doorway) */
+/* the passage behind the doorway: walls, floor and ceiling of pure white light, drawn with the door's light, open at the door */
+const tunnel=new THREE.Mesh((()=>{ const g=new THREE.BoxGeometry(DW,DH,DOOR.tunnel); g.translate(0,DH/2,front+DOOR.tunnel/2); return g; })(),
+  new THREE.MeshBasicMaterial({color:0xffffff, side:THREE.BackSide, toneMapped:false, fog:false, transparent:true}));
+tunnel.visible=false; doorLight.add(tunnel);
 doorPane.material.transparent=true;   /* it fades in as the door opens (rings.js) */
 /* the shut door: a dark, slightly sunk panel in the face, lost in the fog with the box until the rings are lit (rings.js) */
 const doorShutMesh=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshStandardMaterial({color:0x2c2f37, metalness:0.35, roughness:0.75}));
@@ -135,6 +142,11 @@ const frontFade=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMate
       float W=a+pow(clamp(uM/0.93,0.0,1.0),2.6)*(1.0-a);              /* how white the light round them is here */
       gl_FragColor=vec4(1.0,1.0,250.0/255.0, W*uFade); }`}));
 for(const [m,o] of [[frontDark,1],[frontFade,2]]){ m.frustumCulled=false; m.renderOrder=o; washScene.add(m); }
+/* each kid fading into the white as they walk in (the girl is marked with the bit worth 4, the boy with the bit worth 8) */
+const kidWhite=[4,8].map((bit,i)=>{ const u={uA:{value:0}}; const m=new THREE.Mesh(new THREE.PlaneGeometry(2,2),new THREE.ShaderMaterial({uniforms:u, transparent:true, depthTest:false, depthWrite:false,
+    stencilWrite:true, stencilRef:bit, stencilFuncMask:bit, stencilFunc:THREE.EqualStencilFunc, stencilZPass:THREE.KeepStencilOp, stencilFail:THREE.KeepStencilOp, stencilZFail:THREE.KeepStencilOp,
+    vertexShader:`void main(){ gl_Position=vec4(position.xy,0.0,1.0); }`, fragmentShader:`uniform float uA; void main(){ gl_FragColor=vec4(1.0,1.0,250.0/255.0,uA); }`}));
+  m.frustumCulled=false; m.renderOrder=3+i; washScene.add(m); return u; });
 const washCam=new THREE.OrthographicCamera(-1,1,1,-1,0,1);
 /* what stands in front of the light marks itself (stencil 2): the kids and every flamingo */
 const FRONT_MARK={ stencilWrite:true, stencilRef:2, stencilFunc:THREE.AlwaysStencilFunc, stencilZPass:THREE.ReplaceStencilOp };
@@ -182,7 +194,7 @@ function mateToShore(m){ const c=boxC(), dx=m.x-c[0], dz=m.z-c[1], al=dx*SUNDX_G
   Object.assign(m,{shore:true, homeLat:th*BOX_RING+(h2(m.id,41)-0.5)*600, homeCs:SHORE-40-Math.pow(h2(m.id,43),2)*850, wait:0, feed:0, eats:false, n:0, pace:30, rest:0, rests:h2(m.id,13)<0.7});
   const p=shorePos(m.homeLat,m.homeCs); m.tx=p[0]; m.tz=p[1]; }
 function updateDesert(dt,time){
-  if(!marked && FL.ready && girl){ marked=true; markFront(girl.root,6); markFront(boy.root,6); markFront(FL.birds[0].o); }
+  if(!marked && FL.ready && girl){ marked=true; markFront(girl.root,6); markFront(boy.root,10); markFront(FL.birds[0].o); }
   /* the first flight along the road toward the moon lays the journey's end far ahead */
   if(!COAST.on && pathOn && girl.P.state==='fly'){ const P=girl.P, gx=-P.x/U, gz=P.z/U; makeCoast(gx+SUNDX_G*COAST_DIST, gz+SUNDZ_G*COAST_DIST); }
   if(!COAST.on) return;
@@ -192,21 +204,22 @@ function updateDesert(dt,time){
   const c=boxC(), top=groundAt(-c[0]*U,c[1]*U)/U-30+BOX_H;
   /* nobody passes through the box, and the kids keep a step clear of it; but once the door is open they can walk in through it,
      along a short passage of light as wide as the doorway */
-  doorPass=0;
+  doorPass=0; kidWhite[0].uA.value=kidWhite[1].uA.value=0;
   for(const K of [girl,boy]){ const P=K.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], v=dx*SUNDX_G+dz*SUNDZ_G, Rr=BOX_HALF+80; let u=dx*SUNDZ_G-dz*SUNDX_G;
-    const passage=doorOpen>0.95 && Math.abs(u)<DOOR_W*0.5 && v<-BOX_HALF+DOOR.walkIn/U+200 && P.y/U<DOOR_H;
+    const passage=doorOpen>0.95 && Math.abs(u)<DOOR_W*0.5 && v<-BOX_HALF+DOOR.tunnel/U && P.y/U<DOOR_H;
     if(passage){ if(v>-BOX_HALF-80){ const cu=clamp(u,-DOOR_W*0.38,DOOR_W*0.38); if(cu!==u){ const du=cu-u; P.x=-(gx+SUNDZ_G*du)*U; P.z=(gz-SUNDX_G*du)*U; u=cu; } }   // inside, kept between the doorway's sides
-      if(K===girl) doorPass=Math.max(0,(v+BOX_HALF)*U); continue; }
+      const pass=Math.max(0,(v+BOX_HALF)*U); if(K===girl) doorPass=pass; kidWhite[K===girl?0:1].uA.value=clamp(pass/DOOR.fade,0,1); if(v>-BOX_HALF+DOOR.tunnel/U-60){ const dv=-BOX_HALF+DOOR.tunnel/U-60-v; P.x=-(gx+SUNDX_G*dv)*U; P.z=(gz+SUNDZ_G*dv)*U; } continue; }   // fading into the white; the passage's end holds them
     if(Math.abs(u)<Rr && Math.abs(v)<Rr && groundAt(P.x,P.z)/U+P.y/U<top-45){ const pu=Rr-Math.abs(u), pv=Rr-Math.abs(v); let du=0, dv=0; if(pu<pv) du=(u<0?-1:1)*pu; else dv=(v<0?-1:1)*pv;
       const nx=gx+SUNDZ_G*du+SUNDX_G*dv, nz=gz-SUNDX_G*du+SUNDZ_G*dv; P.x=-nx*U; P.z=nz*U; } }
   if(boxDist(-girl.P.x/U,girl.P.z/U)<9000 && night>0.5) dayOffset-=dt;   // by the box the night waits
   /* the door: white, pulsing gently */
   const A=clamp(coastA*1.5,0,1)*(0.9+0.1*Math.sin(time*1.3))*doorOpen;   // shut until the rings are lit (rings.js)
   doorPane.material.color.setScalar(0.9+0.1*Math.sin(time*1.3)); doorPane.material.opacity=doorOpen; doorPane.visible=doorOpen>0.001; doorShutMesh.visible=doorOpen<0.999;
+  tunnel.visible=doorOpen>0.001; tunnel.material.opacity=doorOpen; tunnel.material.color.setScalar(0.92+0.08*Math.sin(time*1.3));
   /* how near the kids stand in front of the door, and facing it: 0 far off, 1 right at it (the 2D game's rule) */
   { const P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7; let tg=0;
-    if(v<-BOX_HALF && P.y/U<DOOR_H*1.6){ cam.getWorldDirection(_dsp); const fx=-_dsp.x, fz=_dsp.z, fm=Math.hypot(fx,fz)||1, facing=clamp(((fx*SUNDX_G+fz*SUNDZ_G)/fm-0.15)/0.6,0,1);
-      tg=clamp(1-(Math.hypot(-v-BOX_HALF,lat)-95)/1700,0,1)*facing*doorOpen; }
+    if(v<-BOX_HALF+DOOR.tunnel/U && P.y/U<DOOR_H*1.6){ /* (in the passage too) */ cam.getWorldDirection(_dsp); const fx=-_dsp.x, fz=_dsp.z, fm=Math.hypot(fx,fz)||1, facing=clamp(((fx*SUNDX_G+fz*SUNDZ_G)/fm-0.15)/0.6,0,1);
+      tg=clamp(1-(Math.hypot(Math.max(0,-v-BOX_HALF),lat)-95)/1700,0,1)*facing*doorOpen; }
     doorNear+=(tg-doorNear)*(1-Math.exp(-dt*6)); if(doorNear<0.002&&tg===0) doorNear=0;
     /* in the doorway itself: right at the face, between its sides */
     const at=(doorOpen>0.95 && v<-BOX_HALF && -v-BOX_HALF<170 && Math.abs(u)<DOOR_W*0.55 && P.y/U<DOOR_H)?1:0; doorIn+=(at-doorIn)*(1-Math.exp(-dt*(at?2.5:4))); }

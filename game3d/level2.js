@@ -95,7 +95,7 @@ function setLevelLook(on){
   lumps.visible=crowns.visible=on; if(!on) lumps.count=crowns.count=0;
   boxMesh.visible=boxShadow.visible=!on; frame.visible=on; doorGlow.visible=!on; fan.visible=!on;
   doorPane.visible=on;   // on the clouds the lone door is filled with light
-  doorPane.material.side=on?THREE.DoubleSide:THREE.FrontSide; doorPane.position.z=on?front:front-0.2;
+  doorPane.material.side=on?THREE.DoubleSide:THREE.FrontSide; doorPane.position.z=on?front:front+DOOR.tunnel-0.3; tunnel.visible=false;
   if(on){ shore.length=0; for(const b of SB) b.o.visible=false; for(const q of POOL){ q.card.visible=q.glow.visible=q.nglow.visible=false; } if(POOL.halo) POOL.halo.visible=POOL.rays.visible=false; }
   const p1=$('plus1'); if(p1) p1.disabled=on||mates.length>=MATES_MAX;   // the 2D game's test buttons do nothing on the clouds
 }
@@ -125,8 +125,9 @@ function updateDoor(dt,time){
   if(!COAST.on) return;
   /* walking in through the doorway: dark shapes into the light, and over the next few steps past its face the view goes all white,
      kids and all; only then are they through (so the change is never seen). Turning back, the white falls away again. */
-  const want=girl.P.state!=='fly'?clamp(doorPass/DOOR.walkIn,0,1):0;
-  whiteIn+=(want-whiteIn)*(1-Math.exp(-dt*(want>whiteIn?10:4))); if(want>=1&&whiteIn>0.97) whiteIn=1;
+  /* the kids fade into the white as they walk in (desert.js); the view goes all white as the camera itself comes up to the doorway and in */
+  let want=0; if(doorPass>0){ const c=boxC(), dx=-cam.position.x/U-c[0], dz=cam.position.z/U-c[1], cv=(dx*SUNDX_G+dz*SUNDZ_G+BOX_HALF)*U; want=clamp((cv+1.2)/1.2,0,1); }
+  whiteIn+=(want-whiteIn)*(1-Math.exp(-dt*(want>whiteIn?12:4))); if(want>=1&&whiteIn>0.97) whiteIn=1;
   if(whiteIn>0){ const w=whiteIn*whiteIn*(3-2*whiteIn); washU.uM.value=Math.max(washU.uM.value,w); frontU.uFade.value=Math.max(frontU.uFade.value,w); frontU.uK.value=frontU.uK.value*(1-w); }
   if(whiteIn>=1){ enterLevel2(true); return; }
   /* coming near, the door's white takes a faint pink shimmer, as if another world lies just behind it */
