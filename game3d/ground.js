@@ -35,10 +35,10 @@ const crWander=th=>1200*Math.sin(3*th+1)+700*Math.sin(7*th+2)+400*Math.sin(13*th
 /* the crater's shape, as the drawn craters have it: a flat floor with a low rise in the middle (where the box struck), the inside wall
    coming down in three soft terraces, an uneven rim, and outside it a skirt of rubble humps thinning into the field */
 function craterH(d,th){ const S=Math.sin, ss=t=>t*t*(3-2*t), rim=CR_H*(1+0.45*S(3*th+1)+0.25*S(8*th+2));
-  if(d<CR_R){ const t=ss(clamp((d-(CR_R-CR_WI))/CR_WI,0,1)), tt=t-0.5*S(6.2832*3*t)/(6.2832*3);   /* terraces: flat steps on the way down */
+  if(d<CR_R){ const tt=ss(clamp((d-(CR_R-CR_WI))/CR_WI,0,1));   /* a smooth inner wall (the dunes give it its bumps) */
     return -CR_D+(CR_D+rim)*tt+300*Math.exp(-Math.pow(d/4100,2)); }   /* the floor, and the rise in its middle */
   const t=clamp((d-CR_R)/CR_WO,0,1), e=clamp((d-CR_R)/(CR_WO*1.6),0,1);
-  return rim*(1-ss(t))+110*(1-e)*(1-e)*Math.max(0,S(d*0.011+th*7)*S(th*23+d*0.004)); }   /* the rubble humps outside */
+  return rim*(1-ss(t)); }
 /* how far inside the sand a point is (positive: sand), as the old coast measure was, so everything that asks still works */
 function coastAlong(gx,gz){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G-SHORE, lat=dx*SUNDZ_G-dz*SUNDX_G;
   return Math.min(SHORE-700,(CR_SAND+crWander(Math.atan2(lat,al))-Math.hypot(al,lat))*0.5); }
@@ -59,7 +59,7 @@ function duneH(al,lat){ const S=Math.sin, P=(x,e)=>Math.pow(Math.max(0,x),e), D=
   return (420*m-110)*D.height; }
 function groundAt(x,z){ const gx=-x/U, gz=z/U, a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041; let g=90*Math.sin(a)*Math.sin(b)+30*Math.sin(c);
   if(COAST.on){ const dx=gx-COAST.x, dz=gz-COAST.z, al=dx*SUNDX_G+dz*SUNDZ_G, lat=dx*SUNDZ_G-dz*SUNDX_G, db=Math.hypot(al-SHORE,lat), cs=coastAlong(gx,gz);
-    if(cs>0){ const r=clamp(cs/4200,0,1), f0=clamp((db-BOX_HALF-900)/3200,0,1), dk=clamp((CR_R-CR_WI-db)/(CR_WI*0.3),0,1), A=r*f0*f0*(3-2*f0)*dk;   /* dunes on the crater floor, none up its walls */
+    if(cs>0){ const r=clamp(cs/4200,0,1), f0=clamp((db-BOX_HALF-900)/3200,0,1), dk=1-0.4*clamp((db-(CR_R-CR_WI))/CR_WI,0,1), A=r*f0*f0*(3-2*f0)*dk;   /* dunes over the floor and up the walls, a little smaller toward the rim */
       g=g*(1-r)+A*duneH(al,lat); }   /* the field's own small waves gone under the sand (they showed as stripes) */
     g+=craterH(db,Math.atan2(lat,al-SHORE)); }
   return g*U*LEVELS[LEVEL].land; }   // (level 2's land lies a tenth lower)
@@ -79,10 +79,10 @@ float edgeWander(float a, float lat){ float q=sin(a*0.0031+2.0*sin(lat*0.0023))*
         +4000.0*pow(max(0.0,q),2.0)-3000.0*pow(max(0.0,-q),2.0); }
 float crWander(float th){ return 1200.0*sin(3.0*th+1.0)+700.0*sin(7.0*th+2.0)+400.0*sin(13.0*th+0.5); }
 float craterH(float d, float th){ float rim=${CR_H.toFixed(1)}*(1.0+0.45*sin(3.0*th+1.0)+0.25*sin(8.0*th+2.0));
-  if(d<${CR_R.toFixed(1)}){ float t=clamp((d-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0); t=t*t*(3.0-2.0*t); float tt=t-0.5*sin(6.2832*3.0*t)/(6.2832*3.0);
+  if(d<${CR_R.toFixed(1)}){ float t=clamp((d-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0); float tt=t*t*(3.0-2.0*t);
     return -${CR_D.toFixed(1)}+(${(CR_D).toFixed(1)}+rim)*tt+300.0*exp(-pow(d/4100.0,2.0)); }
   float t=clamp((d-${CR_R.toFixed(1)})/${CR_WO.toFixed(1)},0.0,1.0), e=clamp((d-${CR_R.toFixed(1)})/${(CR_WO*1.6).toFixed(1)},0.0,1.0);
-  return rim*(1.0-t*t*(3.0-2.0*t))+110.0*(1.0-e)*(1.0-e)*max(0.0,sin(d*0.011+th*7.0)*sin(th*23.0+d*0.004)); }
+  return rim*(1.0-t*t*(3.0-2.0*t)); }
 float coastAlong(vec2 p){ vec2 d=vec2(-p.x,p.y)/${U.toFixed(8)}-uCoast.xy; float al=dot(d,SUNDG)-${SHORE.toFixed(1)}, lat=d.x*SUNDG.y-d.y*SUNDG.x;
   return uCoast.z>0.5 ? min(${(SHORE-700).toFixed(1)},(${CR_SAND.toFixed(1)}+crWander(atan(lat,al))-length(vec2(al,lat)))*0.5) : -1.0; }
 uniform vec4 uDuneA; uniform vec4 uDuneB;   /* size, height, roundness, curves; cross dunes, their angle */
@@ -97,7 +97,7 @@ float groundAt(vec2 p){ float gx=-p.x/${U.toFixed(8)}, gz=p.y/${U.toFixed(8)};
   float a=gx*0.0019+0.5, b=gz*0.0023+1.1, c=(gx*0.8+gz*0.6)*0.0041;
   float g=90.0*sin(a)*sin(b)+30.0*sin(c);
   if(uCoast.z>0.5){ vec2 d=vec2(gx,gz)-uCoast.xy; float al=dot(d,SUNDG), lat=d.x*SUNDG.y-d.y*SUNDG.x, db=length(vec2(al-${SHORE.toFixed(1)},lat)), cs=coastAlong(p);
-    if(cs>0.0){ float r=clamp(cs/4200.0,0.0,1.0), f0=clamp((db-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), dk=clamp((${(CR_R-CR_WI).toFixed(1)}-db)/${(CR_WI*0.3).toFixed(1)},0.0,1.0), A=r*f0*f0*(3.0-2.0*f0)*dk;
+    if(cs>0.0){ float r=clamp(cs/4200.0,0.0,1.0), f0=clamp((db-${(BOX_HALF+900).toFixed(1)})/3200.0,0.0,1.0), dk=1.0-0.4*clamp((db-${(CR_R-CR_WI).toFixed(1)})/${CR_WI.toFixed(1)},0.0,1.0), A=r*f0*f0*(3.0-2.0*f0)*dk;
       g=g*(1.0-r)+A*duneH(al,lat); }
     g+=craterH(db,atan(lat,al-${SHORE.toFixed(1)})); }
   return g*${U.toFixed(8)}; }`;
