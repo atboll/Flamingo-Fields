@@ -218,9 +218,23 @@ function girlTexSetup(img,mesh){
     cls[i]=best; if(best){ sum[best]+=L; cnt[best]++; avg[best][0]+=r; avg[best][1]+=gg; avg[best][2]+=b; } }
   const own=avg.map((a,k)=>cnt[k]?'#'+new THREE.Color(a[0]/cnt[k]/255,a[1]/cnt[k]/255,a[2]/cnt[k]/255).getHexString():'#888888');
   Object.assign(GIRLTEX,{canvas:c,g,id,orig:new Uint8ClampedArray(d),cls,lum,mean:sum.map((v,k)=>v/Math.max(1,cnt[k])),own});
+  girlTights(mesh);
 }
+/* short tights under her dress: the skin on her upper legs (from the hips to just above the knee, found by the model) becomes its own patch, class 5 */
+const GIRL_TIGHTS='#f2b9c8';
+function girlTights(mesh){
+  const T=GIRLTEX, W=T.canvas.width, H=T.canvas.height, c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
+  const geo=mesh.geometry, uv=geo.attributes.uv, si=geo.attributes.skinIndex.array, sw=geo.attributes.skinWeight.array, N=uv.count, bones=mesh.skeleton.bones;
+  const up=new Set(bones.map((b,i)=>/UpLeg$/.test(b.name)?i:-1).filter(i=>i>=0)), on=new Uint8Array(N);
+  for(let i=0;i<N;i++){ let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} } on[i]=up.has(bi)?1:0; }
+  const idx=geo.index?geo.index.array:null, nt=(idx?idx.length:N)/3; g.fillStyle='#fff';
+  for(let t=0;t<nt;t++){ const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, e=idx?idx[t*3+2]:t*3+2; if(!(on[a]&&on[b]&&on[e])) continue;
+    g.beginPath(); for(const v of [a,b,e]) g.lineTo(uv.getX(v)*W,(1-uv.getY(v))*H); g.closePath(); g.fill(); }
+  const m=g.getImageData(0,0,W,H).data; let sl=0,n=0;
+  for(let i=0;i<T.cls.length;i++) if(T.cls[i]===2&&m[i*4]>128){ T.cls[i]=5; sl+=T.lum[i]; n++; }
+  T.mean[5]=n?sl/n:0.7; }
 function girlRecolour(hair,skin,shirt,skirt){
-  const T=GIRLTEX, d=T.id.data, o=T.orig, cols=[null,hair,skin,shirt,skirt].map(h=>h?new THREE.Color(h):null);
+  const T=GIRLTEX, d=T.id.data, o=T.orig, cols=[null,hair,skin,shirt,skirt,GIRL_TIGHTS].map(h=>h?new THREE.Color(h):null);
   for(let i=0;i<T.cls.length;i++){ const k=T.cls[i], C=cols[k];
     if(!C){ d[i*4]=o[i*4]; d[i*4+1]=o[i*4+1]; d[i*4+2]=o[i*4+2]; continue; }
     const f=T.lum[i]/T.mean[k]; d[i*4]=Math.min(255,C.r*255*f); d[i*4+1]=Math.min(255,C.g*255*f); d[i*4+2]=Math.min(255,C.b*255*f); }
