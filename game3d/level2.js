@@ -93,7 +93,7 @@ function setLevelLook(on){
   groundNear.material=on?cloudNear:fieldNear; groundFar.material=on?cloudFar:fieldFar; groundNear.userData.cx=groundFar.userData.cx=NaN;
   const hz=on?HAZE2:HAZE; mistBand.material.uniforms.uC.value.set(hz[0]/255,hz[1]/255,hz[2]/255); scene.fog.color.setRGB(hz[0]/255,hz[1]/255,hz[2]/255).convertSRGBToLinear();
   lumps.visible=crowns.visible=on; if(!on) lumps.count=crowns.count=0;
-  boxMesh.visible=!on; frame.visible=on; doorGlow.visible=!on; fan.visible=!on;
+  boxMesh.visible=boxShadow.visible=!on; frame.visible=on; doorGlow.visible=!on; fan.visible=!on;
   doorPane.visible=on;   // on the clouds the lone door is filled with light
   doorPane.material.side=on?THREE.DoubleSide:THREE.FrontSide; doorPane.position.z=on?front:front-0.2;
   if(on){ shore.length=0; for(const b of SB) b.o.visible=false; for(const q of POOL){ q.card.visible=q.glow.visible=q.nglow.visible=false; } if(POOL.halo) POOL.halo.visible=POOL.rays.visible=false; }

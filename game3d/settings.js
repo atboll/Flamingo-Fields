@@ -27,9 +27,10 @@ const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now
   beamH:260, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
 
 /* the crater: the box stands in the middle of a round desert crater, there from the start, this far (m) from where the kids begin,
-   toward the moon. Its rim (radius, m) stands this high (m) so the box can't be seen from the field; the inside wall and the outside wall
-   are this wide (m); the field's grass climbs half way up the outside wall. */
-const CRATER={dist:1500, radius:400, rim:45, inner:150, outer:250};
+   toward the moon. It is sunk into the land: a low rim (m above the field, uneven round the circle) you can look over to the horizon,
+   and a floor this deep (m) below the field, so the 29 m box stays out of sight until you reach the rim. The inside wall (terraced)
+   and the outside wall are this wide (m); the field's grass climbs half way up the outside wall, and rubble thrown out lies beyond it. */
+const CRATER={dist:1500, radius:400, rim:7, depth:40, inner:150, outer:180};
 
 /* going through the door: the kids walk in through the doorway, and this many metres past its face (about 5 steps) the view is all white and they are through */
 const DOOR={walkIn:3.5};

@@ -38,9 +38,29 @@ silver.onBeforeCompile=sh=>{ sh.uniforms.uNight=boxNight;
         float rim=1.0-smoothstep(0.05,0.45,e), foot=smoothstep(0.0,5.0,vObj.y+hb.y);
         /* each face its own tone, as a painter would give a cube: the face toward the sun and moon lightest, the top light, one side mid, the other darker, the door's face in shadow */
         float face = vNo.z>0.5 ? 1.2 : vNo.y>0.5 ? 1.1 : vNo.x>0.5 ? 0.86 : vNo.x<-0.5 ? 1.0 : 0.6;
+        face*=mix(1.0, vNo.z>0.5 ? 1.15 : vNo.y>0.5 ? 1.05 : vNo.z<-0.5 ? 0.5 : 0.8, uNight);   /* by night the moon, behind it, lights its far face and top; the door's face falls deep into shade */
         outgoingLight*=face*(0.72+0.28*foot); }
       #include <output_fragment>`); };
 const boxMesh=new THREE.Mesh(new THREE.BoxGeometry(BW,BH,BW),silver); boxMesh.position.y=BH/2; boxGroup.add(boxMesh);
+/* ---------- the box's shadow on the sand: from the sun by day and the moon by night, both behind it, so it falls toward the kids ----------
+   The game's real shadows reach only a few metres round the kids, so this one is laid on the sand as a soft dark shape over the dunes,
+   as long as the box (29 m) throws it from the light's height: about 140 m from the low sun, 70 m or more from the moon. */
+const SH_NX=12, SH_NZ=36, shGeo=new THREE.BufferGeometry(), shPos=new Float32Array(SH_NX*SH_NZ*3), shCol=new Float32Array(SH_NX*SH_NZ*4), shIdx=[];
+for(let j=0;j<SH_NZ-1;j++) for(let i=0;i<SH_NX-1;i++){ const a=j*SH_NX+i, b=a+SH_NX; shIdx.push(a,b,a+1, a+1,b,b+1); }
+shGeo.setAttribute('position',new THREE.BufferAttribute(shPos,3)); shGeo.setAttribute('color',new THREE.BufferAttribute(shCol,4)); shGeo.setIndex(shIdx);
+const boxShadow=new THREE.Mesh(shGeo,new THREE.MeshBasicMaterial({color:0xffffff, vertexColors:true, transparent:true, depthWrite:false, side:THREE.DoubleSide, polygonOffset:true, polygonOffsetFactor:-1, polygonOffsetUnits:-2}));
+boxShadow.frustumCulled=false; boxShadow.renderOrder=1; boxGroup.add(boxShadow);
+let shLen=-1;
+function layShadow(len,dark){
+  const m=boxGroup.matrixWorld, v=new THREE.Vector3(), base=boxGroup.position.y, BWh=BOX_HALF*U;
+  if(Math.abs(len-shLen)>0.8){ shLen=len; boxGroup.updateMatrixWorld();
+    for(let j=0;j<SH_NZ;j++) for(let i=0;i<SH_NX;i++){ const t=j/(SH_NZ-1), s=i/(SH_NX-1)*2-1, hw=BWh*(1+0.25*t), x=s*hw, z=-BWh-len*t, n=j*SH_NX+i;
+      v.set(x,0,z).applyMatrix4(m); shPos[n*3]=x; shPos[n*3+1]=groundAt(v.x,v.z)-base+0.08; shPos[n*3+2]=z; }
+    shGeo.attributes.position.needsUpdate=true; }
+  for(let j=0;j<SH_NZ;j++) for(let i=0;i<SH_NX;i++){ const t=j/(SH_NZ-1), s=Math.abs(i/(SH_NX-1)*2-1), a=dark*(1-Math.pow(t,1.6))*(1-Math.pow(s,6))*(0.75+0.25*(1-t)), n=(j*SH_NX+i)*4;
+    shCol[n]=0.08; shCol[n+1]=0.06; shCol[n+2]=0.13; shCol[n+3]=a; }   /* deep plum, softest at its far end and sides */
+  shGeo.attributes.color.needsUpdate=true; }
+
 /* the door, on the face toward the kids: a clean opening, no frame, full of white light that pours out of the box */
 const DW=DOOR_W*U, DH=DOOR_H*U, FR=0.18, FD=0.35, front=-BW/2;   /* the box's local -z face looks back down the road */
 const doorPane=new THREE.Mesh(new THREE.PlaneGeometry(DW,DH),new THREE.MeshBasicMaterial({color:0xffffff, toneMapped:false, fog:false}));
@@ -125,7 +145,7 @@ let doorNear=0, doorIn=0, doorPass=0;   /* doorPass: how far (m) the girl has wa
 let coastA=0;
 const shore=[];
 function makeCoast(gx,gz){
-  COAST.on=true; COAST.x=gx; COAST.z=gz; uCoast.value.set(gx,gz,1,0); coastA=0;
+  shLen=-1; COAST.on=true; COAST.x=gx; COAST.z=gz; uCoast.value.set(gx,gz,1,0); coastA=0;
   groundNear.userData.cx=groundFar.userData.cx=NaN;            /* the ground is laid again with its dunes */
   const c=boxC(), wx=-c[0]*U, wz=c[1]*U, base=groundAt(wx,wz)-30*U;
   for(const G of [boxGroup,doorLight]){ G.position.set(wx,base,wz); G.rotation.set(0,-SUN_B,0); G.visible=true; }
@@ -203,6 +223,9 @@ function updateDesert(dt,time){
   { const k=Math.pow(near*A,0.8); frontU.uK.value=k; frontU.uFade.value=0; }   /* dark against the light, silhouettes right up to and into the doorway */
   /* your flock, come this close, wanders off to join the flamingos of the box */
   if(near>0.3 && !arrived){ arrived=true; for(const m of mates) if(m.ring===undefined) mateToShore(m); }   // (those standing in the rings stay there)
+  /* its shadow: from the low sun by day, from the moon by night (how high the moon stands, as night.js has it) */
+  { const q=46/650, el=Math.max(0.12,Math.atan(((0.5*0.64+q)*moonUp-q)/0.9)), lenM=Math.min(160,BH/Math.tan(el)), lenS=BH/Math.tan(0.2);
+    layShadow(lenS+(lenM-lenS)*night, 0.5*(1-night)+0.6*night*clamp(moonUp*3,0,1)); }
   /* the box takes the colour of the hour: a cooler, dimmer mirror by night */
   silver.envMapIntensity=0.55-0.25*night; boxNight.value=night;
   landWildFlock(time); updateShore(dt); placeShore(dt);
