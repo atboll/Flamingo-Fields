@@ -101,7 +101,7 @@ function setLevelLook(on){
 }
 function enterLevel2(walking){
   if(!girl||!COAST.on) return;
-  LEVEL=2; inT=0; whiteIn=0; whiteHold=1; kidWhite[0].uA.value=kidWhite[1].uA.value=0; allWhite.uA.value=1;   // the kids' colours come back as the white clears landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
+  LEVEL=2; inT=0; whiteIn=0; whiteHold=1; kidWhite[0].uA.value=kidWhite[1].uA.value=0; allWhite.uA.value=1; /* the kids' colours come back as the white clears */ landed2=true; enteredAt=clock; sign2=false; nightOn=true; dayOffset=EVENING+DUSK+NIGHT_LEN+8-clock;   // the kids step out into the dawn; from then the day goes round as below
   G=LEVELS[2].gravity; HOP=LEVELS[2].hop;   // up here gravity is lighter: the hop goes about 5.5 m high and floats (settings.js)
   setLevelLook(true);
   mates.length=0; flock=null; pathA=0; pathAlign=0; pathOn=false; got.clear(); arrived=true;
@@ -135,7 +135,7 @@ function updateDoor(dt,time){
 /* level 2: the door's white, the dawn, the sign */
 function updateClouds(dt,time){
   coastA=1;
-  if(!sign2 && clock-enteredAt>=10){ sign2=true; showLevelSign('LEVEL 2'); }
+  if(!sign2 && clock-enteredAt>=11.6){ sign2=true; showLevelSign('LEVEL 2'); }
   const c=boxC(), P=girl.P, gx=-P.x/U, gz=P.z/U, dx=gx-c[0], dz=gz-c[1], u=dx*SUNDZ_G-dz*SUNDX_G, v=dx*SUNDX_G+dz*SUNDZ_G, lat=Math.max(0,Math.abs(u)-DOOR_W*0.3)*1.7;
   /* the white: strong on first coming through, fading as they walk away; after that only right at the door (the 2D game's rule) */
   let tg=0; if(P.y/U<DOOR_H*1.6) tg=clamp(1-(Math.hypot(v+BOX_HALF,lat)-95)/(landed2?520:650),0,1);   // the white clears over their first ten steps
