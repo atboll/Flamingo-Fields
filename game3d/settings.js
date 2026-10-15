@@ -20,6 +20,10 @@ const CRUISE=4.5, FLY_BASE=13;
    it rises a little more (metres, at the feather and full-flock limits), tips down further (degrees) and widens its view (degrees) */
 const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
 
+/* the camera while flying on feathers (level 1, not with a full flock, which has its own view above): higher over the kids (metres)
+   and tipped further down (degrees), so you look down on them; it eases in as they take off and out as they land */
+const CAMFLY={raise:2.5, tilt:8};
+
 /* the puzzle at the box (rings.js): a bank of fog over the desert round the box (radius and height in metres, density per metre),
    and five rings of stones in it (radius in metres). Land in a ring and one of your flamingos stays there; five, and the fog lifts and the door opens. */
 const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now (it was 0.02)

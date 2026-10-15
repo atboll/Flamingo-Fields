@@ -398,6 +398,7 @@ function arrowsHeld(){ return keys.has('up')||keys.has('down')||keys.has('left')
    pulling back and rising when they fly, and looking level at the horizon on the ground ---------- */
 const CAM_H=90*U, CAM_BACK=440*U;
 let camYaw=0, backYaw=null, focX=0, focZ=0, lift=0, camTop=0, camY=CAM_H, lastX=0, lastZ=0, velX=0, velZ=0;
+let camFly=0;
 function placeCam(K,dt,snap){
   const P=K.P, moving=(P.spd>0.6*K.RUN_SPEED&&P.state!=='stop')||P.state==='fly'||P.state==='land';
   if(snap){ camYaw=P.h; focX=P.x; focZ=P.z; lastX=P.x; lastZ=P.z; velX=velZ=0; }
@@ -414,13 +415,14 @@ function placeCam(K,dt,snap){
   const topWant=(air&&LEVEL===1&&ALT_MAX>0)?clamp((hy/ALT_MAX-CAMTOP.start)/(1-CAMTOP.start),0,1):0;
   camTop+=(topWant-camTop)*(snap?1:1-Math.exp(-dt/1.5)); const tk=camTop*camTop*(3-2*camTop);
   const flockK=clamp((ALT_MAX/U-FEATHER_TOP)/(CEILING-FEATHER_TOP),0,1), raise=tk*(CAMTOP.raiseFeather+(CAMTOP.raiseFlock-CAMTOP.raiseFeather)*flockK);
+  const flyWant=(air&&LEVEL===1&&!freeFly())?P.flyW:0; camFly+=(flyWant-camFly)*(snap?1:1-Math.exp(-dt*1.2)); const fk=camFly*camFly*(3-2*camFly);   /* flying on feathers: higher, looking down (CAMFLY) */
   const fov=58+tk*CAMTOP.wider; if(Math.abs(cam.fov-fov)>0.01){ cam.fov=fov; cam.updateProjectionMatrix(); }
   const fx=Math.sin(camYaw), fz=Math.cos(camYaw), px=focX-fx*back, pz=focZ-fz*back;
   /* the ground behind the camera is only a floor (it never pushes the camera up over a dune it is already well above) */
-  const gt=Math.max(gF+CAM_H+(hy-Math.min(hy*0.15,95*U))*Math.min(1,lift*1.6)+raise, groundAt(px,pz)-15*U+CAM_H);
+  const gt=Math.max(gF+CAM_H+(hy-Math.min(hy*0.15,95*U))*Math.min(1,lift*1.6)+raise+fk*CAMFLY.raise, groundAt(px,pz)-15*U+CAM_H);
   camY+=(gt-camY)*(snap?1:1-Math.exp(-dt*4));
   cam.position.set(px,camY,pz);
-  const pitch=-Math.atan(0.1*Math.min(lift,1.7)/0.9)-tk*CAMTOP.tilt*Math.PI/180;   // in the air the horizon rises, so the view tips down a little (more near the top)
+  const pitch=-Math.atan(0.1*Math.min(lift,1.7)/0.9)-tk*CAMTOP.tilt*Math.PI/180-fk*CAMFLY.tilt*Math.PI/180;   // in the air the horizon rises, so the view tips down a little (more near the top)
   cam.lookAt(px+fx*Math.cos(pitch),camY+Math.sin(pitch),pz+fz*Math.cos(pitch));
   /* the sky, clouds and ranges stay at the horizon; the sun's shadow box follows the kids */
   { const hk=Math.pow(Math.max(1,(camY-gF)/CAM_H),0.75); scene.fog.near=FOG_NEAR*hk; scene.fog.far=FOG_FAR*hk; }
