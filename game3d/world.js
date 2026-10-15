@@ -177,7 +177,7 @@ const groundTime={value:0}, groundAir={value:0};
 /* flying, the dunes roll: their light and shade drift toward you a little faster than the sand itself passes, the way the 2D game's
    painted strips made them swell and roll. Only in the air, only past a few metres out, and it fades away as the kids come down.
    ROLL_K: how much faster than the sand the light rolls (0 = still, 0.5 = half again). */
-let ROLL_K=0.5;
+let ROLL_K=0;   // off: over a long flight the rolled light came from kilometres away and striped the crater with the field's waves
 const groundRoll={value:new THREE.Vector2()}, groundRollW={value:0};
 function rollDunes(dt){ const P=girl.P, fly=P.state==='fly'?P.flyW:0;
   groundRollW.value+=(fly-groundRollW.value)*(1-Math.exp(-dt*(fly>groundRollW.value?1.2:2.5)));
