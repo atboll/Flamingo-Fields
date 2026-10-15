@@ -24,6 +24,10 @@ const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
    and tipped further down (degrees), so you look down on them; it eases in as they take off and out as they land */
 const CAMFLY={raise:2.5, tilt:8};
 
+/* the flamingos' colours, from the Flamingo Test Field's Colour sliders (paste its COLOUR line here): the two shades (pale and deep parts
+   of the feathers) and how strongly they replace the bird's own (%), then pink (%), richness, warmth, contrast and brightness (-100..100) */
+const COLOUR={"light":"#fb00ff","deep":"#fea8ff","shades":21,"pink":19,"richness":0,"warmth":69,"contrast":1,"brightness":34};
+
 /* the girl's dress as fabric (kids.js): a slow, loose spring on its hem. lag and lift: how far it trails her speeding up, stopping and
    turning, and rises as she falls; flare: how far it swings out when she turns; reach: the most it moves (metres); spring and damp:
    how quickly it swings back (lower is slower) and how soon it settles (lower overshoots more) */

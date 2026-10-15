@@ -33,6 +33,13 @@ async function loadFlamingo(base){
       .replace('#include <alphamap_fragment>','diffuseColor.a*=texture2D(aoMap,vUv2).a;')
       .replace('#include <normal_fragment_maps>',THREE.ShaderChunk.normal_fragment_maps.replace(/vUv\b/g,'vUv2')); };
   const bodyMat=new THREE.MeshStandardMaterial({map:T.color, normalMap:T.normal, roughness:0.8});
+  /* their colours (COLOUR, settings.js; the same as the Flamingo Test Field's sliders) */
+  { const C=COLOUR, a=new THREE.Color(C.light).convertSRGBToLinear(), b=new THREE.Color(C.deep).convertSRGBToLinear(), v=x=>x.toFixed(4), v3=c=>'vec3('+v(c.r)+','+v(c.g)+','+v(c.b)+')';
+    const code='{ vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.3,0.59,0.11)); float sk='+v(C.shades/100)+'; if(sk>0.0){ float mx=max(c.r,max(c.g,c.b)), sat=(mx-min(c.r,min(c.g,c.b)))/max(mx,1e-3), t=smoothstep(0.12,0.7,sat); vec3 tgt=mix('+v3(a)+','+v3(b)+',t); float el=mix(0.62,0.30,t); c=mix(c,tgt*(l/el),sk); l=dot(c,vec3(0.3,0.59,0.11)); }'
+      +' float pk='+v(C.pink/100)+'; c=l+(c-l)*(1.0+1.8*pk); c*=vec3(1.0+0.12*pk,1.0-0.40*pk,1.0+0.10*pk); l=dot(c,vec3(0.3,0.59,0.11));'
+      +' c=l+(c-l)*(1.0+'+v(C.richness/100)+'); c*=vec3(1.0+0.15*'+v(C.warmth/100)+',1.0,1.0-0.15*'+v(C.warmth/100)+'); c=(c-0.45)*(1.0+0.6*'+v(C.contrast/100)+')+0.45; c*=1.0+0.5*'+v(C.brightness/100)+'; diffuseColor.rgb=clamp(c,0.0,1.0); }';
+    const colour=sh=>{ sh.fragmentShader=sh.fragmentShader.replace('#include <map_fragment>','#include <map_fragment>\n'+code); };
+    for(const m of [featherMat,bodyMat]){ const prev=m.onBeforeCompile; m.onBeforeCompile=sh=>{ colour(sh); if(prev) prev(sh); }; } }
   const eyeMat=new THREE.MeshStandardMaterial({map:T.color, roughness:0.25});
   const g=await new Promise(async(res,rej)=>{ try{ new THREE.GLTFLoader().parse(await get('flamingo.glb'),'',res,rej); }catch(e){ rej(e); } });
   const proto=g.scene; proto.scale.setScalar(0.01);                                   /* the model is in centimetres */
