@@ -53,9 +53,9 @@ const clone=o=>JSON.parse(JSON.stringify(o));
    and swing — a soft spring that lags behind when they speed up, stop, turn or land. It is not real cloth.
    Hair tips: the ends of the hair (furthest from the scalp) can take a second colour, like the orange tips in the clip.
    Face: a picture painted in the model's own measurements, laid onto the front of the head in the rest pose. */
-function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},uSkirtSw:{value:new THREE.Vector3()},uFlare:{value:0},
+function makeWind(head){ return {uTime:{value:0},uFlow:{value:0.55},uAmt:{value:1},uHair:{value:1},uSwing:{value:new THREE.Vector3()},uSkirtSw:{value:new THREE.Vector3()},uFlare:{value:0},uFlyW:{value:0},
   uPh:{value:new THREE.Vector4()},uPh5:{value:0},uHead:{value:head.clone()},uTips:{value:new THREE.Color('#e8742c')},uTipsAmt:{value:0},uMouthHide:{value:0},uMouthBox:{value:new THREE.Vector4(0.012,0.553,0.072,0.019)}}; }
-function wavesStep(W,dt){ const f=W.uFlow.value, p=W.uPh.value; W.uTime.value+=dt; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); W.uPh5.value+=dt*(5+8*f); }
+function wavesStep(W,dt){ const f=W.uFlow.value, p=W.uPh.value; dt*=1+W.uFlyW.value*(CLOTH.flySpeed-1);   /* flying: and faster */ W.uTime.value+=dt; p.x+=dt*(3.2+5*f); p.y+=dt*(6.5+7*f); p.z+=dt*(7+6*f); p.w+=dt*(2.4+6*f); W.uPh5.value+=dt*(5+8*f); }
 function addWind(mat,W,key,face){
   mat.onBeforeCompile=sh=>{ Object.assign(sh.uniforms,W);
     let frag='uniform vec3 uTips;\nuniform float uTipsAmt;\nvarying float vTip;\n';
@@ -64,7 +64,7 @@ function addWind(mat,W,key,face){
       frag+='uniform sampler2D uFaceTex;\nvarying vec2 vFaceUV;\nvarying float vFace;\n';
       add=`\n        if(vFace>0.01 && vFaceUV.x>0.0 && vFaceUV.x<1.0 && vFaceUV.y>0.0 && vFaceUV.y<1.0){ vec4 fp=texture2D(uFaceTex,vFaceUV); diffuseColor.rgb=mix(diffuseColor.rgb,fp.rgb,fp.a*clamp(vFace*1.5,0.0,1.0)); }`+add; }
     sh.fragmentShader=frag+sh.fragmentShader.replace('#include <color_fragment>','#include <color_fragment>'+add);
-    sh.vertexShader='attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uMouthHide;\nuniform vec4 uMouthBox;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead,uSkirtSw;\nuniform float uFlare;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
+    sh.vertexShader='#define CLOTH_FLYWAVE '+CLOTH.flyWave.toFixed(3)+'\n'+'attribute float aSkirt;\nattribute float aHair;\nattribute float aFace;\nuniform float uMouthHide;\nuniform vec4 uMouthBox;\nuniform float uTime,uFlow,uAmt,uHair,uPh5;\nuniform vec3 uSwing,uHead,uSkirtSw;\nuniform float uFlare,uFlyW;\nuniform vec4 uPh;\nuniform vec4 uFaceBox;\nvarying vec2 vFaceUV;\nvarying float vFace;\nvarying float vTip;\n'+sh.vertexShader
       .replace('#include <beginnormal_vertex>',`#include <beginnormal_vertex>
       /* her own smile is carved into the face; when another mouth is painted, the groove's shading is smoothed away */
       if(uMouthHide>0.5 && aFace>0.0){ vec2 q=(position.xy-uMouthBox.xy)/uMouthBox.zw; float mw=1.0-smoothstep(0.55,1.0,length(q));
@@ -79,7 +79,7 @@ function addWind(mat,W,key,face){
                   +sin(uPh.y-ang*4.0-bp.y*15.0)*(0.008+0.014*f)
                   +sin(uTime*1.1+bp.x*3.0)*0.022*gust;
         vec2 rad=normalize(bp.xz+vec2(0.0,-0.01)+vec2(1e-4));
-        float billow=1.0-0.65*clamp((f-0.55)/0.45,0.0,1.0);
+        float billow=(1.0-0.65*clamp((f-0.55)/0.45,0.0,1.0))*(1.0+uFlyW*CLOTH_FLYWAVE);   /* flying: the dress waves harder (CLOTH.flyWave) */
         transformed.xz+=rad*sw*wave*billow; transformed.y+=sw*abs(wave)*0.5*billow; }
       if(hw>0.0){
         vec3 hp=bp-uHead; vec3 hn=normalize(hp+vec3(1e-4));
@@ -96,7 +96,7 @@ function addWind(mat,W,key,face){
         transformed.z-=hw*(0.008+0.07*f*f)*gust;
         transformed+=hw*uSwing*0.7; }`);
   };
-  mat.customProgramCacheKey=()=>'kidwind5-'+key+(face?'f':''); return mat;
+  mat.customProgramCacheKey=()=>'kidwind6-'+key+(face?'f':''); return mat;
 }
 /* the swing spring: driven by how the kid accelerates, seen from their own body (forward, sideways, up) */
 function swingStep(K,dt){
@@ -488,7 +488,7 @@ function stepKid(K,dt,In){
   A.run.setEffectiveWeight(g*r); A.idle.setEffectiveWeight(g*(1-r)*(1-bw)); if(A.bored) A.bored.setEffectiveWeight(g*(1-r)*bw);
   A.run.timeScale=c.runPace(P.spd,K);
   const gf=jumping?0.65:rolling?0.3:0.15+0.4*r; K.W.uFlow.value=gf+(1-gf)*fw;
-  swingStep(K,dt); wavesStep(K.W,dt);
+  K.W.uFlyW.value=K.P.state==='fly'||K.P.state==='land'?(K.P.flyW||0):0; swingStep(K,dt); wavesStep(K.W,dt);
 }
 /* starting one whole-body move: if another was still showing, it fades out over a fifth of a second instead of snapping */
 function setSp(K,a){ if(K.spA&&K.spA!==a&&K.P.rollW>0.05){ K.spPrev=K.spA; K.spX=1; } else K.spX=0; K.spA=a; a.reset(); a.play(); }
