@@ -133,7 +133,9 @@ function flamingoIcon(ctx,u,body,leg,bill){   // the 2D game's small standing fl
 function drawHud(time){
   const dpr=Math.min(devicePixelRatio,2), W=innerWidth, H=innerHeight;
   if(hudCv.width!==Math.round(W*dpr)||hudCv.height!==Math.round(H*dpr)){ hudCv.width=Math.round(W*dpr); hudCv.height=Math.round(H*dpr); }
-  const ctx=hudG; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); if(!featherOn||!girl||arrived) return;   // at the box there is nothing left to count
+  const ctx=hudG; ctx.setTransform(dpr,0,0,dpr,0,0); ctx.clearRect(0,0,W,H); if(!featherOn||!girl) return;
+  const sinceSolved=solvedAt>0?time-solvedAt:-1; if(arrived && !(sinceSolved>=0&&sinceSolved<5)) return;   // at the box there is nothing left to count (but the five white flamingos stay a few seconds once the rings are lit)
+  ctx.save(); if(sinceSolved>=0) ctx.globalAlpha=clamp((5-sinceSolved)/1.5,0,1);
   const q=clamp(Math.min(W/1100,H/560),0.62,1.15), gap=24*q, y=W<500?62:Math.max(22,28*q), x0=W/2-(NEED-1)*gap/2;   // tucked against the top edge, smaller on a phone
   const flying=girl.P.state==='fly', free=freeFly(), have=free?NEED:flying?Math.ceil(flightLeft/FLY_TIME*NEED):feathers, ready=!flying&&(feathers>=NEED||free), lit=ready||flying;
   const fh=24*q, fw=fh*featherOn.width/featherOn.height;
@@ -146,7 +148,7 @@ function drawHud(time){
     ctx.drawImage(on?featherOn:featherOff,-fw/2,-fh/2,fw,fh); ctx.restore();
   }
   // your flock: grey flamingos turn pink as birds join; the next one fills from the feet up while the kids fly with the wild flock
-  { const u=10*q, gp=34*q, fy=y+46*q, fx0=W/2-(MATES_MAX-1)*gp/2, n=ringFree(), since=time-mateMsgT, left=time-ringLeftT;   // flamingos left standing in the rings (rings.js) no longer count
+  { const u=10*q, gp=34*q, fy=y+46*q, fx0=W/2-(MATES_MAX-1)*gp/2, n=ringFree(), lit=rings.filter(r=>r.rise>0).length, since=time-mateMsgT, left=time-ringLeftT;   // pink: with you; white: standing in a lit ring   // flamingos left standing in the rings (rings.js) no longer count
     const prog=(flock&&!flock.gave&&!free)?clamp(flock.withKids/PASS_NEEDED,0,1):0, earning=!!(flock&&flock.joined&&!flock.gave&&!free);
     const nudge=!!(flock&&flock.s<FLOCK_NEAR&&!flock.gave&&!free&&!flying&&feathers>=NEED);   // a flock is passing and the kids could go up to it
     for(let i=0;i<MATES_MAX;i++){
@@ -156,10 +158,11 @@ function drawHud(time){
       if(i===n && earning) sc*=1+0.12*Math.sin(time*9);
       if(i===n && nudge && !earning) sc*=1+0.1*Math.sin(time*3);
       ctx.save(); ctx.translate(cx,fy); ctx.scale(sc,sc);
-      if(i<n){ if(glow){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=12; } flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
+      if(i>=n && i<n+lit){ ctx.shadowColor='rgba(255,250,230,.95)'; ctx.shadowBlur=12; flamingoIcon(ctx,u,'#fffdf6','#f2eee6','#8a8098'); }
+      else if(i<n){ if(glow){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=12; } flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
       else {
         flamingoIcon(ctx,u,'rgba(70,62,58,.42)','rgba(70,62,58,.42)','rgba(40,34,32,.5)');
-        if(i===n && left<1.2){ ctx.save(); ctx.globalAlpha=1-left/1.2; flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }   // the one just left in a ring fades
+        if(i===n+lit && left<1.2){ ctx.save(); ctx.globalAlpha=1-left/1.2; flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }   // the one just left in a ring fades
         if(i===n && prog>0){ ctx.save(); ctx.beginPath(); ctx.rect(-u*1.4,u*1.98-prog*u*4.3,u*2.8,prog*u*4.3+2); ctx.clip();
           ctx.shadowColor='rgba(255,170,190,.9)'; ctx.shadowBlur=earning?8:0; flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); ctx.restore(); }
         else if(i===n && nudge){ ctx.globalAlpha=0.35+0.35*Math.sin(time*3); flamingoIcon(ctx,u,'#f8a6b9','#e98da0','#3a2a30'); }
@@ -169,6 +172,7 @@ function drawHud(time){
     ctx.save(); ctx.globalAlpha=clamp((5-(time-mateMsgT))/1.2,0,1); ctx.font='600 '+Math.round(17*q)+'px system-ui,-apple-system,"Segoe UI",sans-serif'; ctx.textAlign='center';
     ctx.shadowColor='rgba(60,40,10,.7)'; ctx.shadowBlur=6; ctx.fillStyle='#ffe3ea'; ctx.fillText(freeFly()?'Your flock is complete. Fly whenever you like':'A flamingo has joined you',W/2,y+118*q); ctx.restore(); }
   flockArrow(ctx,W,H,time);
+  ctx.restore();
 }
 /* a wild flock out of view and still coming: a small pink arrow at the edge of the screen on its side, as in the 2D game.
    In 3D the flock can also be behind the camera; the arrow then points to the side it is nearer. */
