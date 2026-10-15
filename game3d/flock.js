@@ -170,6 +170,8 @@ function placeMates(dt){
     /* banking into its turns, as in the 2D game: up to about 25 degrees, and only with its wings open */
     b.o.rotation.order='YXZ'; b.o.rotation.set(0,Math.atan2(-m.hx,m.hz),clamp((m.turn||0)*0.36,-0.44,0.44)*m.open);
     b.A.walk_A1.timeScale=clamp(m.sp*U/1.1,0.6,2.6);   /* a stride to suit its speed */
+    /* on or near the ground it throws a shadow, as the kids do (body and legs; the feather cards would throw hard squares) */
+    { const cs=m.y<170; if(b.cs!==cs){ b.cs=cs; b.o.traverse(n=>{ if(n.isMesh) n.castShadow=cs && ![].concat(n.material).some(x=>x.alphaTest>0); }); } }
     b.mixer.update(dt); });
 }
 
