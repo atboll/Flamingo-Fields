@@ -187,14 +187,16 @@ let legOn=false, legK=0, legSide='L';
   group('data-side',v=>{ legSide=v; }); legNums(); }
 function legNums(){ $('legNums').textContent='LEG='+JSON.stringify({side:legSide,...LEG}); }
 const _q=new THREE.Quaternion(), _e=new THREE.Euler(), D2R=Math.PI/180;
-/* a bone by name: the joint itself is the innermost of the nodes that share its name */
-function bone(o,name){ let b=null; o.traverse(n=>{ if(n.name===name) b=n; }); return b; }
-function legBones(b){ const S=legSide; if(!b.leg||b.leg.side!==S) b.leg={side:S, thigh:bone(b.o,'Leg'+S+'002'), knee:bone(b.o,'Leg'+S+'004'), foot:bone(b.o,'Leg'+S+'007')}; return b.leg; }
+/* the bones by name: the model has three skeletons (body, wings, feathers), each with its own copy of every bone, some nested
+   inside another of the same name; all are moved, except a copy that sits inside one already moved (it follows anyway) */
+function bones(o,name){ const all=new Set(); o.traverse(n=>{ if(n.isSkinnedMesh) for(const bn of n.skeleton.bones) if(bn.name===name) all.add(bn); });
+  return [...all].filter(bn=>{ for(let p=bn.parent;p;p=p.parent) if(all.has(p)) return false; return true; }); }
+function legBones(b){ const S=legSide; if(!b.leg||b.leg.side!==S) b.leg={side:S, thigh:bones(b.o,'Leg'+S+'002'), knee:bones(b.o,'Leg'+S+'004'), foot:bones(b.o,'Leg'+S+'007')}; return b.leg; }
 function oneLeg(b,dt){
   legK+=((legOn?1:0)-legK)*(1-Math.exp(-dt*2.5)); if(legK<0.002) return; const k=legK*legK*(3-2*legK), L=legBones(b);
-  if(L.thigh){ _q.setFromEuler(_e.set(LEG.thighX*D2R*k,0,LEG.thighZ*D2R*k)); L.thigh.quaternion.multiply(_q); }
-  if(L.knee){ _q.setFromEuler(_e.set(LEG.kneeX*D2R*k,0,LEG.kneeZ*D2R*k)); L.knee.quaternion.multiply(_q); }
-  if(L.foot){ L.foot.position.y+=LEG.footUp*k; L.foot.position.z+=LEG.footIn*k; _q.setFromEuler(_e.set(LEG.footTurn*D2R*k,0,0)); L.foot.quaternion.multiply(_q); }
+  _q.setFromEuler(_e.set(LEG.thighX*D2R*k,0,LEG.thighZ*D2R*k)); for(const x of L.thigh) x.quaternion.multiply(_q);
+  _q.setFromEuler(_e.set(LEG.kneeX*D2R*k,0,LEG.kneeZ*D2R*k)); for(const x of L.knee) x.quaternion.multiply(_q);
+  _q.setFromEuler(_e.set(LEG.footTurn*D2R*k,0,0)); for(const x of L.foot){ x.position.y+=LEG.footUp*k; x.position.z+=LEG.footIn*k; x.quaternion.multiply(_q); }
 }
 document.querySelectorAll('[data-side]').forEach(x=>x.setAttribute('aria-pressed',String(x.dataset.side==='L')));
 loadBird().then(()=>{ bird=makeBird(); choose('idle_A1'); $('load').hidden=true; })
