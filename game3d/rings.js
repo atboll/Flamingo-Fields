@@ -61,7 +61,7 @@ for(let i=0;i<RING_N;i++){
       vFace=abs(dot(normalize(n.xz),normalize(v.xz))); gl_Position=projectionMatrix*viewMatrix*w; }`,
     fragmentShader:`uniform float uRise, uA, uH; varying float vY; varying float vFace;
       void main(){ float t=vY/uH; if(t>uRise) discard; float top=1.0-smoothstep(uRise-0.12,uRise,t)*step(uRise,0.999);
-        float a=uA*pow(vFace,2.4)*pow(1.0-t,2.4)*(0.6+0.4*exp(-vY/6.0))*top; a=a/(1.0+0.35*a);   /* soft at its sides, fading higher up, never a hard white bar */   /* through its middle, fading upward, a little brighter at the foot */
+        float a=uA*pow(vFace,2.4)*(1.0-smoothstep(0.35,1.0,t))*(0.6+0.4*exp(-vY/6.0))*top;   /* bright most of the way up, fading softly toward its top, far up in the sky */ a=a/(1.0+0.35*a);   /* soft at its sides, fading higher up, never a hard white bar */   /* through its middle, fading upward, a little brighter at the foot */
         if(a<0.002) discard; gl_FragColor=vec4(vec3(1.0,0.96,0.86)*a,1.0); }`}));
   bm.frustumCulled=false; bm.visible=false; bm.renderOrder=6; lightScene.add(bm);
   rings.push({glow:m, beam:bm, rise:0, gx:0, gz:0, x:0, y:0, z:0, bird:null, light:0, lit:false, chimed:false}); }

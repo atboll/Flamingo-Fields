@@ -24,7 +24,7 @@ const CAMTOP={start:0.75, raiseFeather:2, raiseFlock:5, tilt:8, wider:8};
    and five rings of stones in it (radius in metres). Land in a ring and one of your flamingos stays there; five, and the fog lifts and the door opens. */
 const PUZZLE={fogR:380, fogH:45, fog:0, ringR:3,   // fog 0: no fog bank for now (it was 0.02)
   lightTime:1.5,                                 // seconds for a ring to brighten, all at once, once its flamingo stands in it
-  beamH:260, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
+  beamH:2000, beamTime:2.2, beamDay:0.6, beamNight:1.0};   // then a column of light rises from it: its height (m), the seconds it takes to rise, its brightness by day and by night
 
 /* the crater: the box stands in the middle of a round desert crater, there from the start, this far (m) from where the kids begin,
    toward the moon. It is sunk into the land: a low rim (m above the field, uneven round the circle) you can look over to the horizon,
