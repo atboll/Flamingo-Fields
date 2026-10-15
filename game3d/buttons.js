@@ -20,3 +20,13 @@ function resetLevel(){
   [[girl,0,0],[boy,-1.5,-1.4]].forEach(([K,x,z])=>{ Object.assign(K.P,{x,z,y:0,vy:0,h:0.1,turn:0,bank:0,pitch:0,spd:0,alt:CRUISE,state:'ground',crouch:0,upLock:false}); });
   placeCam(girl,0,true); $('plus1').disabled=false;
 }
+
+/* Full screen: a small icon, bottom left. It fades after 10 s, and comes back whenever full screen ends.
+   Where the browser does not allow full screen (most phones, some app views) it never shows. */
+{ const fsBtn=$('fs'), root=document.documentElement, can=document.fullscreenEnabled||document.webkitFullscreenEnabled;
+  const fsOn=()=>document.fullscreenElement||document.webkitFullscreenElement; let fsT=0;
+  const showFs=()=>{ if(!can) return; fsBtn.hidden=false; fsBtn.classList.remove('gone'); clearTimeout(fsT); fsT=setTimeout(()=>fsBtn.classList.add('gone'),10000); };
+  fsBtn.addEventListener('pointerdown',e=>e.stopPropagation());
+  fsBtn.addEventListener('click',e=>{ e.stopPropagation(); startSound(); const r=root.requestFullscreen?root.requestFullscreen():root.webkitRequestFullscreen?root.webkitRequestFullscreen():null; if(r&&r.catch) r.catch(()=>{}); $('view').focus(); });
+  for(const ev of ['fullscreenchange','webkitfullscreenchange']) document.addEventListener(ev,()=>{ if(fsOn()){ clearTimeout(fsT); fsBtn.classList.add('gone'); } else showFs(); });
+  showFs(); }
