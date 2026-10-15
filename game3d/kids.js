@@ -231,7 +231,7 @@ function girlTights(mesh){
   for(let t=0;t<nt;t++){ const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, e=idx?idx[t*3+2]:t*3+2; if(!(on[a]&&on[b]&&on[e])) continue;
     g.beginPath(); for(const v of [a,b,e]) g.lineTo(uv.getX(v)*W,(1-uv.getY(v))*H); g.closePath(); g.fill(); }
   const m=g.getImageData(0,0,W,H).data; let sl=0,n=0;
-  for(let i=0;i<T.cls.length;i++) if(T.cls[i]===2&&m[i*4]>128){ T.cls[i]=5; sl+=T.lum[i]; n++; }
+  for(let i=0;i<T.cls.length;i++) if((T.cls[i]===2||T.cls[i]===0)&&m[i*4]>128){ T.cls[i]=5; sl+=T.lum[i]; n++; }   // any skin on her upper legs, whatever its shade (not the dress, shirt or hair)
   T.mean[5]=n?sl/n:0.7; }
 function girlRecolour(hair,skin,shirt,skirt){
   const T=GIRLTEX, d=T.id.data, o=T.orig, cols=[null,hair,skin,shirt,skirt,GIRL_TIGHTS].map(h=>h?new THREE.Color(h):null);
