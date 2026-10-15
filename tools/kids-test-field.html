@@ -400,26 +400,8 @@ function girlTexSetup(img,mesh){
   const own=avg.map((a,k)=>cnt[k]?'#'+new THREE.Color(a[0]/cnt[k]/255,a[1]/cnt[k]/255,a[2]/cnt[k]/255).getHexString():'#888888');
   Object.assign(GIRLTEX,{canvas:c,g,id,orig:new Uint8ClampedArray(d),cls,lum,mean:sum.map((v,k)=>v/Math.max(1,cnt[k])),own});
 }
-/* her tights: the skin on her upper legs, under the dress, gets its own colour (class 5) */
-function girlTights(mesh){
-  /* her tights: everything that isn't dress or shirt, from 5 cm above her knees up over her hips, painted one flat colour (class 5) */
-  const T=GIRLTEX, W=T.canvas.width, H=T.canvas.height, c=document.createElement('canvas'); c.width=W; c.height=H; const g=c.getContext('2d');
-  const geo=mesh.geometry, pos=geo.attributes.position, uv=geo.attributes.uv, si=geo.attributes.skinIndex.array, sw=geo.attributes.skinWeight.array, N=uv.count, bones=mesh.skeleton.bones;
-  const at=i=>new THREE.Vector3().setFromMatrixPosition(mesh.skeleton.boneInverses[i].clone().invert());   // a bone's place in her rest pose
-  const isUp=n=>/UpLeg$/.test(n), isKnee=n=>/Leg$/.test(n)&&!isUp(n);
-  let hipY=0,kneeY=0,nh=0,nk=0; bones.forEach((b,i)=>{ if(isUp(b.name)){ hipY+=at(i).y; nh++; } else if(isKnee(b.name)){ kneeY+=at(i).y; nk++; } });
-  hipY/=Math.max(1,nh); kneeY/=Math.max(1,nk);
-  const low=kneeY+(hipY-kneeY)*0.14;   // 5 cm above the knee (her thigh is about 35 cm)
-  const legs=new Set(bones.map((b,i)=>/(Hips|Leg)$/.test(b.name)?i:-1).filter(i=>i>=0)), on=new Uint8Array(N);
-  for(let i=0;i<N;i++){ let bi=0,bw=-1; for(let j=0;j<4;j++){ const w=sw[i*4+j]; if(w>bw){bw=w;bi=si[i*4+j];} } on[i]=legs.has(bi)&&pos.getY(i)>low?1:0; }
-  const idx=geo.index?geo.index.array:null, nt=(idx?idx.length:N)/3; g.fillStyle=g.strokeStyle='#fff'; g.lineWidth=3; g.lineJoin='round';
-  for(let t=0;t<nt;t++){ const a=idx?idx[t*3]:t*3, b=idx?idx[t*3+1]:t*3+1, e=idx?idx[t*3+2]:t*3+2; if(!(on[a]&&on[b]&&on[e])) continue;
-    g.beginPath(); for(const v of [a,b,e]) g.lineTo(uv.getX(v)*W,(1-uv.getY(v))*H); g.closePath(); g.fill(); g.stroke(); }   // (the stroke closes the seams between triangles)
-  const m=g.getImageData(0,0,W,H).data;
-  for(let i=0;i<T.cls.length;i++) if(T.cls[i]!==3&&T.cls[i]!==4&&m[i*4]>128){ T.cls[i]=5; T.lum[i]=0.5; }   // flat: no skin, no texture showing through
-  T.mean[5]=0.5; }
-function girlRecolour(hair,skin,shirt,skirt,tights){
-  const T=GIRLTEX, d=T.id.data, o=T.orig, cols=[null,hair,skin,shirt,skirt,tights].map(h=>h?new THREE.Color(h):null);
+function girlRecolour(hair,skin,shirt,skirt){
+  const T=GIRLTEX, d=T.id.data, o=T.orig, cols=[null,hair,skin,shirt,skirt].map(h=>h?new THREE.Color(h):null);
   for(let i=0;i<T.cls.length;i++){ const k=T.cls[i], C=cols[k];
     if(!C){ d[i*4]=o[i*4]; d[i*4+1]=o[i*4+1]; d[i*4+2]=o[i*4+2]; continue; }
     const f=T.lum[i]/T.mean[k]; d[i*4]=Math.min(255,C.r*255*f); d[i*4+1]=Math.min(255,C.g*255*f); d[i*4+2]=Math.min(255,C.b*255*f); }
@@ -509,7 +491,7 @@ const BOY_FACE={box:[-0.15,0.40,0.15,0.70], draw:(F,p)=>{
 /* ---------- the looks: everything the editor sets, as one plain object ---------- */
 /* the kids' default look: "Look 1", deployed from the editor on 12 October 2026 */
 const DEFAULT_LOOK={ v:2,
-  girl:{height:1, head:0.98, skin:'#f8ba91', hair:'', tips:'#e8742c', tipsAmt:0.47, shirt:'', skirt:'', tights:'#2a2629', skirtWind:0.4, hairWind:1.45,
+  girl:{height:1, head:0.98, skin:'#f8ba91', hair:'', tips:'#e8742c', tipsAmt:0.47, shirt:'', skirt:'', skirtWind:0.4, hairWind:1.45,
         face:{eyes:'own', eyeSize:1.27, eyeGap:1, eyeY:0, iris:'#2b3047', shine:1, lid:1, browY:0.36, browTilt:0.38, browW:2.2, mouth:'own', mouthSize:1.5, mouthY:-0.16, cheek:'#ee8076', cheekAmt:1, freckles:0.7}},
   boy:{height:0.79, head:1.05, tips:'#978559', tipsAmt:0.04, skin:'#eebcaa', shirt:'#62370e', shorts:'#2c2f44', hairWind:0.65,
         face:{eyes:'own', eyeSize:1.31, eyeGap:1, eyeY:0, iris:'#2a2220', shine:1, lid:1, browY:0, browTilt:0, browW:1, mouth:'own', mouthSize:1.5, mouthY:0.58, cheek:'#bf7269', cheekAmt:0.52, freckles:1}}};
@@ -521,8 +503,8 @@ let lastGirlCols='', lastBoyCols='';
 function applyLook(look){
   const L=fullLook(look);
   { const G=L.girl, K=girl; K.look=G;
-    const cols=JSON.stringify([G.skin,G.hair,G.shirt,G.skirt,G.tights]);
-    if(cols!==lastGirlCols){ lastGirlCols=cols; girlRecolour(G.hair,G.skin,G.shirt,G.skirt,G.tights); }
+    const cols=JSON.stringify([G.skin,G.hair,G.shirt,G.skirt]);
+    if(cols!==lastGirlCols){ lastGirlCols=cols; girlRecolour(G.hair,G.skin,G.shirt,G.skirt); }
     setScale(K,G.height); setHead(K,G.head); K.W.uAmt.value=G.skirtWind; K.W.uHair.value=G.hairWind;
     K.W.uTips.value.set(G.tips).convertSRGBToLinear(); K.W.uTipsAmt.value=G.tipsAmt; K.W.uMouthHide.value=G.face.mouth==='own'?0:1; K.face.draw(G.face); }
   { const B=L.boy, K=boy; K.look=B;
@@ -769,7 +751,7 @@ async function load(){
   boyTexSetup(img);
   boyTex=new THREE.CanvasTexture(BOYTEX.canvas); boyTex.encoding=THREE.sRGBEncoding; boyTex.flipY=true;
   girl=makeKid('girl',{fbx:G_FBX, run:G_CLIPS.run, fly:G_CLIPS.fly, idle:G_CLIPS.idle, jump:G_CLIPS.jump, land:G_CLIPS.land, rjump:G_CLIPS.rjump, stop:G_CLIPS.stop,
-    paint:m=>{ girlTexSetup(gimg,m); girlTights(m); GIRL_SKIN=skinMix(m,gimg,[[0.012,0.535],[0.012,0.572],[-0.035,0.57],[0.06,0.57],[-0.03,0.535],[0.055,0.535]]); girlTex=new THREE.CanvasTexture(GIRLTEX.canvas); girlTex.encoding=THREE.sRGBEncoding; girlTex.flipY=true; return new THREE.Vector3(0,0.69,-0.01); },
+    paint:m=>{ girlTexSetup(gimg,m); GIRL_SKIN=skinMix(m,gimg,[[0.012,0.535],[0.012,0.572],[-0.035,0.57],[0.06,0.57],[-0.03,0.535],[0.055,0.535]]); girlTex=new THREE.CanvasTexture(GIRLTEX.canvas); girlTex.encoding=THREE.sRGBEncoding; girlTex.flipY=true; return new THREE.Vector3(0,0.69,-0.01); },
     material:()=>new THREE.MeshLambertMaterial({map:girlTex}), face:GIRL_FACE,
     jumpPush:G_CLIPS.jumpInfo.push, jumpFromRun:0.3, landFrom:0.30, landTo:0.95,
     runPace:(spd,K)=>(0.55+0.45*Math.min(1,spd/K.RUN_SPEED))/K.scale});
@@ -829,7 +811,7 @@ let draftT=0; function saveDraft(){ clearTimeout(draftT); draftT=setTimeout(()=>
 let ekid='girl', eshow='both', epose='idle', playing=true, etime=0, faceZoom=false;
 const SECTIONS=[
   {title:'Body', items:[{k:'height',label:'Height',min:0.7,max:1.15,step:0.01,pct:1},{k:'head',label:'Head size',min:0.9,max:1.3,step:0.01,pct:1}]},
-  {title:'Colours', girl:[{k:'skin',label:'Skin',color:1,own:2},{k:'hair',label:'Hair',color:1,own:1},{k:'shirt',label:'Shirt',color:1,own:3},{k:'skirt',label:'Skirt',color:1,own:4},{k:'tights',label:'Tights',color:1,own:'#2a2629'}],
+  {title:'Colours', girl:[{k:'skin',label:'Skin',color:1,own:2},{k:'hair',label:'Hair',color:1,own:1},{k:'shirt',label:'Shirt',color:1,own:3},{k:'skirt',label:'Skirt',color:1,own:4}],
                     boy:[{k:'skin',label:'Skin',color:1,own:'#f8cfc0'},{k:'shirt',label:'Shirt',color:1,own:'#d23440'},{k:'shorts',label:'Shorts',color:1,own:'#c4ac8c'}]},
   {title:'Hair', items:[{k:'tips',label:'Tip colour',color:1},{k:'tipsAmt',label:'Tips',min:0,max:1,step:0.01,pct:1},{k:'hairWind',label:'Hair wind',min:0,max:2.5,step:0.05,pct:1}],
                  girl:[{k:'skirtWind',label:'Skirt wind',min:0,max:2.5,step:0.05,pct:1}]},
@@ -855,7 +837,7 @@ function buildControls(){
         row.appendChild(ch); lab.removeAttribute('for'); }
       else if(it.color){ const ownCol=typeof it.own==='number'?GIRLTEX.own[it.own]:it.own; const inp=document.createElement('input'); inp.type='color'; inp.id=id; inp.value=obj[it.k]||ownCol||'#888888';
         inp.addEventListener('input',()=>{ obj[it.k]=inp.value; changed(); if(ownBtn) ownBtn.setAttribute('aria-pressed','false'); }); row.appendChild(inp);
-        let ownBtn=null; if(it.own!=null){ ownBtn=document.createElement('button'); ownBtn.type='button'; ownBtn.textContent=it.k==='tights'?'None':ekid==='girl'?'Her own':'His own'; ownBtn.setAttribute('aria-pressed',String(!obj[it.k]));
+        let ownBtn=null; if(it.own!=null){ ownBtn=document.createElement('button'); ownBtn.type='button'; ownBtn.textContent=ekid==='girl'?'Her own':'His own'; ownBtn.setAttribute('aria-pressed',String(!obj[it.k]));
           ownBtn.addEventListener('click',()=>{ obj[it.k]=''; inp.value=ownCol; ownBtn.setAttribute('aria-pressed','true'); changed(); }); row.appendChild(ownBtn); }
         else row.appendChild(document.createElement('span')); }
       else { const inp=document.createElement('input'); inp.type='range'; inp.id=id; inp.min=it.min; inp.max=it.max; inp.step=it.step; inp.value=obj[it.k];
