@@ -4,7 +4,7 @@
    The feather is one of the FAB flamingo's own flight feathers (assets/feather.png), coloured from its wings: pale base, pink, black tip.
    As in flock.js the rules run in the game's units and unmirrored ground coordinates. */
 
-const NEED=10, FLY_TIME=10, FC=220, FEATHER_TOP=640, CEILING=2400, got=new Set();
+const NEED=10, FLY_TIME=10, FC=220, FEATHER_TOP=640, CEILING=1508, got=new Set();
 let feathers=0, flightLeft=0, lastGot=-9;
 const freeFly=()=>arrived||mates.length>=MATES_MAX;   // having brought the flock to the box, the kids keep their wings
 
