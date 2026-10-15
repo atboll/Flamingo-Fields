@@ -47,6 +47,12 @@ button:focus-visible{ outline:2px solid var(--accent); outline-offset:1px }
     <div class="row"><button type="button" data-anim="foraging_start_A">Head down</button><button type="button" data-anim="foraging_A1">Feed</button><button type="button" data-anim="foraging_end_A">Head up</button></div>
     <h2>Colour</h2>
     <label class="sl"><span>Pink</span><input type="range" id="pink" min="0" max="100" step="1" value="0"><output id="pinkV">0%</output></label>
+    <label class="sl"><span>Richness</span><input type="range" id="csat" min="-100" max="100" step="1" value="0"><output>0</output></label>
+    <label class="sl"><span>Warmth</span><input type="range" id="cwarm" min="-100" max="100" step="1" value="0"><output>0</output></label>
+    <label class="sl"><span>Contrast</span><input type="range" id="ccon" min="-100" max="100" step="1" value="0"><output>0</output></label>
+    <label class="sl"><span>Brightness</span><input type="range" id="cbri" min="-100" max="100" step="1" value="0"><output>0</output></label>
+    <div class="row"><button type="button" id="colReset">Reset colours</button></div>
+    <div id="colNums" style="font:11px ui-monospace,Menlo,monospace;color:var(--muted);user-select:all;word-break:break-all"></div>
     <h2>View</h2>
     <div class="row"><span>Camera</span><button type="button" data-cam="side" aria-pressed="true">Side</button><button type="button" data-cam="front">Front</button><button type="button" data-cam="above">Above</button></div>
     <div class="row"><span>Speed</span><button type="button" data-spd="1" aria-pressed="true">Normal</button><button type="button" data-spd="0.3">Slow motion</button></div>
@@ -93,9 +99,9 @@ T.color.encoding=THREE.sRGBEncoding;
    three.js reads the shading (aoMap) from the second set; the outline (its alpha) and the feather's own bumps are read there too. */
 /* Pink: the texture's own colours made richer and turned toward pink, so its two tones (pale pink and deep coral) stay apart;
    light and shade are kept, and the black wing tips stay dark */
-const uPink={value:0};
-function pinkify(sh){ sh.uniforms.uPink=uPink; sh.fragmentShader='uniform float uPink;\n'+sh.fragmentShader.replace('#include <map_fragment>',
-  '#include <map_fragment>\n{ vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.3,0.59,0.11)); c=l+(c-l)*(1.0+1.8*uPink); c*=vec3(1.0+0.12*uPink,1.0-0.40*uPink,1.0+0.10*uPink); diffuseColor.rgb=clamp(c,0.0,1.0); }'); }
+const uPink={value:0}, uCol={value:new THREE.Vector4()};   /* richness, warmth, contrast, brightness: each -1..1 */
+function pinkify(sh){ sh.uniforms.uPink=uPink; sh.uniforms.uCol=uCol; sh.fragmentShader='uniform float uPink; uniform vec4 uCol;\n'+sh.fragmentShader.replace('#include <map_fragment>',
+  '#include <map_fragment>\n{ vec3 c=diffuseColor.rgb; float l=dot(c,vec3(0.3,0.59,0.11)); c=l+(c-l)*(1.0+1.8*uPink); c*=vec3(1.0+0.12*uPink,1.0-0.40*uPink,1.0+0.10*uPink); l=dot(c,vec3(0.3,0.59,0.11)); c=l+(c-l)*(1.0+uCol.x); c*=vec3(1.0+0.15*uCol.y,1.0,1.0-0.15*uCol.y); c=(c-0.45)*(1.0+0.6*uCol.z)+0.45; c*=1.0+0.5*uCol.w; diffuseColor.rgb=clamp(c,0.0,1.0); }'); }
 function featherMat(){ const m=new THREE.MeshStandardMaterial({map:T.color, aoMap:T.shape, aoMapIntensity:0.9, normalMap:T.fnormal, roughness:0.85, side:THREE.DoubleSide, alphaTest:0.18});
   m.onBeforeCompile=sh=>{ pinkify(sh); sh.fragmentShader=sh.fragmentShader
       .replace('#include <alphamap_fragment>','diffuseColor.a*=texture2D(aoMap,vUv2).a;')
@@ -145,7 +151,13 @@ view.addEventListener('pointerdown',e=>{ drag={id:e.pointerId,x:e.clientX,y:e.cl
 view.addEventListener('pointermove',e=>{ if(!drag||drag.id!==e.pointerId) return; orbit.yaw-=(e.clientX-drag.x)*0.008; orbit.pitch=Math.max(-0.2,Math.min(1.35,orbit.pitch+(e.clientY-drag.y)*0.006)); drag.x=e.clientX; drag.y=e.clientY; });
 const endDrag=()=>{ drag=null; }; view.addEventListener('pointerup',endDrag); view.addEventListener('pointercancel',endDrag);
 view.addEventListener('wheel',e=>{ e.preventDefault(); orbit.dist=Math.max(1.2,Math.min(40,orbit.dist*Math.exp(e.deltaY*0.001))); },{passive:false});
-$('pink').addEventListener('input',()=>{ uPink.value=$('pink').value/100; $('pinkV').textContent=$('pink').value+'%'; });
+/* the colour sliders: each shows its value, and the line under them is the set to copy into the game */
+const COLS=['pink','csat','cwarm','ccon','cbri'];
+function colours(){ uPink.value=$('pink').value/100; uCol.value.set($('csat').value/100,$('cwarm').value/100,$('ccon').value/100,$('cbri').value/100);
+  for(const id of COLS){ const o=$(id).nextElementSibling; o.textContent=$(id).value+(id==='pink'?'%':''); }
+  $('colNums').textContent='COLOUR='+JSON.stringify({pink:+$('pink').value,richness:+$('csat').value,warmth:+$('cwarm').value,contrast:+$('ccon').value,brightness:+$('cbri').value}); }
+for(const id of COLS) $(id).addEventListener('input',colours);
+$('colReset').addEventListener('click',()=>{ for(const id of COLS) $(id).value=0; colours(); }); colours();
 addEventListener('keydown',e=>{ if(e.key==='m'||e.key==='M') $('hide').click(); });
 
 /* ---------- the flock: ten birds in a V, circling far off, to see how it looks and how fast it runs ---------- */
