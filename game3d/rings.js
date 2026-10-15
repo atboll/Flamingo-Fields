@@ -114,7 +114,7 @@ function updateRings(dt,time){
   let lit=0;
   rings.forEach((R,i)=>{ const m=R.bird;
     if(m && !R.lit && m.y<=0.01 && Math.hypot(m.x-R.gx,m.z-R.gz)<25) R.lit=true;
-    if(R.lit){ R.light=Math.min(1,R.light+dt/PUZZLE.lightTime); if(R.light>=1){ if(R.rise===0) roadSound(); R.rise=Math.min(1,R.rise+dt/PUZZLE.beamTime); }   // the beam starts: the feather road's sound (road.js) if(!R.chimed){ R.chimed=true; chime([0,3,5,7,12][Math.min(4,rings.filter(q=>q.chimed).length-1)]); } }
+    if(R.lit){ R.light=Math.min(1,R.light+dt/PUZZLE.lightTime); if(R.light>=1){ if(R.rise===0) roadSound(); R.rise=Math.min(1,R.rise+dt/PUZZLE.beamTime); }   /* the beam starts: the feather road's sound (road.js) */ if(!R.chimed){ R.chimed=true; chime([0,3,5,7,12][Math.min(4,rings.filter(q=>q.chimed).length-1)]); } }
     if(R.light>=1) lit++; });
   /* five: the fog lifts, the flamingos turn to the box, and the door's light comes on */
   if(!solved && lit===RING_N){ solved=true; solvedAt=time; arrived=true; [12,16,19].forEach((n,q)=>setTimeout(()=>chime(n),400+q*160));
