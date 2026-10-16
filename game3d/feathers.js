@@ -4,8 +4,11 @@
    The feather is one of the FAB flamingo's own flight feathers (assets/feather.png), coloured from its wings: pale base, pink, black tip.
    As in flock.js the rules run in the game's units and unmirrored ground coordinates. */
 
+const BLUE_CARD='#2f6bff', BLUE_GLOW='#3d7bff';   // the blue feathers (field and road): a deep, clear blue
 const NEED=10, FLY_TIME=10, FC=220, FEATHER_TOP=640, CEILING=1508, got=new Set();
-let feathers=0, flightLeft=0, lastGot=-9;
+let feathers=0, flightLeft=0, lastGot=-9, blueLeft=0;   // blueLeft: seconds of full-flock flight still waiting from a blue feather
+const BLUE_FLIGHT=8;
+const blueOn=()=>blueLeft>0 && girl && girl.P.state==='fly' && LEVEL===1;   // a blue feather's flight is under way
 const freeFly=()=>arrived||mates.length>=MATES_MAX;   // having brought the flock to the box, the kids keep their wings
 
 /* ---------- where the feathers lie: the game's own cells, patches and trails ---------- */
@@ -15,6 +18,8 @@ function featherAt(ci,cj){
   if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
   // a rare great feather: about one cell in nine hundred (a tenth fewer than before), worth a whole flight on its own; none within about 130 m of where the kids start, so the first ten are gathered one by one
   if(Math.hypot(ci,cj)>40 && h2(ci*13+7,cj*11+3)<0.00108) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};
+  // a rare blue feather: about one cell in nine hundred, none near the start; picked up, the next 8 s of flight go as high and fast as a full flock
+  if(Math.hypot(ci,cj)>40 && h2(ci*17-5,cj*19+11)<0.0011) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci+5,cj-8), ci, cj, blue:true};
   const rich=vnoise(ci/4,cj/4,555)>0.5;                       // feathers lie in loose patches and trails
   if(h2(ci*5+3,cj*7-11)>(rich?0.21:0.05)) return null;
   if(h2(ci*3+19,cj*5-7)<0.3) return null;                     // three in ten taken away (fewer small feathers)
@@ -50,24 +55,25 @@ function placeFeathers(K,time){
     const f=featherAt(ci,cj); if(!f) continue;
     const dx=f.x-cx, dz=f.z-cz, d=Math.hypot(dx,dz); if(d>RG) continue;
     const big=f.big?1:0, x=-f.x*U, z=f.z*U, y=groundAt(x,z)+(62+big*26+Math.sin(time*2+f.ph*6)*(4+big*5))*U;
-    if(drawFeather(POOL[n],x,y,z,f.ph,big,ga,RG*U,focal,time)) n++; }
+    if(drawFeather(POOL[n],x,y,z,f.ph,big,ga,RG*U,focal,time,f.blue)) n++; }
   /* the feather road's near feathers (road.js): the same feathers, drawn the same way; the far ones are points of light there */
   for(const q of roadNear){ if(n>=POOL_N) break; if(drawFeather(POOL[n],q.x,q.y,q.z,q.ph,0,q.a,1e9,focal,time)) n++; }
   for(let i=n;i<POOL_N;i++){ POOL[i].card.visible=POOL[i].glow.visible=POOL[i].nglow.visible=false; }
   if(!POOL.bigShown) POOL.halo.visible=POOL.rays.visible=false;
 }
 /* one feather: the card, its glow, and by night its own light; false if it is behind the camera */
-function drawFeather(P,x,y,z,ph,big,alpha,range,focal,time){
+function drawFeather(P,x,y,z,ph,big,alpha,range,focal,time,blue){
   _v.set(x,y,z).sub(cam.position); const along=_v.dot(cam.getWorldDirection(_w)); if(along<0.3) return false;   // behind the camera
   const dist=_v.length(), fade=clamp((range-dist)/(400*U),0,1)*alpha; if(fade<=0.01) return false;
   /* the game's size: 11 units, but never under 3.4 pixels, so a far feather stays a speck you can spot */
   const sz=Math.max(FEATHER_LEN, 3.4*2.2*dist/focal)*(1+big*1.9)/FEATHER_LEN;   // the card's length in metres over the feather's own
   const tw=0.75+0.25*Math.sin(time*5+ph*40);
   P.card.visible=P.glow.visible=true; P.card.position.set(x,y,z); P.glow.position.set(x,y,z);
+  if(P.blue!==!!blue){ P.blue=!!blue; P.card.material.color.set(blue?BLUE_CARD:'#ffffff'); P.glow.material.color.set(blue?BLUE_GLOW:'#ffffff'); }
   P.card.scale.set(FEATHER_W*sz,FEATHER_LEN*sz,1); P.card.material.rotation=-(0.6+Math.sin(time*1.6+ph*9)*0.5); P.card.material.opacity=fade;
   const gr=FEATHER_LEN*sz*(2.8/2.2)*2; P.glow.scale.set(gr,gr,1); P.glow.material.opacity=0.65*tw*fade;
   /* by night each gives off its own light, drawn over the night grade, as in the 2D game */
-  P.nglow.visible=night>0.05&&fade>0.5; if(P.nglow.visible){ P.nglow.position.set(x,y,z); const nr=gr*(big?3.2:2.6)/2.8; P.nglow.scale.set(nr,nr,1); P.nglow.material.opacity=0.85*night*fade; P.nglow.material.color.setRGB(1,0.75,0.84); }
+  P.nglow.visible=night>0.05&&fade>0.5; if(P.nglow.visible){ P.nglow.position.set(x,y,z); const nr=gr*(big?3.2:2.6)/2.8; P.nglow.scale.set(nr,nr,1); P.nglow.material.opacity=0.85*night*fade; if(blue) P.nglow.material.color.setRGB(0.3,0.5,1); else P.nglow.material.color.setRGB(1,0.75,0.84); }
   if(big&&!POOL.bigShown){ POOL.bigShown=true; const R=FEATHER_LEN*sz*(5/2.2)*2; POOL.halo.visible=POOL.rays.visible=true; POOL.halo.position.set(x,y,z); POOL.rays.position.set(x,y,z);
     POOL.halo.scale.set(R,R,1); POOL.halo.material.opacity=0.55*tw*fade; const rr=FEATHER_LEN*sz*(2.6/2.2)*2.2; POOL.rays.scale.set(rr,rr,1); POOL.rays.material.rotation=-time*0.5; POOL.rays.material.opacity=0.5*tw*fade; }
   return true;
@@ -77,10 +83,11 @@ const _w=new THREE.Vector3();
 /* ---------- picking them up: run through one (within about 0.7 m), low down; both kids can ---------- */
 function pickFeathers(time){
   for(const K of [girl,boy]){ const P=K.P, kx=-P.x/U, kz=P.z/U;
-    if(P.y/U>=55 || feathers>=NEED || pathA>=0.05) continue;   // none to pick up once the road has gathered them
+    if(P.y/U>=55 || pathA>=0.05) continue;   // none to pick up once the road has gathered them
     const ci=Math.floor(kx/FC), cj=Math.floor(kz/FC);
     for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
-      if(f && Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && feathers<NEED){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
+      if(f && Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && (f.blue || feathers<NEED)){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
+        if(f.blue){ blueLeft=BLUE_FLIGHT; [12,16,19,24].forEach((n,q)=>setTimeout(()=>chime(n),q*80)); continue; }
         if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); }
         if(feathers===NEED) playSfx('assets/feathers_full.mp3',SOUND.featherWind); } } }   // ten: a soft breath of wind, a hint of flight
 }
@@ -95,7 +102,8 @@ function mayFly(K){
   return false;
 }
 function flightRules(dt){
-  const P=girl.P, top=(freeFly()?CEILING:FEATHER_TOP)*U;
+  const P=girl.P, top=(freeFly()||blueOn()?CEILING:FEATHER_TOP)*U;
+  if(blueOn()) blueLeft=Math.max(0,blueLeft-dt);
   ALT_MAX=top; if(P.alt>top) P.alt=Math.max(top,P.alt-330*U*dt);   // the sky closes over feathers alone
   if(P.state==='fly' && !freeFly()){
     if(!(flock&&flock.joined)) flightLeft-=dt;                     // with the flock, the clock stops
@@ -146,7 +154,7 @@ function drawHud(time){
     if(on&&i===have-1&&!flying) sc+=0.6*Math.max(0,1-(time-lastGot)*3);
     if(ready) sc*=1+0.1*Math.sin(time*6+i*0.6);
     ctx.save(); ctx.translate(x0+i*gap,y); ctx.rotate(0.5); ctx.scale(sc,sc);
-    if(on){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=lit?12:3; }
+    if(blueLeft>0){ ctx.shadowColor='rgba(60,120,255,.95)'; ctx.shadowBlur=14; } else if(on){ ctx.shadowColor='rgba(255,170,190,.95)'; ctx.shadowBlur=lit?12:3; }
     ctx.drawImage(on?featherOn:featherOff,-fw/2,-fh/2,fw,fh); ctx.restore();
   }
   // your flock: grey flamingos turn pink as birds join; the next one fills from the feet up while the kids fly with the wild flock

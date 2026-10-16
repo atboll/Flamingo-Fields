@@ -12,7 +12,7 @@ onButton('plus1',()=>{ startSound(); giftMate(); $('plus1').disabled=LEVEL===2||
 function resetLevel(){
   if(!girl) return;
   leaveLevel2();
-  feathers=0; flightLeft=0; got.clear(); lastGot=-9;
+  feathers=0; flightLeft=0; blueLeft=0; got.clear(); lastGot=-9;
   mates.length=0; mateMsgT=-99; flock=null; flockN=0; nextFlock=clock+FLOCK_FIRST;
   nightOn=false; dayOffset=-clock; night=0; pathA=0; roadLaid=false; pathAlign=0; pathOn=false; clearCoast(); layCrater(); arrived=false; doorNear=0; doorIn=0; FLY_SPEED=FLY_BASE; ALT_MAX=640*U;
   if(padEl){ padEl.pause(); try{ padEl.currentTime=0; }catch(_){ } } padPlayed=false;

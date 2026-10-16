@@ -89,8 +89,8 @@ function blueFeathers(K,time){
   if(!roadLaid) blueGot.clear();
   if(!FEATHER_TEX) return;
   if(!blueSpr){ blueSpr=[]; for(let i=0;i<BLUE_N;i++){
-      const card=new THREE.Sprite(new THREE.SpriteMaterial({map:FEATHER_TEX, color:'#7fb2ff', transparent:true, depthWrite:false, fog:false, alphaTest:0.05}));
-      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_TEX, color:'#8fc0ff', transparent:true, depthWrite:false, fog:false}));
+      const card=new THREE.Sprite(new THREE.SpriteMaterial({map:FEATHER_TEX, color:BLUE_CARD, transparent:true, depthWrite:false, fog:false, alphaTest:0.05}));
+      const glow=new THREE.Sprite(new THREE.SpriteMaterial({map:GLOW_TEX, color:BLUE_GLOW, transparent:true, depthWrite:false, fog:false}));
       card.renderOrder=3; glow.renderOrder=4; card.visible=glow.visible=false; scene.add(card); lightScene.add(glow); blueSpr.push({card,glow}); } }
   const show=pathA>0.3 && COAST.on && LEVEL===1;
   let L=0; if(show){ const c=boxC(); L=(c[0]-pathPx)*RDX+(c[1]-pathPz)*RDZ-60/U-1500; }

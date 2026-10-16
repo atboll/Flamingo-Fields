@@ -56,7 +56,7 @@ const FAST_OVERLAP=3, fastIn=new Float32Array(48).map((_,i)=>Math.sin(i/47*Math.
 let fastBuf=null, fastGain=null, fastNext=-1, fastLoading=false;
 const FLY_TOP=FLY_BASE*(1+0.5*(800/430-1));   /* full-flock speed: half the 2D game's extra (about 18.5 m/s against 13), which was too hectic in 3D */
 function updateFlySpeed(dt){
-  const b=girl.P.state==='fly'?burstNow():0, want=((girl.P.state==='fly'&&freeFly())?FLY_TOP:FLY_BASE)*(1+BURST*b);   // a blue feather's burst (road.js)
+  const b=girl.P.state==='fly'?burstNow():0, want=((girl.P.state==='fly'&&(freeFly()||blueOn()))?FLY_TOP:FLY_BASE)*(1+BURST*b);   // a blue feather's burst (road.js)
   FLY_SPEED+=(want-FLY_SPEED)*(1-Math.exp(-dt*(want>FLY_SPEED?(b>0?2.5:0.6):1.5)));
 }
 function updateFastSound(){
