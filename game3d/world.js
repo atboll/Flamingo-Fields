@@ -433,8 +433,8 @@ function placeCam(K,dt,snap){
 /* ---------- input: the arrows are read against where the camera looks, as in the game ---------- */
 function keyInput(){ const L=girl, P=L.P, air=P.state==='fly'||P.state==='land';
   let ix=(keys.has('right')?1:0)-(keys.has('left')?1:0), iz=(keys.has('up')?1:0)-(keys.has('down')?1:0);
-  const In={speed:0, climb:keys.has('up'), sink:keys.has('down'), steered:true};
-  if(air) iz=0;
+  const In={speed:0, climb:keys.has('jump'), sink:keys.has('down'), steered:true, keys:true};
+  if(air){ if(keys.has('up')) In.airSpeed=FLY_SPEED*FLYKEYS.faster; iz=0; }   // in the air ↑/W flies a little faster; ←/→ turn
   const back=!air&&iz<0&&ix===0; if(back&&backYaw==null) backYaw=camYaw; if(!back) backYaw=null;
   if(ix||iz){ const y=back?backYaw:camYaw, fx=Math.sin(y), fz=Math.cos(y), wx=fx*iz-fz*ix, wz=fz*iz+fx*ix;
     In.heading=Math.atan2(wx,wz); In.speed=L.RUN_SPEED; }
@@ -443,9 +443,9 @@ let moved=false;
 function nudge(){ if(!moved){ moved=true; setTimeout(()=>$('hint').classList.add('gone'),9000); } }
 const KEYMAP={arrowleft:'left',a:'left',arrowright:'right',d:'right',arrowup:'up',w:'up',arrowdown:'down',s:'down'};
 addEventListener('keydown',e=>{ const k=e.key.toLowerCase(); if(KEYMAP[k]||k===' ') e.preventDefault();
-  if(k===' '&&!e.repeat&&girl) jumpKid(girl); if(KEYMAP[k]){ keys.add(KEYMAP[k]); nudge(); }
+  if(k===' '){ keys.add('jump'); if(!e.repeat&&girl&&girl.P.state!=='fly'&&girl.P.state!=='land') jumpKid(girl); } if(KEYMAP[k]){ keys.add(KEYMAP[k]); nudge(); }
   if(k==='`') $('stats').hidden=!$('stats').hidden; });
-addEventListener('keyup',e=>{ const k=KEYMAP[e.key.toLowerCase()]; if(k) keys.delete(k); });
+addEventListener('keyup',e=>{ const k=e.key===' '?'jump':KEYMAP[e.key.toLowerCase()]; if(k) keys.delete(k); });
 addEventListener('blur',()=>keys.clear());
 /* on a phone: drag to run (sideways to steer, up to run on, down to come back), tap to hop */
 let drag=null; const view=$('view');

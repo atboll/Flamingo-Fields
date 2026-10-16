@@ -409,9 +409,10 @@ function jumpKid(K){
     else { const from=run>0.5?c.jumpFromRun:0;   // standing still: the whole crouch; running: only a dip
       K.jumpA=K.A.jump; K.jumpA.reset(); K.jumpA.time=from; K.jumpA.play(); P.crouch=c.jumpPush-from; } P.state='crouch'; }
   else if(P.state==='hop'){ if(typeof mayFly!=='function'||mayFly(K)) takeOff(K); }   // the second press takes her (or him) up, if the page allows it (10 feathers, or a full flock)
-  else if(P.state==='fly'){ P.state='land'; K.A.land.reset(); K.A.land.play(); K.A.land.paused=true; K.A.land.time=c.landFrom; }
+  else if(P.state==='fly') landKid(K);   // (a tap on a phone; on a keyboard Space in the air means rise, and ↓ at the bottom lands)
 }
-function takeOff(K){ const P=K.P; P.state='fly'; P.alt=Math.max(CRUISE,P.y+2); P.vy=Math.max(P.vy,3); P.upLock=keys.has('up'); }
+function landKid(K){ const P=K.P; P.state='land'; K.A.land.reset(); K.A.land.play(); K.A.land.paused=true; K.A.land.time=K.cfg.landFrom; }
+function takeOff(K){ const P=K.P; P.state='fly'; P.alt=Math.max(CRUISE,P.y+2); P.vy=Math.max(P.vy,3); }
 const UPRIGHT_H=1.1;
 function stepKid(K,dt,In){
   const P=K.P, A=K.A, c=K.cfg, ease=r=>1-Math.exp(-dt*r);
@@ -455,8 +456,10 @@ function stepKid(K,dt,In){
   else if(P.state==='hop'){ P.vy-=G*dt; P.y+=P.vy*dt; if(P.y<=0){ P.y=0; P.vy=0; P.state='ground'; } }
   else if(P.state==='fly'){
     if(In.alt!=null) P.alt=In.alt;
-    else { if(!In.climb) P.upLock=false;   // ↑ held from the run does not count; let go once, then ↑ climbs
-      if(In.climb&&!P.upLock) P.alt=Math.min(ALT_MAX,P.alt+4*dt); if(In.sink) P.alt=Math.max(1.2,P.alt-4*dt); }
+    else if(In.keys){   /* the keyboard: hold Space to rise; let go and she glides slowly down; ↓ dives, and at the bottom brings her in to land */
+      if(In.climb) P.alt=Math.min(ALT_MAX,P.alt+FLYKEYS.rise*dt); else P.alt=Math.max(1.2,P.alt-(In.sink?FLYKEYS.dive:FLYKEYS.glide)*dt);
+      if(In.sink && P.alt<=1.25 && P.y<2) landKid(K); }
+    else { if(In.climb) P.alt=Math.min(ALT_MAX,P.alt+4*dt); if(In.sink) P.alt=Math.max(1.2,P.alt-4*dt); }
     const la=speed*0.6, gAh=Math.max(g1,groundAt(P.x+Math.sin(P.h)*la,P.z+Math.cos(P.h)*la));   // looking a little ahead, so a crest is risen over in time
     const wy=g0+P.y, tg=Math.max(P.gref+P.alt, gAh+Math.min(P.alt,1.6));   // never closer than 1.6 m over a crest
     const want=(tg-wy)*2.2; P.vy+=(want-P.vy)*ease(3); P.y=Math.max(0.4,wy+P.vy*dt-g1); }

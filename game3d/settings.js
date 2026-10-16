@@ -16,6 +16,10 @@ const SOUND={fastWind:0.9, music:1.4, featherWind:0.75};   // featherWind: the s
 /* the boy hops on his own now and then while running: the seconds between hops, picked at random between these */
 const BOY_HOP={min:15, max:25};
 
+/* flying with the keyboard: hold Space to rise (m/s); let go and she glides gently down; ↓/S dives faster and, near the ground, lands;
+   ↑/W flies this many times faster */
+const FLYKEYS={rise:4, glide:0.6, dive:4, faster:1.25};
+
 /* flying: the height the kids cruise at, and their speed (the page raises it for full-flock flight) */
 const CRUISE=4.5, FLY_BASE=13;
 
