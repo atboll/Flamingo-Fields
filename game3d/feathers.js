@@ -81,7 +81,8 @@ function pickFeathers(time){
     const ci=Math.floor(kx/FC), cj=Math.floor(kz/FC);
     for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
       if(f && Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && feathers<NEED){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
-        if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); } } } }
+        if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); }
+        if(feathers===NEED) playSfx('assets/feathers_full.mp3',SOUND.featherWind); } } }   // ten: a soft breath of wind, a hint of flight
 }
 
 /* ---------- flight, earned: kids.js asks before the second Space takes the girl up ---------- */

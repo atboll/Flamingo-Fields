@@ -106,3 +106,10 @@ soundBtn.addEventListener('pointerdown',e=>e.stopPropagation());
 addEventListener('keydown',()=>startSound()); addEventListener('pointerdown',()=>startSound());
 document.addEventListener('visibilitychange',()=>{ if(!actx) return; if(document.hidden) actx.suspend(); else actx.resume(); });
 showSound();
+
+/* a one-off sound effect, fetched once and kept (the woosh at ten feathers, feathers.js) */
+const sfxBufs={};
+function playSfx(url,vol){ if(!actx||!master) return;
+  const go=buf=>{ const src=actx.createBufferSource(), g=actx.createGain(); g.gain.value=vol; src.buffer=buf; src.connect(g); g.connect(master); src.start(); };
+  if(sfxBufs[url] instanceof AudioBuffer) return go(sfxBufs[url]); if(sfxBufs[url]) return;
+  sfxBufs[url]=fetch(url).then(r=>{ if(!r.ok) throw 0; return r.arrayBuffer(); }).then(b=>actx.decodeAudioData(b)).then(buf=>{ sfxBufs[url]=buf; go(buf); }).catch(()=>{ delete sfxBufs[url]; }); }
