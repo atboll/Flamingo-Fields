@@ -18,8 +18,8 @@ function featherAt(ci,cj){
   if(Math.abs(ci)<1&&Math.abs(cj)<1) return null;
   // a rare great feather: about one cell in nine hundred (a tenth fewer than before), worth a whole flight on its own; none within about 130 m of where the kids start, so the first ten are gathered one by one
   if(Math.hypot(ci,cj)>40 && h2(ci*13+7,cj*11+3)<0.00108) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci-3,cj+8), ci, cj, big:true};
-  // a rare blue feather: about one cell in nine hundred, none near the start; picked up, the next 8 s of flight go as high and fast as a full flock
-  if(Math.hypot(ci,cj)>40 && h2(ci*17-5,cj*19+11)<0.0011) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci+5,cj-8), ci, cj, blue:true, h:340+h2(ci-9,cj+4)*200};   // up in the air, 5 to 8 m: caught in flight
+  // a blue feather: about one cell in three hundred, none near the start; picked up, the next 8 s of flight go as high and fast as a full flock
+  if(Math.hypot(ci,cj)>40 && h2(ci*17-5,cj*19+11)<0.0033) return {x:(ci+0.5)*FC, z:(cj+0.5)*FC, ph:h2(ci+5,cj-8), ci, cj, blue:true, h:9/U-20+h2(ci-9,cj+4)*40};   // up in the air, about 9 m (just under the feather flight's ceiling): caught in flight
   const rich=vnoise(ci/4,cj/4,555)>0.5;                       // feathers lie in loose patches and trails
   if(h2(ci*5+3,cj*7-11)>(rich?0.21:0.05)) return null;
   if(h2(ci*3+19,cj*5-7)<0.3) return null;                     // three in ten taken away (fewer small feathers)
