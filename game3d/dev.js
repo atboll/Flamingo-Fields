@@ -43,6 +43,12 @@ function groundCheck(where){
 
 window.groundCheck=groundCheck;   // (can be run again from the console)
 
+/* the H key: hides and shows every dev control at once (buttons, stamp, frame rate, full-screen icon, slider panels), for a clean picture;
+   the feather and flamingo counter stays, and the dev keys go on working */
+{ const st=document.createElement('style'); st.textContent='body.devHide #btns, body.devHide #devTag, body.devHide #stats, body.devHide #fs, body.devHide #flamPanel, body.devHide #dunePanel{ display:none!important }';
+  document.head.appendChild(st);
+  addEventListener('keydown',e=>{ if((e.key==='h'||e.key==='H')&&!e.repeat&&!/INPUT|TEXTAREA/.test(document.activeElement?.tagName||'')) document.body.classList.toggle('devHide'); }); }
+
 /* ---------- the test modes ---------- */
 let started=false, checkedField=false, checkedDesert=false;
 const ready=()=>girl && FL.ready;
