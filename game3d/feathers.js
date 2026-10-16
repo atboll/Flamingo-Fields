@@ -81,15 +81,23 @@ function drawFeather(P,x,y,z,ph,big,alpha,range,focal,time,blue){
 const _w=new THREE.Vector3();
 
 /* ---------- picking them up: run through one (within about 0.7 m), low down; both kids can ---------- */
+/* a blue feather is caught by flying through a soft bubble round it (BLUE_REACH m), measured in the world between where the kid's
+   middle was last frame and where it is now, so no hill or speed lets one slip past */
+const BLUE_REACH=2.5, _bA=new THREE.Vector3(), _bB=new THREE.Vector3(), _bF=new THREE.Vector3(), _bD=new THREE.Vector3();
+function blueHit(K,f){ const x=-f.x*U, z=f.z*U; _bF.set(x,groundAt(x,z)+f.h*U,z);
+  _bB.copy(K.root.position); _bB.y+=0.6; _bA.copy(K.prevMid||_bB);
+  _bD.subVectors(_bB,_bA); const L2=_bD.lengthSq(), t=L2>1e-6?clamp(_bF.clone().sub(_bA).dot(_bD)/L2,0,1):0;
+  return _bA.addScaledVector(_bD,t).distanceTo(_bF)<BLUE_REACH; }
 function pickFeathers(time){
   for(const K of [girl,boy]){ const P=K.P, kx=-P.x/U, kz=P.z/U;
     if(pathA>=0.05) continue; const low=P.y/U<55;   // the field's feathers are caught low down; the blue ones up in the air   // none to pick up once the road has gathered them
     const ci=Math.floor(kx/FC), cj=Math.floor(kz/FC);
     for(let a=-1;a<=1;a++) for(let b=-1;b<=1;b++){ const f=featherAt(ci+a,cj+b);
-      if(f && Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && (f.blue ? Math.abs(P.y/U-f.h)<110 : low && feathers<NEED)){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
+      if(f && (f.blue ? blueHit(K,f) : Math.hypot(f.x-kx,f.z-kz)<(f.big?64:46) && low && feathers<NEED)){ got.add((f.ci+32768)*65536+(f.cj+32768)); lastGot=time;
         if(f.blue){ blueLeft=BLUE_FLIGHT; [12,16,19,24].forEach((n,q)=>setTimeout(()=>chime(n),q*80)); continue; }
         if(f.big){ feathers=NEED; [0,4,7,12,16].forEach((n,q)=>setTimeout(()=>chime(n),q*70)); } else { feathers++; chime(feathers); }
         if(feathers===NEED) playSfx('assets/feathers_full.mp3',SOUND.featherWind); } } }   // ten: a soft breath of wind, a hint of flight
+  for(const K of [girl,boy]){ K.prevMid=(K.prevMid||new THREE.Vector3()).copy(K.root.position); K.prevMid.y+=0.6; }
 }
 
 /* ---------- flight, earned: kids.js asks before the second Space takes the girl up ---------- */
