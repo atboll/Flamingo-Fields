@@ -573,3 +573,10 @@ async function loadKids(base){
   girl.lastState='ground';
   applyLook(null);
 }
+
+/* the boy now and then hops on his own while he runs along behind her, like a kid through tall grass (BOY_HOP, settings.js: seconds between) */
+let boyHopAt=-1;
+function boyHops(){ if(!boy) return; const P=boy.P;
+  if(boyHopAt<0) boyHopAt=clock+BOY_HOP.min+Math.random()*(BOY_HOP.max-BOY_HOP.min);
+  if(clock<boyHopAt) return;
+  if(P.state==='ground' && P.spd>0.5*boy.RUN_SPEED){ jumpKid(boy); boyHopAt=clock+BOY_HOP.min+Math.random()*(BOY_HOP.max-BOY_HOP.min); } }   // not running: he waits for the next chance

@@ -9,7 +9,7 @@ function frame(now){
   if(girl){ clock+=dt;
     updateFlySpeed(dt); stepKid(girl,dt,flockAssist(keyInput(),girl.P.state==='fly'));
     watchLeader(girl,boy,clock); for(let i=events.length-1;i>=0;i--) if(events[i].at<=clock){ const e=events.splice(i,1)[0]; e.f(); }
-    stepKid(boy,dt,followInput(girl,boy));
+    stepKid(boy,dt,followInput(girl,boy)); boyHops();
     if(LEVEL===1){ updateDesert(dt,clock); updateDoor(dt,clock); } else updateClouds(dt,clock);
     updateRings(dt,clock); updateLift(dt); updateWhales(dt); updateRidges();
     for(const K of [girl,boy]){ K.mixer.update(dt); placeKid(K); bendArms(K); const cs=K.P.y<2.5; if(K.cs!==cs){ K.cs=cs; K.root.traverse(n=>{ if(n.isMesh) n.castShadow=cs; }); } }   /* high in the air the low sun would stretch their shadows into long bands across the field */
