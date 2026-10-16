@@ -11,7 +11,7 @@ const LEVELS={
   2:{gravity:10.5, hop:11.0, land:0.9}};
 
 /* sound levels: the fast-flight wind (was 1.8) and the music that plays when the flock is complete (was 0.7) */
-const SOUND={fastWind:0.9, music:1.4, featherWind:0.75};   // featherWind: the soft woosh when the tenth feather is picked up
+const SOUND={fastWind:0.9, music:1.4, featherWind:0.75, rumble:4};   // rumble: level 2's background (4: up 300%)   // featherWind: the soft woosh when the tenth feather is picked up
 
 /* the boy hops on his own now and then while running: the seconds between hops, picked at random between these */
 const BOY_HOP={min:15, max:25};

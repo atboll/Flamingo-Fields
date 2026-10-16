@@ -96,7 +96,7 @@ function stepsFor(K){ const P=K.P; return (P.state==='ground'||P.state==='touch'
 /* footsteps on the field; on level 2's clouds there are none, and no wind: the field recording falls silent up there and comes back on level 1 */
 function updateRunSound(){ if(!actx||!girl) return; const t=actx.currentTime, l2=LEVEL===2;
   if(fieldGain&&fieldBuf) fieldGain.gain.setTargetAtTime(l2?0:1,t,l2?0.3:0.8);
-  if(l2Gain) l2Gain.gain.setTargetAtTime(l2?1:0,t,l2?1.5:0.6);   // the rumble fades in on the clouds, out again back on the field
+  if(l2Gain) l2Gain.gain.setTargetAtTime(l2?SOUND.rumble:0,t,l2?1.5:0.6);   // the rumble fades in on the clouds, out again back on the field
   if(!runGain) return; const on=l2?0:stepsFor(girl), pon=l2?0:stepsFor(boy);
   runGain.gain.setTargetAtTime(on*0.9,t,l2?0.03:on>0?0.05:0.09); runSrc.playbackRate.setTargetAtTime(1+0.28*on,t,0.15);
   palGain.gain.setTargetAtTime(pon*0.75,t,l2?0.03:pon>0?0.05:0.09); palSrc.playbackRate.setTargetAtTime(1.1*(1+0.28*pon),t,0.15); }
